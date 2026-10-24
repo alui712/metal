@@ -27,6 +27,14 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Cycle 1: demo reliability ✅ (2026-10-24)
+
+- Approved list `data/judge-demo.json`, verified by `curate()`. There is no "latest story/group" selection, and `npm run judge:ready` gives a read-only checklist (currently 10/10 ready).
+- POV tips state the real sync method and status; this pair was lined up by hand and confirmed, not audio-synced.
+- Exact stop matching, "Return to demo", dock hidden over Relive, stale tour state discarded.
+- Fixed: export status checks used `"done"`; the DB value is `"succeeded"`.
+- Verified: typecheck, lint, 187 tests, build, and a 21-check browser journey (keyboard, reduced motion, Relive, off-step, Back/Next/Finish). `demo:check` was not run, because it adds a clip, a story and an export to the judging DB.
+
 ## Judge Experience ✅ (2026-10-24)
 
 - `/showcase`: cinematic, chrome-free first impression. It has a logo reveal; the headline "The game ends. The moment doesn’t."; a fanned stack of the featured night's most vivid real recordings (muted hover preview, no autoplay); "Start guided demo" and "Enter METAL"; and four feature cards backed by real evidence.

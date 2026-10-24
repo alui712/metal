@@ -1,13 +1,13 @@
-// The guided judge tour: four stops, each pointing at real content when it
-// exists (see src/server/judge/spotlight.ts) and at the feature's own page
-// when it doesn't. Tips describe controls that exist on that page.
+// The guided judge tour: four stops, each pointing at approved real content
+// when it passed its checks (see src/lib/judge/curate.ts) and at the feature's
+// own page when it didn't. Tips describe that content and controls that exist
+// on that page; they never claim more than the data shows.
 
 export type TourTargets = {
   recallLine: string | null;
-  nightId: string | null;
-  povGroupId: string | null;
-  povRecordingId: string | null;
-  storyId: string | null;
+  night: { id: string; title: string } | null;
+  pov: { groupId: string; recordingId: string; members: number; status: "confirmed" | "suggested"; method: "audio" | "clock" | "manual" | "mixed" } | null;
+  story: { id: string; clipCount: number; exported: boolean } | null;
 };
 
 export type TourStepId = "recall" | "timemachine" | "pov" | "studio";
@@ -18,11 +18,20 @@ export type TourStep = {
   title: string;
   tip: string;
   href: string;
-  /** Pages under this path count as being on the step. */
-  base: string;
+  /** The page this step is about, and any query values it must carry. */
+  match: { path: string; params?: Record<string, string>; also?: RegExp };
+};
+
+const METHOD: Record<NonNullable<TourTargets["pov"]>["method"], string> = {
+  audio: "aligned by their shared game audio",
+  clock: "aligned by their recording clocks",
+  manual: "lined up by hand",
+  mixed: "aligned by audio, clocks and hand",
 };
 
 export function tourSteps(t: TourTargets): TourStep[] {
+  const pov = t.pov;
+  const keys = pov ? (pov.members === 2 ? "1 or 2" : `1–${Math.min(pov.members, 6)}`) : "";
   return [
     {
       id: "recall",
@@ -30,42 +39,52 @@ export function tourSteps(t: TourTargets): TourStep[] {
       title: "Search what was said",
       tip: t.recallLine
         ? `This searches real voice chat for “${t.recallLine}”. Click a result: it plays from that exact second.`
-        : "Type anything someone said in a recording. Click a result to play that exact second.",
+        : "No demo line is prepared. Type anything someone said in a recording; a result plays from that exact second.",
       href: t.recallLine ? `/recall?q=${encodeURIComponent(t.recallLine)}` : "/recall",
-      base: "/recall",
+      match: t.recallLine ? { path: "/recall", params: { q: t.recallLine } } : { path: "/recall" },
     },
     {
       id: "timemachine",
       label: "Time Machine",
       title: "Relive the whole night",
-      tip: t.nightId
-        ? "One real night, in the order it happened. Press “Relive this night” to play its moments back to back."
-        : "Recordings are grouped into the nights you played. Open one to walk through its moments.",
-      href: t.nightId ? `/sessions/${t.nightId}` : "/sessions",
-      base: "/sessions",
+      tip: t.night
+        ? `${t.night.title}, in the order it happened. Press “Relive this night” to play its moments back to back.`
+        : "No demo night is prepared. Recordings are grouped into the nights you played; open one to walk through it.",
+      href: t.night ? `/sessions/${t.night.id}` : "/sessions",
+      match: t.night ? { path: `/sessions/${t.night.id}`, also: new RegExp(`^/sessions/${t.night.id}/relive$`) } : { path: "/sessions" },
     },
     {
       id: "pov",
       label: "Multi-POV",
       title: "Every angle, one moment",
-      tip:
-        t.povGroupId && t.povRecordingId
-          ? "Two players’ recordings of one match, synced by shared audio. Press 1 or 2 to switch POV, V for side by side."
-          : "No synced POVs yet. Open a recording and press “Find other POVs” to pair a friend’s recording.",
-      href: t.povGroupId && t.povRecordingId ? `/povs/${t.povGroupId}?rec=${t.povRecordingId}` : "/library",
-      base: t.povGroupId ? "/povs" : "/library",
+      tip: pov
+        ? `${pov.members} players’ recordings of one match, ${METHOD[pov.method]}${pov.status === "confirmed" ? " and confirmed" : " (suggested, not confirmed)"}. Press ${keys} to switch POV, V for side by side.`
+        : "No demo POV pair is prepared. Open a recording and press “Find other POVs” to pair a friend’s recording.",
+      href: pov ? `/povs/${pov.groupId}?rec=${pov.recordingId}` : "/library",
+      match: pov ? { path: `/povs/${pov.groupId}` } : { path: "/library" },
     },
     {
       id: "studio",
       label: "Story Studio",
       title: "Cut it into a story",
-      tip: "Reorder and trim clips, add captions, then Export renders a real MP4 on this computer.",
-      href: t.storyId ? `/studio?story=${t.storyId}` : "/studio",
-      base: "/studio",
+      tip: t.story
+        ? `A story cut from real footage (${t.story.clipCount} clip${t.story.clipCount === 1 ? "" : "s"}). Reorder and trim, add captions, then Export renders an MP4 on this computer.`
+        : "No demo story is prepared. Start one from a night or a moment; Export renders an MP4 on this computer.",
+      href: t.story ? `/studio?story=${t.story.id}` : "/studio",
+      match: t.story ? { path: "/studio", params: { story: t.story.id } } : { path: "/studio" },
     },
   ];
 }
 
-export function onStep(step: TourStep, pathname: string | null): boolean {
-  return !!pathname && (pathname === step.base || pathname.startsWith(`${step.base}/`));
+/** Whether the current page is this step's destination (not merely the same section). */
+export function onStep(step: TourStep, pathname: string | null, search: URLSearchParams | null = null): boolean {
+  if (!pathname) return false;
+  const { path, params, also } = step.match;
+  if (pathname !== path && !also?.test(pathname)) return false;
+  return Object.entries(params ?? {}).every(([k, v]) => search?.get(k) === v);
+}
+
+/** Full-screen pages where the dock would cover playback controls. */
+export function dockHidden(pathname: string | null): boolean {
+  return !!pathname && /^\/sessions\/[^/]+\/relive$/.test(pathname);
 }

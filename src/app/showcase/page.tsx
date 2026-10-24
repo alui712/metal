@@ -10,7 +10,7 @@ import { StartTourButton } from "@/components/judge/start-tour-button";
 import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/motion";
 import { duration, plural } from "@/lib/format";
-import { nightReels, spotlight, tourTargets } from "@/server/judge/spotlight";
+import { spotlight, tourTargets } from "@/server/judge/spotlight";
 
 export const metadata: Metadata = {
   title: "Showcase",
@@ -84,16 +84,7 @@ async function StartTour() {
 
 async function Featured() {
   await connection();
-  const { night } = spotlight();
-  // One card per take: "peak pov" and "peak pov 2" are the same match.
-  const takes = new Set<string>();
-  const reels = (await nightReels()).filter((r) => {
-    const take = r.title?.replace(/\s+\d+$/, "").toLowerCase();
-    if (!take) return true;
-    if (takes.has(take)) return false;
-    takes.add(take);
-    return true;
-  });
+  const { night, reels } = spotlight();
   if (!night || !reels.length) {
     return (
       <div className="rounded-3xl border border-line bg-surface-2/60 p-10 text-center">
@@ -115,7 +106,7 @@ async function Featured() {
           videoUrl: r.videoUrl,
           startMs: 0,
           title: r.title ?? `Recording from ${night.title}`,
-          detail: `${duration(r.durationMs)} · hover to play`,
+          detail: r.durationMs ? `${duration(r.durationMs)} · hover to play` : "Hover to play",
           label: `Play ${r.title ?? "recording"} from ${night.title}`,
         }))}
       />

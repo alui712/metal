@@ -91,8 +91,8 @@ function Evidence({ id, spotlight: s }: { id: TourStepId; spotlight: Spotlight }
       <span className={box}>
         <span className="block truncate font-medium text-ink">{s.pov.titles.join(" + ")}</span>
         <span className="mt-1 flex items-center gap-1.5 text-ink-faint">
-          <span className={cn("size-1.5 rounded-full", s.pov.confirmed ? "bg-emerald-400" : "bg-amber-400")} aria-hidden />
-          {plural(s.pov.members, "POV")} · {s.pov.confirmed ? "sync confirmed" : "sync suggested"}
+          <span className={cn("size-1.5 rounded-full", s.pov.status === "confirmed" ? "bg-emerald-400" : "bg-amber-400")} aria-hidden />
+          {plural(s.pov.members.length, "POV")} · {s.pov.status === "confirmed" ? "sync confirmed" : "sync suggested, not confirmed"}
         </span>
       </span>
     ) : (
@@ -103,8 +103,8 @@ function Evidence({ id, spotlight: s }: { id: TourStepId; spotlight: Spotlight }
     <span className={box}>
       <span className="block truncate font-medium text-ink">{s.story.title}</span>
       <span className="mt-1 block text-ink-faint">
-        {plural(s.story.clipCount, "clip")} · {plural(s.story.count, "story", "stories")}
-        {s.story.exported ? " · MP4 exported" : ""}
+        {plural(s.story.clipCount, "clip")}
+        {s.story.exported ? " · MP4 exported" : " · not exported yet"}
       </span>
     </span>
   ) : (

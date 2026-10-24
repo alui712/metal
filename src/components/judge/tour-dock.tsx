@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, ChevronLeft, Compass, House, Minimize2, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
 import { EASE_OUT } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
-import { onStep, tourSteps } from "@/lib/judge/tour";
+import { dockHidden, onStep, tourSteps } from "@/lib/judge/tour";
 import { FEATURE_ICON } from "./feature-icons";
 import { endTour, setTourStep, useTour } from "./tour-store";
 
@@ -16,6 +16,7 @@ import { endTour, setTourStep, useTour } from "./tour-store";
 export function TourDock() {
   const tour = useTour();
   const pathname = usePathname();
+  const search = useSearchParams();
   const router = useRouter();
   const reduce = useReducedMotion();
   const [collapsed, setCollapsed] = useState(false);
@@ -24,7 +25,7 @@ export function TourDock() {
   const index = tour ? Math.min(Math.max(tour.step, 0), steps.length - 1) : 0;
   const step = steps[index];
   const last = index === steps.length - 1;
-  const here = step ? onStep(step, pathname) : false;
+  const here = step ? onStep(step, pathname, search) : false;
 
   const go = (i: number) => {
     setTourStep(i);
@@ -37,7 +38,8 @@ export function TourDock() {
 
   return (
     <AnimatePresence>
-      {tour && step && (
+      {/* Relive is full-screen with its own controls; the dock returns when it closes. */}
+      {tour && step && !dockHidden(pathname) && (
         <motion.section
           key="tour"
           aria-label="Guided demo"
@@ -128,7 +130,9 @@ export function TourDock() {
                         {index + 1} of {steps.length} · {step.label}
                       </p>
                       <h2 className="mt-0.5 text-[16.5px] font-semibold tracking-[-0.015em] text-ink">{step.title}</h2>
-                      <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">{step.tip}</p>
+                      <p className="mt-1 text-[13.5px] leading-relaxed text-ink-muted">
+                        {here ? step.tip : "You’ve left the prepared demo. Return to this stop, or explore freely."}
+                      </p>
                     </div>
                   </motion.div>
                 </AnimatePresence>
@@ -139,8 +143,8 @@ export function TourDock() {
                     </button>
                   )}
                   {!here ? (
-                    <button type="button" onClick={() => go(index)} className={buttonClass("secondary", "sm")}>
-                      Open {step.label}
+                    <button type="button" onClick={() => go(index)} className={buttonClass("primary", "sm")}>
+                      Return to demo: {step.label}
                     </button>
                   ) : last ? (
                     <button type="button" onClick={finish} className={buttonClass("primary", "sm")}>

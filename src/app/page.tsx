@@ -17,7 +17,7 @@ import { RecordingsSkeleton } from "@/components/recordings/your-recordings";
 import { PageTransition } from "@/components/ui/page-transition";
 import { formatDate } from "@/lib/format";
 import { getMemoryRepository } from "@/lib/memory/repository";
-import { nightReels, spotlight, tourTargets } from "@/server/judge/spotlight";
+import { spotlight, tourTargets } from "@/server/judge/spotlight";
 import { listRecordings } from "@/server/recordings";
 
 const repo = getMemoryRepository();
@@ -154,7 +154,7 @@ async function HeaderActions() {
 async function Spotlit() {
   await connection();
   const s = spotlight();
-  const cover = (await nightReels())[0]?.posterUrl;
+  const cover = s.reels[0]?.posterUrl;
   return (
     <>
       {s.night ? <NightSpotlight night={cover ? { ...s.night, coverUrl: cover } : s.night} moments={s.moments} /> : <DemoMoments />}

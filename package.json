@@ -13,7 +13,8 @@
     "worker": "tsx --env-file-if-exists=.env.local src/worker/index.ts",
     "dev:all": "concurrently -k -n web,worker -c magenta,cyan \"npm:dev\" \"npm:worker\"",
     "db:generate": "drizzle-kit generate",
-    "demo:check": "node scripts/demo-check/cdp.mjs scripts/demo-check/journey.mjs"
+    "demo:check": "node scripts/demo-check/cdp.mjs scripts/demo-check/journey.mjs",
+    "judge:ready": "tsx scripts/judge-ready.ts"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",
