@@ -28,39 +28,60 @@ export function RelivePlayer({
   const router = useRouter();
   const reduce = useReducedMotion();
   const [s, dispatch] = useReducer(reliveReducer, moments.length, initialRelive);
-  const video = useRef<HTMLVideoElement>(null);
-  // What the video is actually showing (set from media events), so the curtain lifts only once the seek lands.
-  const [shown, setShown] = useState<{ id: string; offsetMs: number; ending: boolean } | null>(null);
+  // Two <video> slots: moment i plays in slot i % 2 while moment i + 1 is loaded and
+  // seeked in the other, so cuts between recordings crossfade instead of going black.
+  const slots = useRef<Array<HTMLVideoElement | null>>([null, null]);
+  const slotMoment = useRef<Array<string | null>>([null, null]);
+  // Moment ids whose first frame is ready (seek landed) in their slot.
+  const [ready, setReady] = useState<ReadonlySet<string>>(() => new Set());
+  const [shown, setShown] = useState<{ id: string; offsetMs: number } | null>(null);
   const [blocked, setBlocked] = useState(false);
   const m = moments[s.index];
+  const active = s.index % 2;
   const offsetMs = shown && shown.id === m?.id ? shown.offsetMs : 0;
-  const curtain = !shown || shown.id !== m?.id || shown.ending;
+  const curtain = s.done || !m || !ready.has(m.id);
   const rec = recordings.find((r) => r.id === m?.recordingId);
   const exitHref = `/sessions/${sessionId}`;
 
-  // Load the current moment: one <video>, src swapped, seeked to the exact source time.
+  /** Loads a moment into a slot (src + exact seek). Returns false when it has no playable video. */
+  const prime = useCallback(
+    (slot: number, mm: TimelineMoment): boolean => {
+      const v = slots.current[slot];
+      const url = recordings.find((r) => r.id === mm.recordingId)?.videoUrl;
+      if (!v || !url) return false;
+      if (slotMoment.current[slot] === mm.id) return true;
+      slotMoment.current[slot] = mm.id;
+      const seek = () => {
+        v.currentTime = mm.startMs / 1000;
+      };
+      if (v.getAttribute("src") !== url) {
+        v.setAttribute("src", url);
+        v.addEventListener("loadedmetadata", seek, { once: true });
+        v.load();
+      } else seek();
+      return true;
+    },
+    [recordings],
+  );
+
+  // Current moment into its slot; the next one into the other slot once the crossfade is over.
   useEffect(() => {
-    const v = video.current;
-    if (!v || !m || s.done) return;
-    if (!rec?.videoUrl) {
+    if (!m || s.done) return;
+    if (!prime(active, m)) {
       dispatch({ type: "error" });
       return;
     }
-    const seek = () => {
-      v.currentTime = m.startMs / 1000;
-    };
-    if (v.getAttribute("src") !== rec.videoUrl) {
-      v.setAttribute("src", rec.videoUrl);
-      v.addEventListener("loadedmetadata", seek, { once: true });
-      v.load();
-    } else seek();
-    return () => v.removeEventListener("loadedmetadata", seek);
+    const next = moments[s.index + 1];
+    if (!next) return;
+    const t = setTimeout(() => prime(1 - active, next), reduce ? 0 : FADE_MS + 50);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when the moment changes
   }, [s.index, s.done, m?.id]);
 
-  // Reflect play/pause.
+  // Reflect play/pause on the active slot; the other slot waits paused.
   useEffect(() => {
-    const v = video.current;
+    const v = slots.current[active];
+    slots.current[1 - active]?.pause();
     if (!v) return;
     if (s.playing && !s.done) {
       v.play()
@@ -73,17 +94,30 @@ export function RelivePlayer({
           }
         });
     } else v.pause();
-  }, [s.playing, s.done, s.index]);
+  }, [s.playing, s.done, s.index, active]);
 
-  const onTime = useCallback(() => {
-    const v = video.current;
-    if (!v || !m) return;
-    const t = v.currentTime * 1000;
-    // Ignore stale frames from before the seek to this moment.
-    if (t < m.startMs - 500 || t > m.endMs + 1500) return;
-    setShown({ id: m.id, offsetMs: Math.max(0, t - m.startMs), ending: !reduce && t >= m.endMs - FADE_MS });
-    if (t >= m.endMs) dispatch({ type: "ended" });
-  }, [m, reduce]);
+  const onSlotTime = useCallback(
+    (slot: number) => {
+      const v = slots.current[slot];
+      const id = slotMoment.current[slot];
+      const mm = moments.find((x) => x.id === id);
+      if (!v || !mm) return;
+      const t = v.currentTime * 1000;
+      // Ignore frames from before this slot's seek landed.
+      if (t < mm.startMs - 500 || t > mm.endMs + 1500) return;
+      setReady((cur) => (cur.has(mm.id) ? cur : new Set(cur).add(mm.id)));
+      if (slot !== active || mm.id !== m?.id) return;
+      setShown({ id: mm.id, offsetMs: Math.max(0, t - mm.startMs) });
+      if (t >= mm.endMs) dispatch({ type: "ended" });
+    },
+    [moments, active, m?.id],
+  );
+
+  const onSlotError = (slot: number) => {
+    const id = slotMoment.current[slot];
+    slotMoment.current[slot] = null;
+    if (slot === active && id === m?.id) dispatch({ type: "error" });
+  };
 
   // Keyboard: Space pause/resume, ←/→ previous/next, Esc exit.
   useEffect(() => {
@@ -104,7 +138,7 @@ export function RelivePlayer({
 
   useEffect(() => {
     if (s.exited) {
-      video.current?.pause();
+      slots.current.forEach((v) => v?.pause());
       router.push(exitHref);
     }
   }, [s.exited, router, exitHref]);
@@ -128,22 +162,30 @@ export function RelivePlayer({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white" role="region" aria-label={`Relive ${title}`}>
-      <video
-        ref={video}
-        playsInline
-        preload="auto"
-        onTimeUpdate={onTime}
-        onSeeked={onTime}
-        onError={() => dispatch({ type: "error" })}
-        className="absolute inset-0 size-full object-contain"
-        aria-label={m ? `${m.title}, ${rec?.title ?? "recording"} at ${timecode(m.startMs + offsetMs)}` : undefined}
-      />
-      {/* Transition curtain */}
+      {[0, 1].map((slot) => (
+        <video
+          key={slot}
+          ref={(el) => {
+            slots.current[slot] = el;
+          }}
+          playsInline
+          preload="auto"
+          onTimeUpdate={() => onSlotTime(slot)}
+          onSeeked={() => onSlotTime(slot)}
+          onError={() => onSlotError(slot)}
+          aria-hidden={slot !== active}
+          data-active={slot === active}
+          className="absolute inset-0 size-full object-contain"
+          style={{ opacity: slot === active ? 1 : 0, transition: reduce ? "none" : `opacity ${FADE_MS}ms ease-in-out` }}
+          aria-label={slot === active && m ? `${m.title}, ${rec?.title ?? "recording"} at ${timecode(m.startMs + offsetMs)}` : undefined}
+        />
+      ))}
+      {/* Curtain: only while the current moment's frame isn't ready (first load, or a jump). */}
       <motion.div
         aria-hidden
         className="pointer-events-none absolute inset-0 bg-black"
         initial={false}
-        animate={{ opacity: curtain || s.done ? 1 : 0 }}
+        animate={{ opacity: curtain ? 1 : 0 }}
         transition={{ duration: reduce ? 0 : FADE_MS / 1000, ease: "easeInOut" }}
       />
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/80 to-transparent" />

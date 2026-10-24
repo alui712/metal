@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { eq } from "drizzle-orm";
+import { CAPTION_BOTTOM, CAPTION_CHAR_EM, captionFontPx, wrapCaption } from "@/lib/studio/caption-layout";
 import type { JobContext } from "../../worker/handlers";
 import { paths } from "../config";
 import type { Db } from "../db/client";
@@ -37,10 +38,61 @@ export const MAX_STORY_MS = 30 * 60_000;
 export const DURATION_TOLERANCE_MS = 300;
 
 export type RenderInput = { file: string; inMs: number; outMs: number; hasAudio: boolean };
+/** A burned-in caption image shown over [startMs, endMs) of the story timeline. */
+export type CaptionOverlay = { file: string; startMs: number; endMs: number };
+
+// ── Burned-in captions ──────────────────────────────────────
+// This FFmpeg has no drawtext/libass, so captions are drawn as SVG → PNG
+// (sharp, already installed with Next) and composited with FFmpeg's overlay.
+// The same layout is mirrored by the Studio preview.
+
+const xml = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+/** Word-wrapped caption box (≤ 3 lines) as SVG. Pure; widths are estimates, so the box is generous. */
+export { CAPTION_BOTTOM, captionFontPx };
+
+export function captionSvg(text: string, aspect: Aspect): { svg: string; width: number; height: number } | null {
+  const lines = wrapCaption(text, aspect);
+  if (!lines.length) return null;
+  const { width: W } = OUTPUT_SIZE[aspect];
+  const fs = captionFontPx(aspect);
+  const charW = fs * CAPTION_CHAR_EM;
+  const lineH = Math.round(fs * 1.25);
+  const padX = Math.round(fs * 0.8);
+  const padY = Math.round(fs * 0.45);
+  const width = Math.min(Math.round(W * 0.88), Math.round(Math.max(...lines.map((l) => l.length)) * charW + padX * 2));
+  const height = lines.length * lineH + padY * 2;
+  const tspans = lines.map((l, i) => `<tspan x="${width / 2}" y="${padY + Math.round(lineH * (i + 0.78))}">${xml(l)}</tspan>`).join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="${width}" height="${height}" rx="${Math.round(fs * 0.45)}" fill="#000" fill-opacity="0.58"/><text font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="${fs}" font-weight="700" fill="#fff" text-anchor="middle">${tspans}</text></svg>`;
+  return { svg, width, height };
+}
+
+/** Renders each clip's caption to a PNG next to the export; returns the overlays (empty if rendering isn't available). */
+async function renderCaptionImages(clips: Edl["clips"], aspect: Aspect, dir: string, prefix: string): Promise<CaptionOverlay[]> {
+  let sharp: (typeof import("sharp"))["default"];
+  try {
+    sharp = (await import("sharp")).default;
+  } catch {
+    return [];
+  }
+  const out: CaptionOverlay[] = [];
+  let t = 0;
+  for (const [i, c] of clips.entries()) {
+    const d = c.outMs - c.inMs;
+    const box = c.caption ? captionSvg(c.caption, aspect) : null;
+    if (box) {
+      const file = path.join(/*turbopackIgnore: true*/ dir, `${prefix}.cap${i}.png`);
+      await sharp(Buffer.from(box.svg)).png().toFile(file);
+      out.push({ file, startMs: t, endMs: t + d });
+    }
+    t += d;
+  }
+  return out;
+}
 
 const sec = (ms: number) => (ms / 1000).toFixed(3);
 
-export function storyArgs(inputs: RenderInput[], output: string, opts: { aspect: Aspect; framing: Framing; subtitles?: string }): string[] {
+export function storyArgs(inputs: RenderInput[], output: string, opts: { aspect: Aspect; framing: Framing; subtitles?: string; overlays?: CaptionOverlay[] }): string[] {
   const { width: W, height: H } = OUTPUT_SIZE[opts.aspect];
   const frame =
     opts.framing === "fill"
@@ -48,6 +100,8 @@ export function storyArgs(inputs: RenderInput[], output: string, opts: { aspect:
       : `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`;
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error", "-y"];
   for (const c of inputs) args.push("-ss", sec(c.inMs), "-t", sec(c.outMs - c.inMs), "-i", c.file);
+  const overlays = opts.overlays ?? [];
+  for (const o of overlays) args.push("-i", o.file);
   if (opts.subtitles) args.push("-i", opts.subtitles);
   const chains: string[] = [];
   inputs.forEach((c, i) => {
@@ -60,9 +114,17 @@ export function storyArgs(inputs: RenderInput[], output: string, opts: { aspect:
         : `anullsrc=r=48000:cl=stereo,atrim=duration=${d},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a${i}]`,
     );
   });
-  chains.push(`${inputs.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${inputs.length}:v=1:a=1[v][a]`);
+  const concatOut = overlays.length ? "[vc]" : "[v]";
+  chains.push(`${inputs.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${inputs.length}:v=1:a=1${concatOut}[a]`);
+  // Burned-in captions: each image composited over its clip's span, bottom-centered.
+  const bottom = Math.round(H * CAPTION_BOTTOM[opts.aspect]);
+  overlays.forEach((o, k) => {
+    const from = k === 0 ? "[vc]" : `[vo${k - 1}]`;
+    const to = k === overlays.length - 1 ? "[v]" : `[vo${k}]`;
+    chains.push(`${from}[${inputs.length + k}:v]overlay=x=(W-w)/2:y=H-h-${bottom}:enable='between(t,${sec(o.startMs)},${sec(o.endMs - 1)})':format=auto${to}`);
+  });
   args.push("-filter_complex", chains.join(";"), "-map", "[v]", "-map", "[a]");
-  if (opts.subtitles) args.push("-map", `${inputs.length}:s:0`, "-c:s", "mov_text", "-metadata:s:s:0", "language=eng");
+  if (opts.subtitles) args.push("-map", `${inputs.length + overlays.length}:s:0`, "-c:s", "mov_text", "-metadata:s:s:0", "language=eng");
   args.push(
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-profile:v", "high", "-pix_fmt", "yuv420p", "-r", String(OUTPUT_FPS),
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
@@ -136,6 +198,7 @@ export async function renderStory({ db, job, progress, signal }: JobContext): Pr
   const out = exportFile(exportId);
   const part = path.join(/*turbopackIgnore: true*/ paths.exports, `${exportId}.part.mp4`);
   const srt = path.join(/*turbopackIgnore: true*/ paths.exports, `${exportId}.srt`);
+  let overlays: CaptionOverlay[] = [];
   try {
     set({ status: "running", error: null });
     progress({ stage: "checking", progress: 0.02 });
@@ -146,7 +209,8 @@ export async function renderStory({ db, job, progress, signal }: JobContext): Pr
     if (total > MAX_STORY_MS) throw new PermanentJobError("Stories can be at most 30 minutes long.");
     const subs = edl.captions ? captionsSrt(edl.clips) : null;
     if (subs) fs.writeFileSync(srt, subs);
-    const args = storyArgs(inputs, part, { aspect: edl.aspect, framing: edl.framing, subtitles: subs ? srt : undefined });
+    overlays = edl.captions ? await renderCaptionImages(edl.clips, edl.aspect, paths.exports, exportId) : [];
+    const args = storyArgs(inputs, part, { aspect: edl.aspect, framing: edl.framing, subtitles: subs ? srt : undefined, overlays });
     set({ ffmpegCmd: args.map((a) => (path.isAbsolute(a) ? path.basename(a) : a)).join(" ") });
     progress({ stage: "rendering", progress: 0.05 });
     await runFfmpeg(args, {
@@ -169,5 +233,6 @@ export async function renderStory({ db, job, progress, signal }: JobContext): Pr
     throw err;
   } finally {
     fs.rmSync(srt, { force: true });
+    for (const o of overlays) fs.rmSync(o.file, { force: true });
   }
 }

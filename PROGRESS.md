@@ -17,8 +17,52 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 6A Real Recall (transcripts, FTS + local embeddings) | ✅ Complete |
 | 6B Real Time Machine (sessions, Relive, Studio handoff) | ✅ Complete |
 | 7 Real Story Studio (persistent stories, FFmpeg MP4 export) | ✅ Complete |
-| 8 Polish & 3-minute demo | ⏳ Not started |
+| 8A Final UI/UX polish | ✅ Complete |
+| 8B 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 8A — Final UI/UX polish ✅ (2026-10-24)
+
+Polish across the core flow. No new features or dependencies, and no change to how anything works. ADR 0018.
+
+### Implemented
+- **Time Machine Relive:**
+  - two `<video>` slots; the next moment is loaded and seeked in the hidden slot after each crossfade, so cuts, including between different recordings, crossfade (450 ms) instead of going black;
+  - the black curtain now appears only on the first load or for a jump whose frame isn't ready yet;
+  - timestamps, Space/←/→/Esc, the segment buttons and reduced motion (instant swap) are unchanged.
+- **Story Studio:**
+  - **Captions burned into the MP4** (sharp SVG → PNG → FFmpeg `overlay`, timed per clip), while the `mov_text` track is kept;
+  - the preview draws the caption with the same layout module, so its line breaks, size and position match the export exactly;
+  - the preview's fill/fit framing already matched FFmpeg's center crop/pad (verified);
+  - **Rendering state:** a percentage, a step tracker (Queued → Checking sources → Rendering → Verifying), elapsed time, and "you can close this";
+  - **Finished reveal:** "Your story is ready" fades in with a scale and blur, and the video autoplays muted only when it finished while you watched;
+  - timeline tiles lift on hover and have a visible focus ring (motion-reduced aware).
+- **Recall:**
+  - the top result is cued at its exact second as soon as results arrive (paused, no autoplay);
+  - the matched transcript lines are quoted large under the player, with timestamps and highlights.
+- **Smart Clip:**
+  - the signal chips are grouped into **Measured** (FFmpeg loudness, picture changes, local transcript) and **AI understanding** (scene descriptions, shown dashed as "not set up");
+  - the home card no longer promises "laughter and reactions", which METAL can't detect, or shows the stale "Arrives in Phase 5" text; it describes the measured signals and links to the suggested clips.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (153 tests) · `npm run build` ✅
+  - New tests: the overlay graph after the concat (subtitle-track mapping kept); caption layout (wrap, 3-line cap, XML escaping); a real-FFmpeg render where the caption band differs from a no-caption render.
+- Real export from the app with the worker: 1080×1920 H.264 + AAC + mov_text, 40.500 s, caption visibly burned in with the same three lines as the preview; temporary PNGs removed.
+- **Browser (headless Chrome):**
+  - **New Phase 8A scenarios:**
+    - Relive, 9 checks: maximum black during skips measured at 0.00, including a cut across recordings; back jump, Esc and cleanup;
+    - Studio and export, 7 checks: preview caption geometry vs export (font 0.046, bottom 0.14), stepper, reveal, muted autoplay, mobile;
+    - Recall, Smart Clip, home and 390 px, 7 checks.
+  - **Regression suites:**
+    - scenario-dev 69, p2 27, p3 10, p5hub 3, p5c 12, p6 18, p6b 33 (incl. reduced motion and 390 px), p7 (real export, 409/404 guards), p7m — all passing.
+  - Screens were reviewed at 1920×1080.
+
+### Known limitations
+- Caption wrapping uses estimated glyph widths. The box is sized generously, but an unusual font fallback could wrap a word differently.
+- Relive preloads only the next moment. A jump of more than one moment still shows a brief curtain while that video seeks.
+- There's still no UI to delete stories or exports, and transitions remain hard cuts in the export.
 
 ---
 

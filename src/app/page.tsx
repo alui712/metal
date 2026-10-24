@@ -1,4 +1,4 @@
-import { ArrowUpRight, AudioLines, Clapperboard, History, Laugh, MessageSquareQuote, Search, Sparkles } from "lucide-react";
+import { ArrowUpRight, AudioLines, Clapperboard, History, Mic, ScanLine, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CaptureConsole } from "@/components/capture/capture-console";
@@ -70,9 +70,9 @@ const QUICK = [
 ];
 
 const SMART_SIGNALS = [
-  { icon: Laugh, label: "Laughter and reactions" },
-  { icon: AudioLines, label: "Hype and volume peaks" },
-  { icon: MessageSquareQuote, label: "Clutch callouts in voice chat" },
+  { icon: AudioLines, label: "Sudden loudness spikes" },
+  { icon: ScanLine, label: "Sharp picture changes" },
+  { icon: Mic, label: "What was said, as evidence" },
 ];
 
 function SmartClipCard() {
@@ -83,14 +83,14 @@ function SmartClipCard() {
     >
       <div aria-hidden className="absolute -right-16 -top-20 -z-10 size-64 rounded-full bg-accent/20 blur-3xl" />
       <div className="flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.2em] text-accent-ink">
-        <Sparkles className="size-4" aria-hidden /> AI Smart Clip
+        <Sparkles className="size-4" aria-hidden /> Smart Clip
       </div>
       <h2 id="smart-clip-heading" className="mt-3 text-[1.5rem] font-semibold leading-tight tracking-[-0.025em] text-ink">
         Let METAL find the clip.
       </h2>
       <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
-        Play without reaching for a hotkey. Smart Clip reviews your recording and saves the moments worth keeping, each with
-        the evidence it found.
+        Play without reaching for a hotkey. Smart Clip measures your recording and suggests moments worth keeping, each with
+        the evidence it found. You preview and decide.
       </p>
       <ul className="mt-5 space-y-2.5">
         {SMART_SIGNALS.map(({ icon: Icon, label }) => (
@@ -101,13 +101,14 @@ function SmartClipCard() {
         ))}
       </ul>
       <p className="mt-5 rounded-xl border border-line bg-surface/60 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-faint">
-        Arrives in Phase 5. It needs real recordings and on-device analysis — until then it stays off rather than guessing.
+        Measured on this computer with FFmpeg — signals, not scene understanding. METAL never guesses what a sound or
+        frame was.
       </p>
       <Link
-        href="/recall?q=everyone%20laughing"
+        href="/clips"
         className="mt-4 inline-flex items-center gap-1.5 rounded-md text-[13px] font-medium text-accent-ink transition-colors hover:text-white"
       >
-        See what found moments look like (demo) <ArrowUpRight className="size-4" aria-hidden />
+        See suggested clips <ArrowUpRight className="size-4" aria-hidden />
       </Link>
     </section>
   );

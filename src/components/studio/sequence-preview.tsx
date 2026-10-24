@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { CAPTION_BOTTOM, CAPTION_FONT, wrapCaption } from "@/lib/studio/caption-layout";
 import type { StoryProject } from "@/lib/memory/contracts";
 import { locate, totalDuration } from "@/lib/studio/edl";
 import { timecode } from "@/lib/format";
@@ -85,6 +86,7 @@ export function SequencePreview({
           layout={!reduce}
           transition={{ type: "spring", bounce: 0.12, duration: 0.6 }}
           className={`relative overflow-hidden rounded-lg bg-black shadow-[0_30px_80px_-20px_rgb(0_0_0/0.9)] ${frame}`}
+          style={{ containerType: "inline-size" }}
         >
           {clip && rec ? (
             <>
@@ -128,10 +130,16 @@ export function SequencePreview({
                   “{failed}” can’t be played — its video may be missing from the library.
                 </p>
               )}
-              {project.captions && clip.caption && (
-                <p className="absolute inset-x-[6%] bottom-[9%] text-balance text-center text-[clamp(13px,2.2vw,22px)] font-semibold leading-tight text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.95)]">
-                  {clip.caption}
-                </p>
+              {project.captions && clip.caption?.trim() && (
+                // Same box and line breaks as the burned-in export caption (src/lib/studio/caption-layout.ts).
+                <div className="pointer-events-none absolute inset-x-0 flex justify-center" style={{ bottom: `${CAPTION_BOTTOM[project.aspect] * 100}%` }}>
+                  <p
+                    className="max-w-[88%] whitespace-pre rounded-[0.45em] bg-black/58 px-[0.8em] py-[0.45em] text-center font-bold leading-[1.25] text-white"
+                    style={{ fontSize: `${(project.aspect === "16:9" ? (CAPTION_FONT * 1080) / 1920 : CAPTION_FONT) * 100}cqw`, fontFamily: "Helvetica Neue, Helvetica, Arial, sans-serif" }}
+                  >
+                    {wrapCaption(clip.caption, project.aspect).join("\n")}
+                  </p>
+                </div>
               )}
             </>
           ) : (

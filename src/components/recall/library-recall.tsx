@@ -3,7 +3,7 @@
 import { CircleAlert, Clapperboard, ExternalLink, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatDate, timecode } from "@/lib/format";
 import { Highlight } from "./highlight";
@@ -91,20 +91,32 @@ export function LibraryRecall() {
   const current = results.find((h) => keyOf(h) === selected) ?? results[0] ?? null;
   const hasFilters = FILTERS.some((f) => params.get(f));
 
-  function play(h: Hit) {
-    setSelected(keyOf(h));
+  /** Loads a hit into the player at its exact second; plays it when asked. */
+  const cue = useCallback((h: Hit, autoplay: boolean) => {
     const v = video.current;
-    if (!v) return;
+    if (!v || !h.recording.videoUrl) return;
     const go = () => {
       v.currentTime = h.seekMs / 1000;
-      void v.play().catch(() => {});
+      if (autoplay) void v.play().catch(() => {});
     };
     if (v.getAttribute("src") !== h.recording.videoUrl) {
-      v.src = h.recording.videoUrl ?? "";
+      v.src = h.recording.videoUrl;
       v.addEventListener("loadedmetadata", go, { once: true });
     } else go();
-    if (window.innerWidth < 1024) v.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+
+  function play(h: Hit) {
+    setSelected(keyOf(h));
+    cue(h, true);
+    if (window.innerWidth < 1024) video.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
+
+  // The top result is ready to play the moment results arrive (cued at its second, not autoplayed).
+  const currentKey = current ? keyOf(current) : null;
+  useEffect(() => {
+    if (current && video.current?.paused) cue(current, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-cue only when the shown hit changes
+  }, [currentKey]);
 
   return (
     <div>
@@ -277,7 +289,17 @@ export function LibraryRecall() {
                     <StartStory hit={current} />
                   </div>
                 </div>
-                <p className="mt-2 text-[11.5px] leading-relaxed text-ink-faint">
+                {current.lines.length > 0 && (
+                  <blockquote className="mt-3 border-l-2 border-accent/60 pl-3.5">
+                    {current.lines.map((l) => (
+                      <p key={l.segmentId} className="text-[16px] leading-snug text-ink">
+                        <span className="mr-2 font-mono text-[12px] tabular-nums text-accent-ink">{timecode(l.startMs)}</span>
+                        <Highlight text={l.text} terms={l.matched} />
+                      </p>
+                    ))}
+                  </blockquote>
+                )}
+                <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
                   Machine transcription (whisper.cpp) — words may be wrong. A match shows what was said, not what happened on screen.
                 </p>
               </div>

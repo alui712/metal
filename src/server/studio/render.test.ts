@@ -5,7 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { captionsSrt, storyArgs } from "./render";
+import { captionSvg, captionsSrt, storyArgs } from "./render";
 
 describe("story render arguments (pure)", () => {
   it("normalizes every clip, fills silence for clips without audio, and hard-cuts", () => {
@@ -25,6 +25,30 @@ describe("story render arguments (pure)", () => {
     expect(graph).toContain("[v0][a0][v1][a1]concat=n=2:v=1:a=1[v][a]");
     expect(args).not.toContain("shell");
     expect(args.at(-1)).toBe("/x/out.mp4");
+  });
+  it("burns captions with timed overlays after the concat, keeping the subtitle track", () => {
+    const args = storyArgs([{ file: "/m/a.mp4", inMs: 0, outMs: 3000, hasAudio: true }, { file: "/m/b.mp4", inMs: 0, outMs: 2000, hasAudio: true }], "/x/o.mp4", {
+      aspect: "16:9",
+      framing: "fill",
+      subtitles: "/x/o.srt",
+      overlays: [{ file: "/x/c0.png", startMs: 0, endMs: 3000 }, { file: "/x/c1.png", startMs: 3000, endMs: 5000 }],
+    });
+    const graph = args[args.indexOf("-filter_complex") + 1];
+    expect(graph).toContain("concat=n=2:v=1:a=1[vc][a]");
+    expect(graph).toContain("[vc][2:v]overlay=x=(W-w)/2:y=H-h-86:enable='between(t,0.000,2.999)':format=auto[vo0]");
+    expect(graph).toContain("[vo0][3:v]overlay=x=(W-w)/2:y=H-h-86:enable='between(t,3.000,4.999)':format=auto[v]");
+    expect(args.join(" ")).toContain("-map 4:s:0 -c:s mov_text");
+  });
+  it("lays out caption boxes: wraps, caps at three lines, escapes text", () => {
+    const one = captionSvg("Two enemies on the stairs.", "16:9")!;
+    expect(one.svg.match(/<tspan/g)).toHaveLength(1);
+    expect(one.height).toBe(2 * Math.round(50 * 0.45) + Math.round(50 * 1.25)); // padding + 1 line
+    const long = captionSvg("word ".repeat(80), "9:16")!;
+    expect(long.svg.match(/<tspan/g)).toHaveLength(3);
+    expect(long.svg).toContain("…");
+    expect(long.width).toBeLessThanOrEqual(Math.round(1080 * 0.88));
+    expect(captionSvg(`<b>"A&B"</b>`, "1:1")!.svg).toContain("&lt;b&gt;&quot;A&amp;B&quot;&lt;/b&gt;");
+    expect(captionSvg("   ", "16:9")).toBeNull();
   });
   it("writes captions on the story timeline", () => {
     expect(
@@ -127,6 +151,10 @@ describe.skipIf(!hasFfmpeg)("story export (real FFmpeg)", () => {
     return r.id;
   };
   const latest = (sid: string) => m.stories.exportsFor(m.db, sid)[0];
+  const saveOf = (sid: string) => {
+    const v = m.stories.storyView(m.db, sid, new Map())!;
+    return { title: v.project.title, aspect: v.project.aspect, framing: v.project.framing ?? "fill", captions: v.project.captions, clips: v.project.clips.map((c) => ({ recordingId: c.recordingId, suggestionId: c.momentId, inMs: c.inMs, outMs: c.outMs, caption: c.caption })) } as import("./stories").SaveInput;
+  };
 
   it("renders mixed sources into one browser-playable MP4 with exact length and aligned audio", async () => {
     const sid = story([
@@ -163,6 +191,15 @@ describe.skipIf(!hasFfmpeg)("story export (real FFmpeg)", () => {
     const v = p.streams.find((s) => s.codec_type === "video")!;
     expect([v.width, v.height]).toEqual([1080, 1920]);
     expect(p.streams.some((s) => s.codec_type === "subtitle" && s.codec_name === "mov_text")).toBe(true);
+    // Burned in: the caption band differs from the same export without captions.
+    const band = (f: string) => execFileSync("ffmpeg", ["-v", "error", "-ss", "1", "-i", f, "-frames:v", "1", "-vf", "crop=1080:100:0:1548,scale=36:10,format=gray", "-f", "rawvideo", "-"]);
+    m.stories.saveStory(m.db, sid, { ...saveOf(sid), captions: false });
+    const withCaps = m.render.exportFile(latest(sid).id);
+    await (m.stories.requestExport(m.db, sid), runJobs());
+    if (process.env.METAL_KEEP_FRAME) execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", "1", "-i", withCaps, "-frames:v", "1", process.env.METAL_KEEP_FRAME]);
+    const a = band(withCaps);
+    const b = band(m.render.exportFile(latest(sid).id));
+    expect(a.reduce((n, v, i) => n + Math.abs(v - b[i]), 0) / a.length).toBeGreaterThan(8);
     expect(Math.abs(Number(p.format.duration) - 3.5)).toBeLessThan(0.1);
   }, 180_000);
 

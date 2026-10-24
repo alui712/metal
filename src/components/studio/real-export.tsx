@@ -28,7 +28,6 @@ export type ExportView = {
   fileUrl: string | null;
 };
 
-const STAGE: Record<string, string> = { checking: "Checking your sources", rendering: "Rendering", verifying: "Verifying the video" };
 const HEADERS = { "Content-Type": "application/json", "x-metal-action": "1" };
 
 /** Polls this story's exports while one is in flight. */
@@ -77,6 +76,10 @@ export function RealExportDialog({
   const total = totalDuration(project);
   const issueCount = Object.keys(issues).length;
   const busy = latest?.status === "queued" || latest?.status === "rendering";
+  // Reveal (and muted autoplay) only for an export that finished while this dialog was watching it.
+  const [watched, setWatched] = useState<string | null>(null);
+  if (busy && latest && watched !== latest.id) setWatched(latest.id);
+  const justFinished = latest?.status === "done" && watched === latest.id;
 
   async function render() {
     setStarting(true);
@@ -100,9 +103,17 @@ export function RealExportDialog({
         {/* Result / state */}
         <div className="min-w-0">
           {latest?.status === "done" && latest.fileUrl ? (
-            <div>
-              <div className={cn("relative mx-auto overflow-hidden rounded-2xl bg-black ring-1 ring-line", latest.aspect === "9:16" ? "aspect-[9/16] max-h-[52vh]" : latest.aspect === "1:1" ? "aspect-square max-h-[52vh]" : "aspect-video")}>
-                <video ref={player} key={latest.id} src={latest.fileUrl} controls playsInline preload="metadata" className="absolute inset-0 size-full" aria-label="Exported story video" />
+            <motion.div key={latest.id} initial={justFinished && !reduce ? { opacity: 0, scale: 0.96, filter: "blur(6px)" } : false} animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }} transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}>
+              <p className="mb-3 flex items-center gap-2 text-[13px] font-medium text-ok" role="status">
+                <Check className="size-4" aria-hidden /> Your story is ready{latest.finishedAt ? ` · rendered ${new Date(latest.finishedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}` : ""}
+              </p>
+              <div
+                className={cn(
+                  "relative mx-auto overflow-hidden rounded-2xl bg-black ring-1 ring-accent/30 shadow-[0_30px_90px_-30px_var(--violet-500)]",
+                  latest.aspect === "9:16" ? "aspect-[9/16] max-h-[52vh]" : latest.aspect === "1:1" ? "aspect-square max-h-[52vh]" : "aspect-video",
+                )}
+              >
+                <video ref={player} src={latest.fileUrl} controls playsInline preload="metadata" autoPlay={justFinished} muted={justFinished} className="absolute inset-0 size-full" aria-label="Exported story video" />
               </div>
               <div className="mt-4 flex flex-wrap items-center gap-2">
                 <a href={`${latest.fileUrl}?download=1`} download className={buttonClass("primary", "md")}>
@@ -128,20 +139,9 @@ export function RealExportDialog({
                   You’ve changed the story since this export. Render again to include your edits.
                 </p>
               )}
-            </div>
+            </motion.div>
           ) : busy ? (
-            <div className="grid aspect-video place-items-center rounded-2xl border border-line bg-[radial-gradient(80%_100%_at_50%_0%,rgb(139_92_246/0.18),transparent_70%)] bg-surface-2 p-6 text-center" role="status" aria-live="polite">
-              <div className="w-full max-w-xs">
-                <Film className="mx-auto size-8 text-accent-ink" strokeWidth={1.4} aria-hidden />
-                <p className="mt-4 text-[16px] font-medium text-ink">{latest.status === "queued" ? "Waiting for the worker…" : `${STAGE[latest.stage ?? ""] ?? "Rendering"}…`}</p>
-                <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-4" role="progressbar" aria-label="Render progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(latest.progress * 100)}>
-                  <motion.div className="h-full rounded-full bg-gradient-to-r from-accent to-accent-ink" animate={{ width: `${Math.max(3, latest.progress * 100)}%` }} transition={{ duration: reduce ? 0 : 0.6, ease: "easeOut" }} />
-                </div>
-                <p className="mt-2 font-mono text-[12px] text-ink-faint">{Math.round(latest.progress * 100)}%</p>
-                {latest.status === "queued" && latest.error && <p className="mt-2 text-[12px] text-warn">{latest.error}</p>}
-                <p className="mt-3 text-[12px] text-ink-faint">You can close this — rendering continues in the background.</p>
-              </div>
-            </div>
+            <RenderingState e={latest} reduce={!!reduce} />
           ) : (
             <div className="grid aspect-video place-items-center rounded-2xl border border-dashed border-line-strong p-6 text-center">
               {latest?.status === "failed" ? (
@@ -169,7 +169,7 @@ export function RealExportDialog({
               ["Frame rate", "30 fps"],
               ["Format", "MP4 · H.264 · AAC"],
               ["Length", `${timecode(total)} · ${project.clips.length} clip${project.clips.length === 1 ? "" : "s"}`],
-              ["Captions", project.captions ? "Subtitle track" : "Off"],
+              ["Captions", project.captions ? "Burned in + track" : "Off"],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-3 px-3.5 py-2">
                 <dt className="text-ink-faint">{k}</dt>
@@ -178,7 +178,7 @@ export function RealExportDialog({
             ))}
           </dl>
           <p className="text-[12px] leading-relaxed text-ink-faint">
-            Hard cuts, rendered locally with FFmpeg. Clips without sound get silence. Captions are a subtitle track players can turn on — this FFmpeg build can’t burn text into the picture.
+            Hard cuts, rendered locally with FFmpeg from your original recordings. Clips without sound get silence. Captions are drawn into the picture exactly as in the preview, and also included as a subtitle track.
           </p>
           {issueCount > 0 && (
             <p className="rounded-xl border border-danger/25 bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
@@ -197,5 +197,57 @@ export function RealExportDialog({
         </aside>
       </div>
     </Modal>
+  );
+}
+
+const STEPS = [
+  { key: "queued", label: "Queued" },
+  { key: "checking", label: "Checking sources" },
+  { key: "rendering", label: "Rendering" },
+  { key: "verifying", label: "Verifying" },
+] as const;
+
+function RenderingState({ e, reduce }: { e: ExportView; reduce: boolean }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const step = e.status === "queued" ? 0 : Math.max(1, STEPS.findIndex((x) => x.key === e.stage));
+  const pct = Math.round(e.progress * 100);
+  const elapsed = Math.max(0, Math.round((now - e.createdAt) / 1000));
+  return (
+    <div className="relative grid aspect-video place-items-center overflow-hidden rounded-2xl border border-line bg-surface-2 p-6 text-center" role="status" aria-live="polite">
+      <motion.div
+        aria-hidden
+        className="absolute inset-0 bg-[radial-gradient(60%_80%_at_50%_0%,rgb(139_92_246/0.28),transparent_70%)]"
+        animate={reduce ? undefined : { opacity: [0.55, 1, 0.55] }}
+        transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
+      />
+      <div className="relative w-full max-w-sm">
+        <p className="font-display text-[44px] leading-none tabular-nums text-ink">
+          {pct}
+          <span className="text-[22px] text-ink-faint">%</span>
+        </p>
+        <p className="mt-2 text-[14px] font-medium text-ink">{e.status === "queued" ? "Waiting for the worker…" : `${STEPS[step].label}…`}</p>
+        <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-surface-4" role="progressbar" aria-label="Render progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+          <motion.div className="h-full rounded-full bg-gradient-to-r from-accent to-accent-ink" animate={{ width: `${Math.max(3, pct)}%` }} transition={{ duration: reduce ? 0 : 0.6, ease: "easeOut" }} />
+        </div>
+        <ol className="mt-4 flex justify-between gap-2 text-[11px]" aria-label="Steps">
+          {STEPS.map((x, i) => (
+            <li key={x.key} className={cn("flex items-center gap-1.5", i < step ? "text-ok" : i === step ? "text-ink" : "text-ink-faint")} aria-current={i === step ? "step" : undefined}>
+              <span className={cn("grid size-4 place-items-center rounded-full border text-[9px]", i < step ? "border-ok/40 bg-ok/15" : i === step ? "border-accent bg-accent/20" : "border-line")}>
+                {i < step ? <Check className="size-2.5" aria-hidden /> : i + 1}
+              </span>
+              <span className="hidden sm:inline">{x.label}</span>
+            </li>
+          ))}
+        </ol>
+        {e.status === "queued" && e.error && <p className="mt-3 text-[12px] text-warn">{e.error}</p>}
+        <p className="mt-4 text-[12px] text-ink-faint">
+          {elapsed}s elapsed · you can close this — rendering continues in the background.
+        </p>
+      </div>
+    </div>
   );
 }

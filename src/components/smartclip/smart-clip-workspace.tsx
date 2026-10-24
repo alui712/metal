@@ -276,27 +276,50 @@ function AnalysisLine({ a, workerOnline, loading }: { a: Analysis | undefined; w
 
 function SignalChips({ a }: { a: Analysis }) {
   const s = a.signals!;
-  const items = [
-    { key: "audio", icon: AudioLines, label: "Audio loudness", sig: s.audio },
-    { key: "scenes", icon: ScanLine, label: "Picture changes", sig: s.scenes },
-    { key: "speech", icon: Mic, label: "Speech", sig: s.speech },
-    { key: "vision", icon: Film, label: "Scene descriptions", sig: s.vision },
+  const groups = [
+    {
+      name: "Measured",
+      hint: "FFmpeg measurements on this computer — signals, not understanding",
+      items: [
+        { key: "audio", icon: AudioLines, label: "Audio loudness", sig: s.audio },
+        { key: "scenes", icon: ScanLine, label: "Picture changes", sig: s.scenes },
+        { key: "speech", icon: Mic, label: "Speech (local transcript)", sig: s.speech },
+      ],
+    },
+    {
+      name: "AI understanding",
+      hint: "What happened on screen — not used unless a provider is set up",
+      items: [{ key: "vision", icon: Film, label: "Scene descriptions", sig: s.vision }],
+    },
   ];
   return (
-    <ul aria-label="Signals used" className="flex flex-wrap gap-2 px-5 py-3">
-      {items.map(({ key, icon: Icon, label, sig }) => (
-        <li
-          key={key}
-          title={sig.note ?? undefined}
-          className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium", sig.ok ? "border-ok/30 bg-ok/10 text-ok" : "border-line text-ink-faint")}
-        >
-          <Icon className="size-3.5" aria-hidden />
-          {label}
-          <span className="sr-only">: </span>
-          {sig.ok ? <Check className="size-3" aria-label="used" /> : <span>· {key === "audio" ? "no audio track" : key === "speech" ? speechChip(sig.note) : "not set up"}</span>}
-        </li>
+    <div aria-label="Signals used" role="group" className="flex flex-wrap items-start gap-x-6 gap-y-3 px-5 py-3">
+      {groups.map((g) => (
+        <div key={g.name} className="min-w-0">
+          <p className="mb-1.5 text-[10.5px] font-medium uppercase tracking-[0.16em] text-ink-faint" title={g.hint}>
+            {g.name}
+            <span className="sr-only"> — {g.hint}</span>
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {g.items.map(({ key, icon: Icon, label, sig }) => (
+              <li
+                key={key}
+                title={sig.note ?? undefined}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium",
+                  sig.ok ? "border-ok/30 bg-ok/10 text-ok" : "border-dashed border-line text-ink-faint",
+                )}
+              >
+                <Icon className="size-3.5" aria-hidden />
+                {label}
+                <span className="sr-only">: </span>
+                {sig.ok ? <Check className="size-3" aria-label="used" /> : <span>· {key === "audio" ? "no audio track" : key === "speech" ? speechChip(sig.note) : "not set up"}</span>}
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 

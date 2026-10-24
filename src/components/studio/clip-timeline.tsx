@@ -100,7 +100,7 @@ export function ClipTimeline({
                   aria-pressed={isSel}
                   aria-label={`Clip ${index + 1}: ${moment?.title ?? rec?.title}, ${seconds(clipDuration(clip))}${library.issues?.[clip.id] ? `. ${library.issues[clip.id]}` : ""}. Alt+arrows to move, Delete to remove.`}
                   className={cn(
-                    "group flex h-full w-full flex-col overflow-hidden rounded-xl border bg-surface-3 text-left transition-colors",
+                    "group flex h-full w-full flex-col overflow-hidden rounded-xl border bg-surface-3 text-left transition-[border-color,transform] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:hover:translate-y-0",
                     isSel ? "border-accent shadow-[0_0_0_1px_var(--violet-500)]" : "border-line hover:border-line-strong",
                   )}
                 >
