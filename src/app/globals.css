@@ -18,7 +18,7 @@
 
   --ink: #f4f4f7;
   --ink-muted: #a3a3b0;
-  --ink-faint: #6b6b78;
+  --ink-faint: #8a8a97; /* ≥ 4.5:1 on every graphite surface (WCAG AA small text) */
 
   --violet-300: #c4b1ff;
   --violet-400: #a685ff;

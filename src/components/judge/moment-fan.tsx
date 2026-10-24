@@ -100,7 +100,11 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
         <span className="flex items-center justify-between gap-3 border-t border-white/8 px-4 py-3">
           <span className="min-w-0">
             <span className="block truncate text-[14.5px] font-semibold text-ink">{c.title}</span>
-            <span className="mt-0.5 block truncate font-mono text-[11.5px] tracking-wide text-ink-faint">{c.detail}</span>
+            <span className="mt-0.5 block truncate font-mono text-[11.5px] tracking-wide text-ink-faint">
+              {c.detail}
+              {c.detail && " · "}
+              <PlayHint lower />
+            </span>
           </span>
           <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-4 text-ink transition-colors group-hover:bg-accent group-hover:text-white">
             <Play className="size-3.5 fill-current" aria-hidden />
@@ -108,5 +112,15 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
         </span>
       </Link>
     </motion.div>
+  );
+}
+
+/** "Hover to play" only where hovering exists; touch screens open the recording on tap. */
+export function PlayHint({ lower = false }: { lower?: boolean }) {
+  return (
+    <>
+      <span className="[@media(hover:none)]:hidden">{lower ? "hover to play" : "Hover to play."}</span>
+      <span className="hidden [@media(hover:none)]:inline">{lower ? "tap to open" : "Tap one to open it."}</span>
+    </>
   );
 }

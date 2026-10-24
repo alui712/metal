@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { AlertTriangle, Mic, Pause, Play, RotateCcw, SkipBack, SkipForward, Waves, X } from "lucide-react";
+import { AlertTriangle, LoaderCircle, Mic, Pause, Play, RotateCcw, SkipBack, SkipForward, Waves, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
@@ -12,6 +12,8 @@ import { initialRelive, reliveReducer } from "@/lib/timemachine/relive";
 import type { TimelineMoment, TimelineRecording } from "@/lib/timemachine/types";
 
 const FADE_MS = 450;
+/** After this long without a frame, offer Retry / Skip. */
+const SLOW_MS = 8000;
 
 /** Relive This Night: the session's real moments, in order, from the original videos. */
 export function RelivePlayer({
@@ -36,12 +38,21 @@ export function RelivePlayer({
   const [ready, setReady] = useState<ReadonlySet<string>>(() => new Set());
   const [shown, setShown] = useState<{ id: string; offsetMs: number } | null>(null);
   const [blocked, setBlocked] = useState(false);
+  // Moment id whose active slot reported `waiting` (stalled mid-play), and retries of the current load.
+  const [waitingId, setWaitingId] = useState<string | null>(null);
+  const [retries, setRetries] = useState(0);
+  const [slowKey, setSlowKey] = useState<string | null>(null);
   const m = moments[s.index];
   const active = s.index % 2;
   const offsetMs = shown && shown.id === m?.id ? shown.offsetMs : 0;
   const curtain = s.done || !m || !ready.has(m.id);
   const rec = recordings.find((r) => r.id === m?.recordingId);
   const exitHref = `/sessions/${sessionId}`;
+  const failedNow = s.failed.includes(s.index);
+  // Visible status instead of a silent black screen; after SLOW_MS offer Retry / Skip.
+  const loadingNow = !s.done && !!m && !failedNow && (curtain || waitingId === m.id);
+  const loadKey = `${m?.id}:${retries}`;
+  const slow = loadingNow && slowKey === loadKey;
 
   /** Loads a moment into a slot (src + exact seek). Returns false when it has no playable video. */
   const prime = useCallback(
@@ -113,6 +124,23 @@ export function RelivePlayer({
     [moments, active, m?.id],
   );
 
+  useEffect(() => {
+    if (!loadingNow) return;
+    const t = setTimeout(() => setSlowKey(loadKey), SLOW_MS);
+    return () => clearTimeout(t);
+  }, [loadingNow, loadKey]);
+
+  /** Reloads the current moment's video from scratch (Retry). */
+  const reload = () => {
+    const v = slots.current[active];
+    if (!v || !m) return;
+    slotMoment.current[active] = null;
+    v.removeAttribute("src");
+    setWaitingId(null);
+    setRetries((n) => n + 1);
+    if (prime(active, m) && s.playing) void v.play().catch(() => {});
+  };
+
   const onSlotError = (slot: number) => {
     const id = slotMoment.current[slot];
     slotMoment.current[slot] = null;
@@ -158,7 +186,7 @@ export function RelivePlayer({
   }
 
   const momentLen = m ? m.endMs - m.startMs : 1;
-  const failedHere = s.failed.includes(s.index);
+  const failedHere = failedNow;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white" role="region" aria-label={`Relive ${title}`}>
@@ -173,11 +201,13 @@ export function RelivePlayer({
           onTimeUpdate={() => onSlotTime(slot)}
           onSeeked={() => onSlotTime(slot)}
           onError={() => onSlotError(slot)}
+          onWaiting={() => slot === active && setWaitingId(slotMoment.current[slot])}
+          onPlaying={() => slot === active && setWaitingId(null)}
           aria-hidden={slot !== active}
           data-active={slot === active}
           className="absolute inset-0 size-full object-contain"
           style={{ opacity: slot === active ? 1 : 0, transition: reduce ? "none" : `opacity ${FADE_MS}ms ease-in-out` }}
-          aria-label={slot === active && m ? `${m.title}, ${rec?.title ?? "recording"} at ${timecode(m.startMs + offsetMs)}` : undefined}
+          aria-label={slot === active && m ? `${m.title}, ${rec?.title ?? "recording"}` : undefined}
         />
       ))}
       {/* Curtain: only while the current moment's frame isn't ready (first load, or a jump). */}
@@ -188,6 +218,27 @@ export function RelivePlayer({
         animate={{ opacity: curtain ? 1 : 0 }}
         transition={{ duration: reduce ? 0 : FADE_MS / 1000, ease: "easeInOut" }}
       />
+      {loadingNow && (
+        <div className="pointer-events-none absolute inset-0 grid place-items-center p-6">
+          <div className="pointer-events-auto flex flex-col items-center gap-3 rounded-2xl bg-black/55 px-6 py-5 text-center backdrop-blur" role="status">
+            <LoaderCircle className="size-7 animate-spin text-white/80 motion-reduce:animate-none" aria-hidden />
+            <p className="text-[14px] text-white/90">{curtain ? `Loading moment ${s.index + 1} of ${moments.length}…` : "Buffering…"}</p>
+            {slow && (
+              <>
+                <p className="max-w-xs text-[12.5px] text-white/65">This is taking longer than usual. The video may still be loading from disk.</p>
+                <div className="flex gap-2">
+                  <button type="button" onClick={reload} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-[13px] font-medium hover:bg-white/25">
+                    <RotateCcw className="size-3.5" aria-hidden /> Retry
+                  </button>
+                  <button type="button" onClick={() => dispatch({ type: "next" })} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-white/15 px-3 text-[13px] font-medium hover:bg-white/25">
+                    <SkipForward className="size-3.5" aria-hidden /> Skip moment
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/80 to-transparent" />
       <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-72 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
 
@@ -196,8 +247,12 @@ export function RelivePlayer({
         <p className="min-w-0 flex-1 truncate text-[12px] uppercase tracking-[0.2em] text-white/60">
           Relive · <span className="text-white/85">{title}</span>
         </p>
-        <p className="font-mono text-[12px] text-white/70" aria-live="polite">
+        <p className="font-mono text-[12px] text-white/70" aria-hidden>
           {Math.min(s.index + 1, moments.length)} / {moments.length}
+        </p>
+        {/* Announced once per moment, without the ticking timecode. */}
+        <p className="sr-only" aria-live="polite">
+          {m && !s.done ? `Moment ${s.index + 1} of ${moments.length}: ${m.title}` : ""}
         </p>
         <button type="button" onClick={() => dispatch({ type: "exit" })} className="grid size-10 place-items-center rounded-full bg-white/10 hover:bg-white/20" aria-label="Exit Relive (Esc)">
           <X className="size-5" aria-hidden />
@@ -232,7 +287,6 @@ export function RelivePlayer({
                 exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
                 transition={{ duration: 0.4 }}
                 className="mb-5 max-w-3xl"
-                aria-live="polite"
               >
                 <p className="font-mono text-[12px] text-white/65">
                   {m.at !== null ? `${rec?.timeSource === "file-date" ? "≈ " : ""}${clockSec(m.at + offsetMs)}` : "Time unknown"} · {rec?.title} · {timecode(m.startMs + offsetMs)}
@@ -281,7 +335,7 @@ export function RelivePlayer({
               onClick={() => dispatch({ type: "jump", index: i })}
               aria-label={`Moment ${i + 1}: ${x.title}`}
               aria-current={i === s.index && !s.done ? "step" : undefined}
-              className="group h-5 flex-1 py-2"
+              className="group h-5 flex-1 rounded-sm py-2 outline-none focus-visible:ring-2 focus-visible:ring-white/80 focus-visible:ring-offset-2 focus-visible:ring-offset-black"
             >
               <span className={cn("block h-1 overflow-hidden rounded-full bg-white/20 transition-colors group-hover:bg-white/35", s.failed.includes(i) && "bg-warn/40")}>
                 <span

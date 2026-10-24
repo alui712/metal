@@ -4,6 +4,7 @@ import { ArrowRight, Circle, History, LoaderCircle, MonitorOff, PlugZap, Radio, 
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { replayLabel } from "@/lib/capture/settings";
+import type { Lost } from "@/lib/capture/poll";
 import { CONNECTION_LABEL, type CaptureView } from "@/lib/capture/status";
 import type { LibraryRecording } from "@/lib/recordings/types";
 import { cn } from "@/lib/cn";
@@ -39,7 +40,8 @@ export function CaptureConsole() {
   const settings = useCaptureSettings();
   const snap = useCapture();
   const s = snap?.state;
-  const connected = s?.connection === "connected";
+  const lost = snap?.lost ?? null;
+  const connected = s?.connection === "connected" && !lost;
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const elapsed = useRecordClock(s, snap?.fetchedAt);
@@ -101,7 +103,7 @@ export function CaptureConsole() {
         </div>
 
         <div className="flex flex-1 flex-col items-center justify-center px-6 pb-10 text-center sm:pb-14">
-          {connected ? <LiveStage s={s} replay={replay} /> : <OfflineStage s={s} />}
+          {connected ? <LiveStage s={s} replay={replay} /> : <OfflineStage s={s} lost={lost} fetchedAt={snap?.fetchedAt ?? 0} />}
         </div>
       </div>
 
@@ -178,12 +180,26 @@ export function CaptureConsole() {
   );
 }
 
-function OfflineStage({ s }: { s: CaptureView | undefined }) {
+function OfflineStage({ s, lost, fetchedAt }: { s: CaptureView | undefined; lost: Lost | null; fetchedAt: number }) {
+  if (lost) {
+    return (
+      <>
+        <span className="grid size-14 place-items-center rounded-2xl border border-danger/40 bg-danger/10 text-danger">
+          <PlugZap className="size-6" strokeWidth={1.5} aria-hidden />
+        </span>
+        <p className="mt-5 text-[clamp(1.25rem,2.2vw,1.6rem)] font-semibold tracking-[-0.02em] text-ink">Lost contact with METAL</p>
+        <p className="mt-2 max-w-md text-[14px] leading-relaxed text-ink-muted">
+          {lost.message} {fetchedAt ? `Last status was at ${new Date(fetchedAt).toLocaleTimeString()}; it may be out of date.` : "No status yet."} Capture controls are off until it answers
+          again. If OBS was recording, it keeps recording in OBS.
+        </p>
+      </>
+    );
+  }
   const Icon = s?.connection === "connecting" || !s ? LoaderCircle : s.connection === "error" ? PlugZap : MonitorOff;
   return (
     <>
       <span className="grid size-14 place-items-center rounded-2xl border border-line-strong bg-surface-3/80 text-ink-muted">
-        <Icon className={cn("size-6", (s?.connection === "connecting" || !s) && "animate-spin")} strokeWidth={1.5} aria-hidden />
+        <Icon className={cn("size-6", (s?.connection === "connecting" || !s) && "animate-spin motion-reduce:animate-none")} strokeWidth={1.5} aria-hidden />
       </span>
       <p className="mt-5 text-[clamp(1.25rem,2.2vw,1.6rem)] font-semibold tracking-[-0.02em] text-ink">
         {!s ? "Checking OBS…" : s.connection === "connecting" ? "Connecting to OBS…" : s.connection === "error" ? "Can’t reach OBS" : s.connection === "worker-offline" ? "Worker isn’t running" : "No capture source connected"}

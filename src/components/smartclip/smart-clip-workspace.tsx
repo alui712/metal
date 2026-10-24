@@ -113,7 +113,7 @@ export function SmartClipWorkspace({
     setSelected(s.id);
     setPreview({ id: s.id, endMs: s.endMs });
     seek(s.startMs, true);
-    video.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    video.current?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   async function run(key: string, fn: () => Promise<string | null>) {

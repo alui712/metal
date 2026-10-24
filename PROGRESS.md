@@ -27,6 +27,20 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Cycle 2: UI/UX quality ✅ (2026-10-24)
+
+- **Recall:** only the current query's answer is shown. Superseded searches are aborted. The server's error message appears with Retry, and a search in progress shows "Searching for …". Home examples are the verified demo line (real Recall) plus demo queries labelled "Demo" that open `/recall/demo`.
+- **Relive:** shows "Loading moment n of N…" or "Buffering…" instead of a silent black screen. After 8 s it offers Retry and Skip. The screen reader announces each moment once, with no ticking timecode, and the moment scrubber has a focus ring.
+- **Capture:** after 3 failed polls the UI says "Lost contact with METAL" (sidebar: "No server reply") rather than keeping a stale "Connected" or "Recording", and the controls are disabled until the server answers (`src/lib/capture/poll.ts`). No backend changes.
+- **Accessibility:**
+  - `ink-faint` changed #6b6b78 → #8a8a97, now ≥ 4.5:1 on all graphite surfaces.
+  - The shared Scrubber shows a focus ring.
+  - The POV live region announces POV switches only.
+  - The command palette no longer overflows at 390 px and scrolls the keyboard-highlighted option into view.
+  - Smooth scrolls respect reduced motion.
+- **Touch:** "hover to play" becomes "tap to open" on devices without hover.
+- **Verified:** typecheck, lint, 194 tests, build, and browser checks at 1920 and 390 (error injection, slow network, keyboard, reduced motion, touch). The Cycle 1 tour journey (21) and layout journey (14) still pass. `demo:check` was not run (it writes test data).
+
 ## Judge Experience — Cycle 1: demo reliability ✅ (2026-10-24)
 
 - Approved list `data/judge-demo.json`, verified by `curate()`. There is no "latest story/group" selection, and `npm run judge:ready` gives a read-only checklist (currently 10/10 ready).

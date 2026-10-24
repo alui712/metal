@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { formatDate, timecode } from "@/lib/format";
+import { recallFetch } from "@/lib/recall/fetch";
 import { Highlight } from "./highlight";
 
 // Client types mirror src/server/search/recall.ts + /api/recall (no paths).
@@ -49,11 +50,16 @@ export function LibraryRecall() {
   const filterKey = FILTERS.map((f) => params.get(f) ?? "").join("|");
   const [draft, setDraft] = useState(q);
   const [lastQ, setLastQ] = useState(q);
-  const key = `${q}|${filterKey}`;
-  const [fetched, setFetched] = useState<{ key: string; data: Response | null; error: boolean } | null>(null);
-  const data = fetched?.data ?? null;
-  const error = fetched?.key === key && fetched.error;
-  const loading = fetched?.key !== key;
+  const [attempt, setAttempt] = useState(0);
+  const key = `${q}|${filterKey}|${attempt}`;
+  // Only the response for the current query (and retry) is ever shown; `last`
+  // keeps the index stats and filter options steady while a new search loads.
+  const [fetched, setFetched] = useState<{ key: string; data: Response | null; error: string | null; last: Response | null } | null>(null);
+  const settled = fetched?.key === key;
+  const loading = !settled;
+  const data = settled ? fetched.data : null;
+  const error = settled ? fetched.error : null;
+  const known = data ?? fetched?.last ?? null;
   const [selected, setSelected] = useState<string | null>(null);
   const video = useRef<HTMLVideoElement>(null);
 
@@ -64,17 +70,16 @@ export function LibraryRecall() {
   }
 
   useEffect(() => {
-    let alive = true;
+    const ctrl = new AbortController();
     const sp = new URLSearchParams({ q });
     for (const f of FILTERS) if (params.get(f)) sp.set(f, params.get(f)!);
-    fetch(`/api/recall?${sp}`, { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((d: Response) => alive && setFetched({ key, data: d, error: false }))
-      .catch(() => alive && setFetched((f) => ({ key, data: f?.data ?? null, error: true })));
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch on query/filter change only
+    recallFetch<Response>(`/api/recall?${sp}`, ctrl.signal).then(
+      (d) => setFetched((f) => ({ key, data: d, error: null, last: d ?? f?.last ?? null })),
+      (e: unknown) => !ctrl.signal.aborted && setFetched((f) => ({ key, data: null, error: e instanceof Error ? e.message : String(e), last: f?.last ?? null })),
+    );
+    // A newer search (or leaving the page) cancels this one, so late answers never land.
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch on query/filter/retry change only
   }, [key]);
 
   const nav = (patch: Record<string, string | null>) => {
@@ -87,7 +92,7 @@ export function LibraryRecall() {
     router.replace(s ? `${pathname}?${s}` : pathname, { scroll: false });
   };
 
-  const results = q.trim() ? (data?.results ?? []) : [];
+  const results = q.trim() && data ? data.results : [];
   const current = results.find((h) => keyOf(h) === selected) ?? results[0] ?? null;
   const hasFilters = FILTERS.some((f) => params.get(f));
 
@@ -108,7 +113,7 @@ export function LibraryRecall() {
   function play(h: Hit) {
     setSelected(keyOf(h));
     cue(h, true);
-    if (window.innerWidth < 1024) video.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (window.innerWidth < 1024) video.current?.scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   }
 
   // The top result is ready to play the moment results arrive (cued at its second, not autoplayed).
@@ -155,17 +160,17 @@ export function LibraryRecall() {
           Recording
           <select value={params.get("recording") ?? ""} onChange={(e) => nav({ recording: e.target.value || null })} className="h-9 max-w-[16rem] rounded-lg border border-line bg-surface-2 px-2 text-ink">
             <option value="">All transcribed</option>
-            {data?.facets.recordings.map((r) => (
+            {known?.facets.recordings.map((r) => (
               <option key={r.id} value={r.id}>{r.title}</option>
             ))}
           </select>
         </label>
-        {(data?.facets.games.length ?? 0) > 0 && (
+        {(known?.facets.games.length ?? 0) > 0 && (
           <label className="flex flex-col gap-1 text-ink-faint">
             Game
             <select value={params.get("game") ?? ""} onChange={(e) => nav({ game: e.target.value || null })} className="h-9 rounded-lg border border-line bg-surface-2 px-2 text-ink">
               <option value="">Any game</option>
-              {data!.facets.games.map((g) => (
+              {known!.facets.games.map((g) => (
                 <option key={g} value={g}>{g}</option>
               ))}
             </select>
@@ -186,17 +191,30 @@ export function LibraryRecall() {
         )}
       </div>
 
-      {data && (
+      {known && (
         <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-faint">
           <Mic className="size-3.5" aria-hidden />
-          Searching {data.index.segments} machine-transcribed line{data.index.segments === 1 ? "" : "s"} from {data.index.recordings} recording{data.index.recordings === 1 ? "" : "s"}, on this computer.
-          {data.semantic.available ? " Matches by words and by meaning." : ` Keyword matching only — ${data.semantic.reason}`}
-          {data.index.flagged > 0 && ` ${data.index.flagged} line${data.index.flagged === 1 ? "" : "s"} you marked wrong ${data.index.flagged === 1 ? "is" : "are"} excluded.`}
+          Searching {known.index.segments} machine-transcribed line{known.index.segments === 1 ? "" : "s"} from {known.index.recordings} recording{known.index.recordings === 1 ? "" : "s"}, on this computer.
+          {known.semantic.available ? " Matches by words and by meaning." : ` Keyword matching only — ${known.semantic.reason}`}
+          {known.index.flagged > 0 && ` ${known.index.flagged} line${known.index.flagged === 1 ? "" : "s"} you marked wrong ${known.index.flagged === 1 ? "is" : "are"} excluded.`}
         </p>
       )}
-      {error && <p role="alert" className="mt-6 text-[13px] text-danger">Couldn’t search. Is the METAL server running?</p>}
+      {q.trim() && loading && (
+        <p role="status" className="mt-8 flex items-center gap-2 text-[13.5px] text-ink-muted">
+          <LoaderCircle className="size-4 animate-spin motion-reduce:animate-none" aria-hidden /> Searching for “{q}”…
+        </p>
+      )}
+      {error && (
+        <div role="alert" className="mt-8 flex flex-wrap items-center gap-3 rounded-2xl border border-danger/30 bg-danger/10 px-4 py-3 text-[13.5px] text-danger">
+          <CircleAlert className="size-4 shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">Couldn’t search: {error}</span>
+          <button type="button" onClick={() => setAttempt((n) => n + 1)} className="h-8 rounded-lg border border-danger/40 px-3 font-medium text-ink hover:bg-danger/15">
+            Retry
+          </button>
+        </div>
+      )}
 
-      {!q.trim() && data && data.index.segments === 0 && (
+      {!q.trim() && known && known.index.segments === 0 && (
         <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center">
           <p className="text-[15px] font-medium text-ink">Nothing to search yet</p>
           <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
@@ -206,7 +224,7 @@ export function LibraryRecall() {
         </div>
       )}
 
-      {q.trim() && data && !loading && results.length === 0 && (
+      {q.trim() && data && results.length === 0 && (
         <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center" role="status">
           <p className="text-[15px] font-medium text-ink">No moments match “{data.query}”</p>
           <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
@@ -220,7 +238,6 @@ export function LibraryRecall() {
         <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
           <div className="min-w-0">
             <p className="mb-3 text-[13px] text-ink-muted" aria-live="polite">
-              {loading && <LoaderCircle className="mr-1.5 inline size-3.5 animate-spin" aria-hidden />}
               {results.length} moment{results.length === 1 ? "" : "s"} for “{data!.query}”
             </p>
             {data!.ambiguous && (

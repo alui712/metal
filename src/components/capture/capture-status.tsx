@@ -18,12 +18,15 @@ const DOT: Record<CaptureConnection, string> = {
 function useStatus() {
   const snap = useCapture();
   const s = snap?.state;
-  const recording = Boolean(s?.recording);
+  const lost = Boolean(snap?.lost);
+  // A stale answer must not keep claiming "Connected" or "Recording".
+  const recording = !lost && Boolean(s?.recording);
   return {
-    connection: s?.connection ?? null,
-    label: !s ? "Checking…" : recording ? "Recording" : CONNECTION_LABEL[s.connection],
+    connection: lost ? ("error" as const) : (s?.connection ?? null),
+    lost,
+    label: lost ? "No server reply" : !s ? "Checking…" : recording ? "Recording" : CONNECTION_LABEL[s.connection],
     recording,
-    replay: Boolean(s?.replayActive),
+    replay: !lost && Boolean(s?.replayActive),
   };
 }
 

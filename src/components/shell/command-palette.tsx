@@ -103,6 +103,11 @@ export function CommandPalette() {
 
   const active = Math.min(activeIndex, Math.max(actions.length - 1, 0));
 
+  // Keep the keyboard-highlighted option visible in the scrolling list.
+  useEffect(() => {
+    if (open) document.getElementById(`${listId}-${active}`)?.scrollIntoView({ block: "nearest" });
+  }, [open, active, listId]);
+
   function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") {
       e.preventDefault();
@@ -155,9 +160,9 @@ export function CommandPalette() {
                     aria-expanded
                     aria-controls={listId}
                     aria-activedescendant={actions[active] ? `${listId}-${active}` : undefined}
-                    className="h-16 flex-1 bg-transparent text-[17px] text-ink outline-none placeholder:text-ink-faint"
+                    className="h-16 min-w-0 flex-1 bg-transparent text-[17px] text-ink outline-none placeholder:text-ink-faint"
                   />
-                  <kbd className="rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] text-ink-faint">
+                  <kbd className="hidden rounded-md border border-line bg-surface-3 px-1.5 py-0.5 font-mono text-[11px] text-ink-faint sm:inline">
                     esc
                   </kbd>
                 </div>
@@ -182,8 +187,8 @@ export function CommandPalette() {
                           strokeWidth={1.75}
                           aria-hidden
                         />
-                        <span className="flex-1 truncate">{action.label}</span>
-                        <span className="text-[12px] text-ink-faint">{action.hint}</span>
+                        <span className="min-w-0 flex-1 truncate">{action.label}</span>
+                        <span className="hidden max-w-[45%] truncate text-[12px] text-ink-faint sm:block">{action.hint}</span>
                         {i === active && (
                           <CornerDownLeft className="size-3.5 text-ink-faint" aria-hidden />
                         )}

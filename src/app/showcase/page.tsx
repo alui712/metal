@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { FeatureCards } from "@/components/judge/feature-cards";
-import { MomentFan } from "@/components/judge/moment-fan";
+import { MomentFan, PlayHint } from "@/components/judge/moment-fan";
 import { ShowcaseHero } from "@/components/judge/showcase-hero";
 import { StartTourButton } from "@/components/judge/start-tour-button";
 import { ButtonLink } from "@/components/ui/button";
@@ -106,14 +106,14 @@ async function Featured() {
           videoUrl: r.videoUrl,
           startMs: 0,
           title: r.title ?? `Recording from ${night.title}`,
-          detail: r.durationMs ? `${duration(r.durationMs)} · hover to play` : "Hover to play",
+          detail: r.durationMs ? duration(r.durationMs) : "",
           label: `Play ${r.title ?? "recording"} from ${night.title}`,
         }))}
       />
       <Reveal delay={1.2}>
         <p className="mt-6 text-[13px] text-ink-faint lg:mt-2 lg:text-right">
           Real footage from <span className="font-medium text-ink-muted">{night.title}</span>: {plural(night.recordingCount, "recording")},{" "}
-          {duration(night.footageMs)} of footage. Hover to play.
+          {duration(night.footageMs)} of footage. <PlayHint />
         </p>
       </Reveal>
     </div>

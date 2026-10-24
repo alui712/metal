@@ -9,7 +9,9 @@ import { Field, SourceCard, Steps, inputClass, type SourceState } from "./source
 /** OBS connection: live status plus host/port/password. The password is write-only. */
 export function ObsCard() {
   const snap = useCapture();
-  const s = snap?.state;
+  const lost = snap?.lost ?? null;
+  // While the server isn't answering, show that rather than its last (stale) state.
+  const s = lost ? undefined : snap?.state;
   const cfg = snap?.config;
   const [draft, setDraft] = useState<{ host: string; port: string } | null>(null);
   const [password, setPassword] = useState("");
@@ -18,7 +20,7 @@ export function ObsCard() {
 
   const host = draft?.host ?? cfg?.host ?? "127.0.0.1";
   const port = draft?.port ?? String(cfg?.port ?? 4455);
-  const state: SourceState = !s ? "checking" : s.connection === "not-configured" ? "not-connected" : s.connection;
+  const state: SourceState = lost ? "error" : !s ? "checking" : s.connection === "not-configured" ? "not-connected" : s.connection;
 
   async function save(enabled: boolean) {
     setBusy(true);
@@ -98,6 +100,7 @@ export function ObsCard() {
       </form>
       <div className="mt-3 space-y-1 text-[12.5px] leading-relaxed" aria-live="polite">
         {error && <p role="alert" className="text-danger">{error}</p>}
+        {lost && <p className="text-danger">Lost contact with the METAL server: {lost.message} OBS status is unknown until it answers again.</p>}
         {s?.connection === "connected" && (
           <p className="text-ok">
             Connected to OBS {s.obsVersion}. {s.replayAvailable ? "Replay buffer available." : "Replay buffer is off in OBS — enable it to save clips."}

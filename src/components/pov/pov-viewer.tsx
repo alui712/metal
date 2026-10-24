@@ -394,8 +394,13 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref }: { initial:
               {timecode(t - group.startMs)} <span className="text-ink-faint">/ {timecode(span)}</span>
             </span>
           </div>
-          <p className="mt-2 text-[12px] text-ink-faint" aria-live="polite" data-pov-position>
+          <p className="mt-2 text-[12px] text-ink-faint" data-pov-position>
             Hearing {nameOf(active)} · {activeCovers ? `${timecode(activeOwn)} in their recording` : "no footage at this moment"}
+          </p>
+          {/* Announce POV switches only; the ticking time above would repeat every second. */}
+          <p className="sr-only" aria-live="polite">
+            Now hearing {nameOf(active)}
+            {activeCovers ? "" : ", no footage at this moment"}
           </p>
 
           {/* Coverage lanes: who recorded when */}

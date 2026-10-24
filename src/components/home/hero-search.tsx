@@ -6,8 +6,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SUGGESTED_QUERIES } from "@/lib/memory/repository";
 
+/** Real lines come from the approved judge list (verified in the transcripts); demo queries only open the labelled demo. */
+export type HeroExamples = { real: string[] };
+
 /** Universal memory search entry: submits to Recall. */
-export function HeroSearch() {
+export function HeroSearch({ examples = { real: [] } }: { examples?: HeroExamples }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
 
@@ -42,13 +45,25 @@ export function HeroSearch() {
           <ArrowRight className="size-5" strokeWidth={2} aria-hidden />
         </button>
       </form>
-      <ul className="mt-4 flex flex-wrap gap-2" aria-label="Try asking">
-        {SUGGESTED_QUERIES.slice(0, 3).map((q) => (
+      <ul className="mt-4 flex flex-wrap items-center gap-2" aria-label="Try asking">
+        {examples.real.map((q) => (
           <li key={q}>
             <Link
               href={`/recall?q=${encodeURIComponent(q)}`}
-              className="inline-flex h-8 items-center rounded-full border border-white/10 bg-black/30 px-3 text-[13px] text-white/70 backdrop-blur transition-colors hover:border-white/25 hover:text-white"
+              className="inline-flex h-8 items-center rounded-full border border-white/10 bg-black/30 px-3 text-[13px] text-white/80 backdrop-blur transition-colors hover:border-white/25 hover:text-white"
             >
+              “{q}”
+            </Link>
+          </li>
+        ))}
+        {SUGGESTED_QUERIES.slice(0, examples.real.length ? 1 : 2).map((q) => (
+          <li key={q}>
+            <Link
+              href={`/recall/demo?q=${encodeURIComponent(q)}`}
+              aria-label={`${q} (demo memories, not your recordings)`}
+              className="inline-flex h-8 items-center gap-2 rounded-full border border-dashed border-white/15 px-3 text-[13px] text-white/70 transition-colors hover:border-white/30 hover:text-white"
+            >
+              <span className="rounded bg-white/10 px-1.5 py-px text-[10.5px] font-semibold uppercase tracking-wider text-white/80">Demo</span>
               {q}
             </Link>
           </li>

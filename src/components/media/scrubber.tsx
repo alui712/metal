@@ -33,7 +33,7 @@ export function Scrubber({
 }) {
   const pct = durationMs ? (timeMs / durationMs) * 100 : 0;
   return (
-    <div className={cn("group/scrub relative h-6 w-full", className)}>
+    <div className={cn("group/scrub relative h-6 w-full rounded-full has-[input:focus-visible]:ring-2 has-[input:focus-visible]:ring-accent has-[input:focus-visible]:ring-offset-4 has-[input:focus-visible]:ring-offset-surface", className)}>
       <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-white/15 transition-[height] group-hover/scrub:h-1.5">
         {markers.map((m) => (
           <span

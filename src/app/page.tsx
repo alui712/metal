@@ -203,7 +203,9 @@ export default function Home() {
         {/* ── Recall ─────────────────────────────────────── */}
         <section aria-labelledby="ask-heading">
           <SectionHeading id="ask-heading" title="Ask your memories" />
-          <HeroSearch />
+          <Suspense fallback={<HeroSearch />}>
+            <AskMemories />
+          </Suspense>
         </section>
 
         {/* ── Recent recordings ──────────────────────────── */}
@@ -224,4 +226,10 @@ export default function Home() {
       </PageContainer>
     </PageTransition>
   );
+}
+
+async function AskMemories() {
+  await connection();
+  const line = spotlight().recall?.line;
+  return <HeroSearch examples={{ real: line ? [line] : [] }} />;
 }
