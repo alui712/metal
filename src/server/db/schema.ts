@@ -41,7 +41,7 @@ export const recordings = sqliteTable(
     videoCodec: text("video_codec"),
     audioCodec: text("audio_codec"),
     /** How it arrived: a manual upload, an OBS replay-buffer clip, a full OBS recording, or a watched folder. */
-    origin: text("origin", { enum: ["upload", "obs-replay", "obs-recording", "folder"] })
+    origin: text("origin", { enum: ["upload", "obs-replay", "obs-recording", "folder", "clip"] })
       .notNull()
       .default("upload"),
     /**
@@ -50,6 +50,9 @@ export const recordings = sqliteTable(
      * sources without copying it twice. Never sent to clients.
      */
     sourcePath: text("source_path"),
+    /** For saved Smart Clips: the recording it was cut from, and where (ms). */
+    parentRecordingId: text("parent_recording_id").references((): AnySQLiteColumn => recordings.id, { onDelete: "set null" }),
+    parentStartMs: integer("parent_start_ms"),
     recordedAt: integer("recorded_at"),
     importedAt: createdAt(),
     status: text("status", {
@@ -250,6 +253,8 @@ export const frames = sqliteTable(
     isSceneChange: integer("is_scene_change", { mode: "boolean" })
       .notNull()
       .default(false),
+    /** FFmpeg scdet score (0–100) when this frame is at a detected scene change. */
+    sceneScore: real("scene_score"),
     phash: text("phash"),
   },
   (t) => [uniqueIndex("frames_recording_t_idx").on(t.recordingId, t.tMs)],
@@ -276,6 +281,7 @@ export const visualObservations = sqliteTable(
   (t) => [index("observations_recording_idx").on(t.recordingId, t.tMs)],
 );
 
+/** Timeline signals measured by FFmpeg: loudness peaks/jumps, silences, and scene changes. */
 export const audioEvents = sqliteTable(
   "audio_events",
   {
@@ -285,8 +291,10 @@ export const audioEvents = sqliteTable(
       .references(() => recordings.id, { onDelete: "cascade" }),
     startMs: integer("start_ms").notNull(),
     endMs: integer("end_ms").notNull(),
-    kind: text("kind", { enum: ["loudness_peak", "silence"] }).notNull(),
+    kind: text("kind", { enum: ["loudness_peak", "loudness_jump", "silence", "scene_change"] }).notNull(),
     score: real("score").notNull(),
+    /** Measured values behind the event (e.g. peak LUFS, baseline, rise). */
+    evidenceJson: text("evidence_json").notNull().default("{}"),
   },
   (t) => [index("audio_events_recording_idx").on(t.recordingId, t.startMs)],
 );
@@ -310,6 +318,61 @@ export const moments = sqliteTable(
     sourcesJson: text("sources_json").notNull().default("{}"),
   },
   (t) => [index("moments_recording_idx").on(t.recordingId, t.startMs)],
+);
+
+/**
+ * Analysis run per recording (one row; replaced on re-analysis). Records
+ * which signals were actually produced and which providers were unavailable.
+ */
+export const recordingAnalysis = sqliteTable("recording_analysis", {
+  recordingId: text("recording_id")
+    .primaryKey()
+    .references(() => recordings.id, { onDelete: "cascade" }),
+  version: text("version").notNull(),
+  status: text("status", { enum: ["queued", "running", "done", "failed"] }).notNull(),
+  stage: text("stage"),
+  error: text("error"),
+  jobId: text("job_id"),
+  hasAudio: integer("has_audio", { mode: "boolean" }),
+  /** { speech, vision, audio, scenes }: "ok" | an honest "unavailable: …" reason. */
+  signalsJson: text("signals_json").notNull().default("{}"),
+  requestedAt: integer("requested_at").notNull(),
+  finishedAt: integer("finished_at"),
+});
+
+/** Smart Clip suggestions, and the user's decisions on them. */
+export const clipSuggestions = sqliteTable(
+  "clip_suggestions",
+  {
+    id: text("id").primaryKey(),
+    recordingId: text("recording_id")
+      .notNull()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    /** The detected event window (evidence), and the suggested clip around it. */
+    eventStartMs: integer("event_start_ms").notNull(),
+    eventEndMs: integer("event_end_ms").notNull(),
+    suggestedStartMs: integer("suggested_start_ms").notNull(),
+    suggestedEndMs: integer("suggested_end_ms").notNull(),
+    /** Current boundaries (the user may adjust them). */
+    startMs: integer("start_ms").notNull(),
+    endMs: integer("end_ms").notNull(),
+    score: real("score").notNull(),
+    confidence: text("confidence", { enum: ["strong", "moderate", "weak"] }).notNull(),
+    title: text("title").notNull(),
+    /** Signals behind it: [{ kind, startMs, endMs, label, detail }]. */
+    evidenceJson: text("evidence_json").notNull(),
+    /** Ranking rules that fired: [{ rule, points }]. */
+    breakdownJson: text("breakdown_json").notNull(),
+    status: text("status", { enum: ["suggested", "accepted", "dismissed"] }).notNull().default("suggested"),
+    saveStatus: text("save_status", { enum: ["saving", "saved", "failed"] }),
+    saveError: text("save_error"),
+    saveJobId: text("save_job_id"),
+    savedRecordingId: text("saved_recording_id").references(() => recordings.id, { onDelete: "set null" }),
+    analysisVersion: text("analysis_version").notNull(),
+    createdAt: createdAt(),
+    decidedAt: integer("decided_at"),
+  },
+  (t) => [index("clip_suggestions_recording_idx").on(t.recordingId, t.startMs), index("clip_suggestions_status_idx").on(t.status)],
 );
 
 /** Retrieval units. Mirrored into the `chunks_fts` FTS5 table by triggers. */

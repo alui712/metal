@@ -41,7 +41,7 @@ export async function receiveUpload(
     body: ReadableStream<Uint8Array>;
     filename: string;
     lastModified?: number | null;
-    origin?: "upload" | "obs-replay" | "obs-recording" | "folder";
+    origin?: "upload" | "obs-replay" | "obs-recording" | "folder" | "clip";
     /** Real path of a local source file (server-only). */
     sourcePath?: string;
   },

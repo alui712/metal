@@ -52,6 +52,9 @@ function toView(r: Row, job: typeof jobs.$inferSelect | undefined): LibraryRecor
     videoUrl: ready && !mediaMissing ? `/api/media/${r.id}/video` : null,
     proxied: Boolean(r.proxyPath),
     mediaMissing,
+    origin: r.origin,
+    parentRecordingId: r.parentRecordingId,
+    parentStartMs: r.parentStartMs,
   };
 }
 

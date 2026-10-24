@@ -27,6 +27,10 @@ export type LibraryRecording = {
   proxied: boolean;
   /** The database points at a file that's no longer in storage. */
   mediaMissing: boolean;
+  origin: "upload" | "obs-replay" | "obs-recording" | "folder" | "clip";
+  /** Saved Smart Clips: the recording it was cut from, and where. */
+  parentRecordingId: string | null;
+  parentStartMs: number | null;
 };
 
 export const STAGE_LABEL: Record<string, string> = {

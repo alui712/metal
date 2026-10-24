@@ -12,11 +12,73 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 2 Real video ingestion | ✅ Complete |
 | 3 OBS capture (record, replay buffer, Save Clip, auto-import) | ✅ Complete |
 | 4 Watched folders & local Medal folder connector | ✅ Complete |
-| 5 Analysis + AI Smart Clip — needs whisper.cpp | ⏳ Not started |
+| 5 Analysis + Smart Clip (FFmpeg signals; speech/vision not set up) | ✅ Complete |
 | 6 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
 | 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 5 — Analysis + Smart Clip ✅ (2026-10-24)
+
+Built on FFmpeg measurements only, as chosen: whisper.cpp isn't installed, there's no Whisper model, and there's no provider key. Speech and scene descriptions are reported as "not set up" everywhere (ADR 0013).
+
+### Implemented
+- **Analysis (5A)**, an `analyze` worker job that runs only when the user clicks **Find moments** (on a recording or on `/clips`). It runs locally, nothing is uploaded, and the UI says so.
+  - EBU R128 loudness gives peaks above the previous 15 s, sudden jumps, and long silences.
+  - `scdet` gives scene changes.
+  - Up to 40 timestamped keyframes, evenly spaced plus the strongest scene changes.
+  - Every event stores its measured evidence (LUFS, baseline, rise, scdet score). Times are file-relative, using ffprobe start offsets.
+  - Status, stage, and per-signal availability are kept in `recording_analysis`; a missing audio track is reported as such.
+  - Re-running replaces this recording's signals in one transaction. A second request while one is queued or running is refused. Failures retry once through the existing queue.
+- **Smart Clip (5B):**
+  - Transparent rules in a pure function: signals within 3 s are grouped; the score comes from listed rules ("Why this rank"); confidence is strong, moderate, or weak (strong needs both audio and picture evidence).
+  - Clips get 6 s before and 4 s after the event, are 10–45 s long, and stay inside the video (shifted to keep their length).
+  - Overlaps are merged or trimmed. At most 12 per recording, and none covering 85% or more of a recording.
+  - Titles describe measurements ("Loud moment at 0:31"). Each suggestion says what the evidence can't tell ("can't tell what the sound was").
+- **Recording page:**
+  - The player gets a signal timeline: loud and sudden markers, picture changes, hatched silences, suggestion bars, and a playhead, with click to seek.
+  - Signal chips show what was used: audio ✓, picture ✓, speech and scene descriptions "not set up".
+  - Suggestion cards show a keyframe thumbnail, time range, confidence, evidence, uncertainty, and why-this-rank.
+  - **Preview** plays exactly the clip's range, then stops.
+  - **Adjust:** ±1 s, set to the playhead, or reset to suggested.
+  - **Save clip:** a frame-accurate cut from the original goes into the Library through the Phase 2 pipeline (`origin: clip`, linked to its source and offset).
+  - **Dismiss** and **Restore**. All decisions persist, and re-analysis never brings back dismissed or saved suggestions.
+- **`/clips` hub** (new "Smart Clip" nav item, "Clips" on mobile): the strongest open suggestions across the library, recordings not analyzed yet (each with an explicit button), and saved clips.
+- Recording details show the source (Imported, OBS replay buffer, OBS recording, Watched folder, Smart Clip); clips link back to the original.
+- **Schema:** migration `0005`:
+  - new tables `recording_analysis` and `clip_suggestions`;
+  - new columns `audio_events.evidence_json` and `frames.scene_score`;
+  - `recordings.parent_recording_id` and `parent_start_ms`;
+  - new origin `clip` and event kinds `loudness_jump` and `scene_change`.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (102 tests; +13 analysis and Smart Clip) · `npm run build` ✅ (no warnings)
+  - **Unit tests:** ebur128 and scdet parsing with offsets; peaks at the right times with evidence; steady and silent audio give no events; keyframe cap; one suggestion per event with an explained score; grouping and merging with no shared footage; boundaries at the start and end; no suggestions without signals; picture-only bursts are weak; near-whole-recording suggestions are skipped.
+  - **Real FFmpeg, end to end:** bursts found at 5.5 s and 30.3 s (±0.9 s) with suggestions containing them; keyframe files at their timestamps; steady tone, silence, and no-audio recordings get no suggestions, with honest status; clips at 0:00 and at the end stay inside the video at full length.
+  - Duplicate requests are refused. A simulated outage retries, and the re-run is idempotent.
+  - Adjust validation works. Accept is idempotent and produces a real clip (origin `clip`, duration within 0.2 s, `ready`). Dismiss and save survive re-analysis.
+- **Live on :3001 with the worker:**
+  - A 60 s multi-event test video gave 5 peaks and 4 picture changes, about 0.3 s from the planned times, and 3 non-overlapping suggestions, including one from 0:00 and one to the very end.
+  - The 30 s steady tone gave no suggestions.
+  - The real OBS clips (26 s and 6 s) gave genuine loudness peaks but no suggestions ("already clip-length").
+  - API: a duplicate request answers "busy"; a request without the header gets 403.
+- **Browser (CDP):**
+  - 3 cards with evidence, uncertainty, and honest chips.
+  - Preview started at the range start and stopped at 36.60 s against an expected end of 36.5 s.
+  - Adjusted and dismissed states persist after reload.
+  - Save produced an 11.8 s clip that plays, labeled "Smart Clip cut from…".
+  - Quiet, short, and not-analyzed states are correct. The `/clips` hub sections render.
+  - No horizontal scroll at 390 px, and the mobile tab bar has Clips. No console errors.
+- **Regression:** Phase 1/2 69/69 · Phase 2 27/27 · Phase 3 capture UI 10/10 (the "last clip" check is skipped when the last clip is older than 9 minutes) · folder sync unit tests pass.
+
+### Known issues / limitations
+- **No speech or visual understanding:** suggestions reflect loudness and picture change only, so quiet but important moments are missed. Adding whisper.cpp (`brew install whisper-cpp` plus the `ggml-base.en` model) or a vision provider (with a consent flow) feeds the same rules.
+- Analysis decodes the whole video (scene detection); long recordings take a few minutes.
+- A saved clip can't be adjusted afterwards. Remove it from the Library and save a new one.
+- The :3001 dev server needed one restart (with approval) to load the new tables.
+- Test videos from this phase ("Smart Clip test – …") and a saved test clip are in the Library and can be removed there.
 
 ---
 

@@ -100,7 +100,7 @@ export function TabBar({ pathname }: { pathname: string | null }) {
       aria-label="Primary"
       className="glass fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-line-strong pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      <ul className="grid grid-cols-5">
+      <ul className="grid grid-cols-6">
         {primaryNav.map((item) => {
           const active = isActive(item.href, pathname);
           const Icon = item.icon;

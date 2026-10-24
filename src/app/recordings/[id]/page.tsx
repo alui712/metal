@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { AlertTriangle, ArrowLeft, LoaderCircle, Sparkles, Upload } from "lucide-react";
+import { AlertTriangle, ArrowLeft, LoaderCircle, Upload } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { VideoPlayer } from "@/components/media/demo-player";
 import { AutoRefresh } from "@/components/recordings/auto-refresh";
 import { RemoveRecordingButton } from "@/components/recordings/remove-button";
+import { SmartClipWorkspace } from "@/components/smartclip/smart-clip-workspace";
 import { ButtonLink } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
@@ -42,19 +43,25 @@ async function RecordingView({ params }: { params: PageProps<"/recordings/[id]">
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0">
         {processing && <AutoRefresh />}
-        <Stage r={r} />
+        {r.videoUrl && r.durationMs ? (
+          <SmartClipWorkspace
+            recording={{ id: r.id, title: r.title, durationMs: r.durationMs, videoUrl: r.videoUrl, posterUrl: r.posterUrl, proxied: r.proxied }}
+          />
+        ) : (
+          <Stage r={r} />
+        )}
         <h1 className="mt-6 text-[clamp(1.75rem,3.2vw,2.5rem)] font-semibold leading-tight tracking-[-0.03em] text-ink">{r.title}</h1>
         <p className="mt-2 text-[14px] text-ink-faint">Recorded {formatLocalDateTime(r.recordedAt)}</p>
 
-        <section aria-labelledby="analysis-heading" className="mt-10 rounded-2xl border border-line bg-surface-2/60 p-5">
-          <h2 id="analysis-heading" className="flex items-center gap-2 text-[14px] font-medium text-ink">
-            <Sparkles className="size-4 text-accent-ink" aria-hidden /> Moments & transcript
-          </h2>
-          <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-muted">
-            Not analyzed yet. Voice transcription, moment detection, and Smart Clip arrive in Phase 5 — METAL won’t show
-            moments for this video until they come from the video itself.
+        {r.parentRecordingId && (
+          <p className="mt-3 text-[13px] text-ink-muted">
+            Smart Clip cut from{" "}
+            <Link href={`/recordings/${r.parentRecordingId}#smart-clip`} className="font-medium text-accent-ink hover:text-white">
+              the original recording
+            </Link>
+            {r.parentStartMs !== null && <> at {timecode(r.parentStartMs)}</>}.
           </p>
-        </section>
+        )}
       </div>
 
       <aside aria-label="Recording details" className="space-y-6">
@@ -113,8 +120,17 @@ function Stage({ r }: { r: LibraryRecording }) {
   );
 }
 
+const ORIGIN_LABEL: Record<LibraryRecording["origin"], string> = {
+  upload: "Imported",
+  "obs-replay": "OBS replay buffer",
+  "obs-recording": "OBS recording",
+  folder: "Watched folder",
+  clip: "Smart Clip",
+};
+
 function details(r: LibraryRecording): Array<[string, string]> {
   const out: Array<[string, string]> = [["File", r.originalFilename]];
+  out.push(["Source", ORIGIN_LABEL[r.origin]]);
   if (r.durationMs !== null) out.push(["Duration", timecode(r.durationMs)]);
   if (r.width && r.height) out.push(["Resolution", `${r.width}×${r.height}`]);
   if (r.fps) out.push(["Frame rate", `${r.fps} fps`]);

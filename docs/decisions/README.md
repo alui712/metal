@@ -16,3 +16,4 @@ Short records of decisions that shape METAL. Add a new numbered file when a deci
 | [0010](0010-ingestion-and-managed-storage.md) | Streamed uploads into managed storage; ffprobe/poster/proxy ingest job; range streaming | Accepted |
 | [0011](0011-obs-capture-via-worker.md) | OBS capture via obs-websocket, owned by the worker; event-driven, validated auto-import | Accepted |
 | [0012](0012-watched-folder-sync.md) | Watched folders: explicit, validated folders; worker scan + fs.watch; import via the upload pipeline with cross-source dedupe | Accepted |
+| [0013](0013-ffmpeg-analysis-and-smart-clip.md) | Local FFmpeg analysis (loudness, scene changes, keyframes) and transparent rule-based Smart Clip | Accepted |

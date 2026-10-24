@@ -5,6 +5,7 @@ import {
   History,
   LibraryBig,
   Radio,
+  Scissors,
   Search,
   SlidersHorizontal,
   Upload,
@@ -24,6 +25,7 @@ export type NavItem = {
 export const primaryNav: NavItem[] = [
   { href: "/", label: "Capture", hint: "Recording dashboard", icon: CircleDot },
   { href: "/library", label: "Library", hint: "All recordings", icon: LibraryBig },
+  { href: "/clips", label: "Smart Clip", shortLabel: "Clips", hint: "Suggested clips from your recordings", icon: Scissors },
   { href: "/recall", label: "Recall", hint: "Search your memories", icon: Search },
   { href: "/sessions", label: "Time Machine", shortLabel: "Sessions", hint: "Relive your sessions", icon: History },
   { href: "/studio", label: "Story Studio", shortLabel: "Studio", hint: "Cut a montage", icon: Clapperboard },
