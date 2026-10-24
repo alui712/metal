@@ -1,6 +1,8 @@
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { audioEvents, clipSuggestions, frames, recordingAnalysis, recordings } from "../db/schema";
+import { audioEvents, clipSuggestions, frames, recordingAnalysis, recordings, recordingTranscripts } from "../db/schema";
+import { speechProvider } from "../analysis/providers";
+import { readSegments } from "../analysis/transcribe";
 import { enqueueJob } from "../jobs/queue";
 
 // Smart Clip decisions and client-safe views (no paths).
@@ -21,6 +23,11 @@ export type SuggestionView = {
   breakdown: Array<{ rule: string; points: number }>;
   /** Plain-language limit of what the evidence shows. */
   uncertainty: string;
+  /**
+   * Transcribed speech inside the clip — what was said, shown as context.
+   * Never used for scoring or titles. `nearEvent`: within 2 s of a measured signal.
+   */
+  speech: Array<{ startMs: number; endMs: number; text: string; nearEvent: boolean }>;
   status: "suggested" | "accepted" | "dismissed";
   saveStatus: "saving" | "saved" | "failed" | null;
   saveError: string | null;
@@ -52,12 +59,23 @@ export function listSuggestions(db: Db, recordingId: string): SuggestionView[] {
   const rows = db.select().from(clipSuggestions).where(eq(clipSuggestions.recordingId, recordingId)).orderBy(asc(clipSuggestions.startMs)).all();
   if (!rows.length) return [];
   const frameRows = db.select({ id: frames.id, tMs: frames.tMs }).from(frames).where(eq(frames.recordingId, recordingId)).all();
+  const segments = readSegments(db, recordingId);
   const savedIds = rows.flatMap((r) => (r.savedRecordingId ? [r.savedRecordingId] : []));
   const saved = savedIds.length ? db.select({ id: recordings.id, status: recordings.status }).from(recordings).where(inArray(recordings.id, savedIds)).all() : [];
   return rows.map((r) => {
     const ev = JSON.parse(r.evidenceJson) as { focusMs: number; items: SuggestionView["evidence"] };
     const near = frameRows.length ? frameRows.reduce((a, b) => (Math.abs(b.tMs - ev.focusMs) < Math.abs(a.tMs - ev.focusMs) ? b : a)) : null;
     const savedRec = saved.find((x) => x.id === r.savedRecordingId);
+    const speech = segments
+      .filter((g) => g.endMs > r.startMs && g.startMs < r.endMs)
+      .slice(0, 6)
+      .map((g) => ({
+        startMs: g.startMs,
+        endMs: g.endMs,
+        text: g.text,
+        nearEvent: ev.items.some((i) => g.endMs >= i.startMs - 2000 && g.startMs <= i.endMs + 2000),
+      }));
+    const uncertainty = uncertaintyFor(new Set(ev.items.map((i) => i.kind)));
     return {
       id: r.id,
       title: r.title,
@@ -72,7 +90,8 @@ export function listSuggestions(db: Db, recordingId: string): SuggestionView[] {
       confidence: r.confidence,
       evidence: ev.items,
       breakdown: JSON.parse(r.breakdownJson),
-      uncertainty: uncertaintyFor(new Set(ev.items.map((i) => i.kind))),
+      uncertainty: speech.length ? `${uncertainty} The transcript shows what was said, not what happened on screen.` : uncertainty,
+      speech,
       status: r.status,
       saveStatus: r.saveStatus,
       saveError: r.saveError,
@@ -88,6 +107,17 @@ const parseSignal = (v: unknown) => {
   return { ok: s === "ok", note: s === "ok" ? null : s.replace(/^unavailable:\s*/, "") || null };
 };
 
+/** Speech comes from the separate transcription step, so it's read live rather than from the analysis snapshot. */
+function speechSignal(db: Db, recordingId: string) {
+  const t = db.select({ status: recordingTranscripts.status, n: recordingTranscripts.segmentCount, hasAudio: recordingTranscripts.hasAudio }).from(recordingTranscripts).where(eq(recordingTranscripts.recordingId, recordingId)).get();
+  if (t?.status === "done") {
+    if (t.n) return { ok: true, note: `${t.n} transcript segment${t.n === 1 ? "" : "s"}` };
+    return { ok: false, note: t.hasAudio === false ? "No audio track" : "No speech detected" };
+  }
+  const p = speechProvider();
+  return { ok: false, note: p.available ? "Not transcribed yet" : p.reason };
+}
+
 export function analysisView(db: Db, recordingId: string): AnalysisView {
   const a = db.select().from(recordingAnalysis).where(eq(recordingAnalysis.recordingId, recordingId)).get();
   const ev = a?.status === "done" ? db.select({ kind: audioEvents.kind, startMs: audioEvents.startMs, endMs: audioEvents.endMs }).from(audioEvents).where(eq(audioEvents.recordingId, recordingId)).orderBy(asc(audioEvents.startMs)).all() : [];
@@ -99,7 +129,7 @@ export function analysisView(db: Db, recordingId: string): AnalysisView {
     error: a?.error ?? null,
     finishedAt: a?.finishedAt ?? null,
     hasAudio: a?.hasAudio ?? null,
-    signals: signals ? { audio: parseSignal(signals.audio), scenes: parseSignal(signals.scenes), speech: parseSignal(signals.speech), vision: parseSignal(signals.vision) } : null,
+    signals: signals ? { audio: parseSignal(signals.audio), scenes: parseSignal(signals.scenes), speech: speechSignal(db, recordingId), vision: parseSignal(signals.vision) } : null,
     markers: ev.slice(0, 400),
     counts: {
       peaks: ev.filter((e) => e.kind === "loudness_peak").length,

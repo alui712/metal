@@ -7,10 +7,23 @@ import { config } from "../config";
 
 export type ProviderStatus = { available: true; name: string } | { available: false; reason: string };
 
-let whisperCache: { at: number; ok: boolean } | null = null;
+let whisperCache: { at: number; ok: boolean; bin: string } | null = null;
+
+/** GGML model files start with the magic "lmgg" (0x67676d6c, little-endian). */
+function isGgmlModel(file: string): boolean {
+  try {
+    const fd = fs.openSync(/*turbopackIgnore: true*/ file, "r");
+    const head = Buffer.alloc(4);
+    fs.readSync(fd, head, 0, 4, 0);
+    fs.closeSync(fd);
+    return head.toString("latin1") === "lmgg" && fs.statSync(/*turbopackIgnore: true*/ file).size > 1024 * 1024;
+  } catch {
+    return false;
+  }
+}
 
 export function speechProvider(): ProviderStatus {
-  if (!whisperCache || Date.now() - whisperCache.at > 30_000) {
+  if (!whisperCache || whisperCache.bin !== config.whisperPath || Date.now() - whisperCache.at > 30_000) {
     let ok = false;
     try {
       execFileSync(config.whisperPath, ["--help"], { stdio: "ignore", timeout: 5000 });
@@ -18,10 +31,12 @@ export function speechProvider(): ProviderStatus {
     } catch {
       ok = false;
     }
-    whisperCache = { at: Date.now(), ok };
+    whisperCache = { at: Date.now(), ok, bin: config.whisperPath };
   }
   if (!whisperCache.ok) return { available: false, reason: "Speech transcription isn’t set up (whisper.cpp isn’t installed)." };
-  if (!fs.existsSync(config.whisperModelPath)) return { available: false, reason: "Speech transcription isn’t set up (no Whisper model downloaded)." };
+  const model = config.whisperModelPath;
+  if (!fs.existsSync(/*turbopackIgnore: true*/ model)) return { available: false, reason: "Speech transcription isn’t set up (no Whisper model found — put ggml-base.en.bin in models/)." };
+  if (!isGgmlModel(model)) return { available: false, reason: "The Whisper model file isn’t a valid GGML model. Download it again." };
   return { available: true, name: "whisper.cpp" };
 }
 

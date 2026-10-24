@@ -340,6 +340,30 @@ export const recordingAnalysis = sqliteTable("recording_analysis", {
   finishedAt: integer("finished_at"),
 });
 
+/**
+ * Local speech transcription (whisper.cpp) for one recording. Segments live
+ * in `transcript_segments` and are mirrored into `chunks` for search.
+ */
+export const recordingTranscripts = sqliteTable("recording_transcripts", {
+  recordingId: text("recording_id")
+    .primaryKey()
+    .references(() => recordings.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["queued", "running", "done", "failed"] }).notNull(),
+  stage: text("stage"),
+  error: text("error"),
+  jobId: text("job_id"),
+  /** Model file name (e.g. ggml-base.en.bin) and language used. */
+  model: text("model"),
+  language: text("language"),
+  hasAudio: integer("has_audio", { mode: "boolean" }),
+  segmentCount: integer("segment_count"),
+  /** Non-silent audio, as measured by FFmpeg before transcription. */
+  voicedMs: integer("voiced_ms"),
+  aiOutputId: text("ai_output_id").references(() => aiOutputs.id, { onDelete: "set null" }),
+  requestedAt: integer("requested_at").notNull(),
+  finishedAt: integer("finished_at"),
+});
+
 /** Smart Clip suggestions, and the user's decisions on them. */
 export const clipSuggestions = sqliteTable(
   "clip_suggestions",

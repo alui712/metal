@@ -13,10 +13,69 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 3 OBS capture (record, replay buffer, Save Clip, auto-import) | ✅ Complete |
 | 4 Watched folders & local Medal folder connector | ✅ Complete |
 | 5 Analysis + Smart Clip (FFmpeg signals; speech/vision not set up) | ✅ Complete |
+| 5C Local transcription (whisper.cpp) | ✅ Complete |
 | 6 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
 | 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 5C — Local transcription ✅ (2026-10-24)
+
+whisper.cpp 1.9.5 (`whisper-cli`) with `models/ggml-base.en.bin`. The model is verified (GGML header) and loads. Everything runs locally: no uploads, no API key (ADR 0014).
+
+### Implemented
+- **`transcribe` worker job**, started only by **Transcribe speech** on a recording:
+  - FFmpeg converts audio to 16 kHz mono WAV and maps silence in the same pass. Then whisper-cli runs with DTW word timing.
+  - Segments are snapped to measured sound and stored with file-relative timestamps.
+  - Temporary files are removed afterwards. Re-runs replace the transcript (idempotent), and a second request while one is running is refused ("busy").
+- **Honest states:**
+  - Silent audio: "No speech detected", and the model isn't run.
+  - No audio track: reported as such.
+  - Model or whisper missing: setup instructions in the UI; the API refuses (409) and the job fails permanently, without retrying.
+  - Inference crash: retried once, then "Try again".
+- **Anti-fabrication:** segments are dropped when there's no measured sound under them, when they're a non-speech tag, when token confidence is low, or when they're too fast to have been spoken (more than 30 letters/s). The last rule caught a real high-confidence hallucination over a wordless tone.
+- **Recording page:** a Transcript panel.
+  - Timestamped lines; click to play from a line; the active line is highlighted during playback.
+  - Shows the model name and the caveat "Machine transcription — words may be wrong".
+  - The local-processing note appears before running.
+- **Smart Clip:**
+  - Each suggestion shows "Said in this clip" with timestamps and a "near the signal" mark.
+  - The speech chip shows ✓ with the segment count, or "not transcribed yet" / "no speech detected".
+  - Scores, confidence, and titles are unchanged; speech is context only.
+- **Phase 6-ready:** segments are mirrored into `chunks` (FTS5 indexed), with an `ai_outputs` provenance row.
+- **Schema:** migration `0006` adds `recording_transcripts`. `config.whisperModelPath` resolves `WHISPER_MODEL_PATH`, then `models/`, then `data/models/`. `models/` is gitignored.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (115 tests; 13 new) · `npm run build` ✅ (no warnings)
+  - **Pure tests:** silencedetect parsing; boundary snapping, using real drifted whisper output; dropping words in silence, tags, and unsure guesses; the real tone hallucination is rejected; DTW parsing and presets.
+  - **Real whisper.cpp, end to end** (speech from macOS `say`):
+    - Speech over silence starts within 0.5 s of the planned 3 s and 11 s.
+    - Over constant background noise, "Two enemies on the stairs" lands within 0.6 s of the planned 20 s.
+    - Nothing appears during the silences or the tone.
+    - Text is found through `chunks_fts`, and the provenance row is written.
+    - A re-run doesn't duplicate segments.
+    - Speech is attached to Smart Clip suggestions with scores unchanged.
+    - Silent audio gives "no speech" without running the model; no-audio is reported as such.
+    - A missing model fails once with no retry; a simulated inference crash retries and then succeeds.
+- **Live on :3001 with the worker:**
+  - The 45 s voice-chat test recording gave 5 lines: 0:04 "Okay, I'm rotating to be sight." (said: "B site"), 0:06.9 "Two enemies on the stairs.", 0:22.2 "Nice, I got one." (said at 22.0 s), 0:23.9 "He's low.", 0:25.0 "I love him." (said: "finish him").
+  - Both suggestions show the matching speech.
+  - The 30 s steady-tone recording: "No speech detected".
+  - Duplicate requests get "busy"; requests without the action header get 403.
+- **Browser (CDP):** 13/13 checks.
+  - Transcript lines and timestamps; the speech chip ✓; speech evidence and uncertainty on cards; titles still measurement-only.
+  - Clicking a line seeks to 0:22 and plays, with the active line highlighted.
+  - Quiet and not-transcribed states are correct; no horizontal scroll at 390 px; no console errors.
+- **Regression:** 69/69, 27/27, 11/11, and the Smart Clip hub 3/3. The Phase 5 analysis tests pass.
+
+### Known issues / limitations
+- Your two OBS replay clips produced one line each: "drinks and saw me and we'll want a tea girl." (0:03.7) and "And we put it in." (0:05.7). Both are high-confidence transcriptions of real audio, but they may be game or music audio rather than speech. Please check them.
+- No speaker labels. If OBS mixes mic and game audio on one track, both are transcribed together.
+- Music or long sound effects can still produce plausible words. A Silero VAD model (about 1 MB) would reduce that; it isn't downloaded.
+- The base.en model is English only. For other languages, use `ggml-base.bin` via `WHISPER_MODEL_PATH`.
+- The :3001 dev server was restarted once (with approval) to load the new table.
 
 ---
 

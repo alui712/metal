@@ -24,6 +24,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { timecode } from "@/lib/format";
+import { TranscriptPanel } from "./transcript-panel";
 import { useSmartClip, type Analysis, type Suggestion } from "./use-smart-clip";
 
 const STAGE: Record<string, string> = {
@@ -48,7 +49,7 @@ const len = (s: { startMs: number; endMs: number }) => `${Math.round((s.endMs - 
  */
 export function SmartClipWorkspace({ recording }: { recording: { id: string; title: string; durationMs: number; videoUrl: string; posterUrl: string | null; proxied: boolean } }) {
   const video = useRef<HTMLVideoElement>(null);
-  const { state, loadError, analyze, act } = useSmartClip(recording.id);
+  const { state, loadError, analyze, transcribe, act } = useSmartClip(recording.id);
   const [nowMs, setNowMs] = useState(0);
   const [preview, setPreview] = useState<{ id: string; endMs: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -220,6 +221,14 @@ export function SmartClipWorkspace({ recording }: { recording: { id: string; tit
           </div>
         )}
       </section>
+      <TranscriptPanel
+        t={state?.transcript}
+        workerOnline={state?.workerOnline ?? true}
+        nowMs={nowMs}
+        busy={busy}
+        onTranscribe={() => run("transcribe", transcribe)}
+        onSeek={(ms) => seek(ms, true)}
+      />
       {recording.proxied && a?.status === "done" && open.length > 0 && (
         <p className="mt-3 text-[12px] text-ink-faint">Previews play METAL’s converted copy, which keeps the original’s timing. Saved clips are cut from the original file.</p>
       )}
@@ -268,12 +277,15 @@ function SignalChips({ a }: { a: Analysis }) {
           <Icon className="size-3.5" aria-hidden />
           {label}
           <span className="sr-only">: </span>
-          {sig.ok ? <Check className="size-3" aria-label="used" /> : <span>· {key === "audio" ? "no audio track" : "not set up"}</span>}
+          {sig.ok ? <Check className="size-3" aria-label="used" /> : <span>· {key === "audio" ? "no audio track" : key === "speech" ? speechChip(sig.note) : "not set up"}</span>}
         </li>
       ))}
     </ul>
   );
 }
+
+const speechChip = (note: string | null) =>
+  note === "Not transcribed yet" ? "not transcribed yet" : note === "No speech detected" ? "no speech detected" : note === "No audio track" ? "no audio track" : "not set up";
 
 const MARK: Record<Analysis["markers"][number]["kind"], string> = {
   loudness_peak: "bg-accent",
@@ -425,6 +437,22 @@ function SuggestionCard({
             </li>
           ))}
         </ul>
+        {s.speech.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[11.5px] font-medium uppercase tracking-[0.14em] text-ink-faint">Said in this clip</p>
+            <ul className="mt-1 space-y-1">
+              {s.speech.map((g, i) => (
+                <li key={i} className="flex gap-2 text-[12.5px] leading-relaxed text-ink-muted">
+                  <Mic className="mt-[3px] size-3.5 shrink-0 text-ink-faint" aria-hidden />
+                  <button type="button" onClick={() => onSeek(g.startMs)} className="rounded text-left hover:text-ink">
+                    <span className="font-mono text-[11.5px] text-ink-faint">{timecode(g.startMs)}</span> “{g.text}”
+                    {g.nearEvent && <span className="ml-1.5 text-[11.5px] text-ink-faint">· near the signal</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <p className="mt-2 flex items-start gap-1.5 text-[12px] leading-relaxed text-ink-faint">
           <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {s.uncertainty}
         </p>

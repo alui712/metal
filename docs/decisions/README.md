@@ -17,3 +17,4 @@ Short records of decisions that shape METAL. Add a new numbered file when a deci
 | [0011](0011-obs-capture-via-worker.md) | OBS capture via obs-websocket, owned by the worker; event-driven, validated auto-import | Accepted |
 | [0012](0012-watched-folder-sync.md) | Watched folders: explicit, validated folders; worker scan + fs.watch; import via the upload pipeline with cross-source dedupe | Accepted |
 | [0013](0013-ffmpeg-analysis-and-smart-clip.md) | Local FFmpeg analysis (loudness, scene changes, keyframes) and transparent rule-based Smart Clip | Accepted |
+| [0014](0014-local-transcription.md) | Local whisper.cpp transcription: DTW timing, silence alignment, anti-hallucination rules, search-ready storage | Accepted |

@@ -30,6 +30,7 @@ export type Suggestion = {
   evidence: Array<{ kind: string; startMs: number; endMs: number; label: string; detail: string }>;
   breakdown: Array<{ rule: string; points: number }>;
   uncertainty: string;
+  speech: Array<{ startMs: number; endMs: number; text: string; nearEvent: boolean }>;
   status: "suggested" | "accepted" | "dismissed";
   saveStatus: "saving" | "saved" | "failed" | null;
   saveError: string | null;
@@ -37,7 +38,19 @@ export type Suggestion = {
   savedReady: boolean;
   thumbUrl: string | null;
 };
-export type SmartClipState = { workerOnline: boolean; analysis: Analysis; suggestions: Suggestion[] };
+export type Transcript = {
+  status: "none" | "queued" | "running" | "done" | "failed";
+  stage: string | null;
+  error: string | null;
+  finishedAt: number | null;
+  hasAudio: boolean | null;
+  model: string | null;
+  language: string | null;
+  voicedMs: number | null;
+  setup: { available: boolean; reason: string | null };
+  segments: Array<{ id: string; startMs: number; endMs: number; text: string }>;
+};
+export type SmartClipState = { workerOnline: boolean; analysis: Analysis; suggestions: Suggestion[]; transcript: Transcript };
 
 const HEADERS = { "Content-Type": "application/json", "x-metal-action": "1" };
 
@@ -55,6 +68,8 @@ export function useSmartClip(recordingId: string) {
       busyRef.current =
         next.analysis.status === "queued" ||
         next.analysis.status === "running" ||
+        next.transcript.status === "queued" ||
+        next.transcript.status === "running" ||
         next.suggestions.some((s) => s.saveStatus === "saving" || (s.saveStatus === "saved" && !s.savedReady));
       setState(next);
       setLoadError(false);
@@ -93,6 +108,7 @@ export function useSmartClip(recordingId: string) {
     state,
     loadError,
     analyze: () => send(`/api/recordings/${recordingId}/analysis`, "POST"),
+    transcribe: () => send(`/api/recordings/${recordingId}/transcript`, "POST"),
     act: (id: string, body: { action: "accept" | "dismiss" | "restore" | "retry" } | { action: "adjust"; startMs: number; endMs: number }) => send(`/api/clips/${id}`, "PATCH", body),
   };
 }

@@ -186,7 +186,7 @@ describe.skipIf(!hasFfmpeg)("analysis + Smart Clip (real FFmpeg)", () => {
     const a = await analyzeNow(id);
     expect(a.status).toBe("done");
     expect(a.signals?.audio.ok).toBe(true);
-    expect(a.signals?.speech).toEqual({ ok: false, note: expect.stringMatching(/isn’t (set up|enabled)/) });
+    expect(a.signals?.speech).toEqual({ ok: false, note: expect.stringMatching(/isn’t set up|Not transcribed yet/) });
     const peaks = m.db.select().from(m.schema.audioEvents).where(eq(m.schema.audioEvents.recordingId, id)).all().filter((e) => e.kind === "loudness_peak");
     expect(peaks).toHaveLength(2);
     const peakMs = peaks.map((p) => JSON.parse(p.evidenceJson).peakMs as number);

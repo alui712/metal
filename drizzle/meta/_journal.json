@@ -43,6 +43,13 @@
       "when": 1792821142301,
       "tag": "0005_smart_clip",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792823356918,
+      "tag": "0006_transcripts",
+      "breakpoints": true
     }
   ]
 }

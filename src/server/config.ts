@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 // Server-side configuration. Shared by the Next.js server and the worker
@@ -15,11 +16,14 @@ export const config = {
   },
   ffmpegPath: process.env.FFMPEG_PATH ?? "ffmpeg",
   ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
-  whisperPath: process.env.WHISPER_PATH ?? "whisper-cli",
+  get whisperPath(): string {
+    return process.env.WHISPER_PATH ?? "whisper-cli";
+  },
+  /** GGML model: WHISPER_MODEL_PATH, else models/ or data/models/ in the repo. */
   get whisperModelPath(): string {
-    return resolveFromRoot(
-      process.env.WHISPER_MODEL_PATH ?? "data/models/ggml-base.en.bin",
-    );
+    if (process.env.WHISPER_MODEL_PATH) return resolveFromRoot(process.env.WHISPER_MODEL_PATH);
+    const candidates = ["models/ggml-base.en.bin", "data/models/ggml-base.en.bin"].map(resolveFromRoot);
+    return candidates.find((p) => fs.existsSync(/*turbopackIgnore: true*/ p)) ?? candidates[0];
   },
   get anthropicApiKey(): string | undefined {
     return process.env.ANTHROPIC_API_KEY || undefined;

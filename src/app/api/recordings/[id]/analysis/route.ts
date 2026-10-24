@@ -1,5 +1,6 @@
 import { eq } from "drizzle-orm";
 import { requestAnalysis } from "@/server/analysis/analyze";
+import { transcriptView } from "@/server/analysis/transcribe";
 import { getDb } from "@/server/db/client";
 import { recordings } from "@/server/db/schema";
 import { jsonError, privileged, sameOrigin } from "@/server/http";
@@ -15,7 +16,7 @@ export async function GET(request: Request, ctx: RouteContext<"/api/recordings/[
   const db = getDb();
   if (!db.select({ id: recordings.id }).from(recordings).where(eq(recordings.id, id)).get()) return jsonError(404, "Not found.");
   return Response.json(
-    { workerOnline: Boolean(getLiveWorker(db)), analysis: analysisView(db, id), suggestions: listSuggestions(db, id) },
+    { workerOnline: Boolean(getLiveWorker(db)), analysis: analysisView(db, id), suggestions: listSuggestions(db, id), transcript: transcriptView(db, id) },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

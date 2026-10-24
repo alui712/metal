@@ -24,7 +24,7 @@ export const ANALYSIS_VERSION = "ffmpeg-1";
 export const frameRel = (recordingId: string, tMs: number) => `${recordingId}/frames/${String(tMs).padStart(9, "0")}.jpg`;
 
 /** Stream start offsets, so every timestamp is relative to the start of the file (what players show). */
-async function streamOffsets(file: string, signal?: AbortSignal) {
+export async function streamOffsets(file: string, signal?: AbortSignal) {
   const { stdout } = await run(config.ffprobePath, ["-v", "error", "-print_format", "json", "-show_entries", "format=start_time:stream=codec_type,start_time", file], {
     timeout: 60_000,
     signal,
@@ -40,7 +40,7 @@ async function streamOffsets(file: string, signal?: AbortSignal) {
 }
 
 /** Collects stderr from an FFmpeg pass whose output is discarded. */
-function ffmpegLog(args: string[], { signal, timeoutMs }: { signal?: AbortSignal; timeoutMs: number }): Promise<string> {
+export function ffmpegLog(args: string[], { signal, timeoutMs }: { signal?: AbortSignal; timeoutMs: number }): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile(config.ffmpegPath, args, { signal, timeout: timeoutMs, maxBuffer: 256 * 1024 * 1024 }, (err, _stdout, stderr) => {
       if (err) reject(err);
@@ -135,7 +135,8 @@ export async function analyzeRecording({ db, job, progress, signal }: JobContext
       signalsJson: JSON.stringify({
         audio: offsets.hasAudio ? "ok" : "unavailable: This recording has no audio track.",
         scenes: "ok",
-        speech: speech.available ? "unavailable: Speech transcription isn’t enabled in this version yet." : `unavailable: ${speech.reason}`,
+        // Speech comes from the separate transcribe job; the view reads its live status.
+        speech: speech.available ? "unavailable: Not transcribed yet" : `unavailable: ${speech.reason}`,
         vision: `unavailable: ${vision.available ? "" : vision.reason}`,
       }),
     });
