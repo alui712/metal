@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { clipSuggestions, jobs, recordings, renderExports, sessions, storyClips, storyProjects } from "../db/schema";
@@ -7,7 +9,7 @@ import { listSuggestions } from "../smartclip/actions";
 import { sessionTitle, type MediaUrls } from "../timemachine/sessions";
 import type { Moment, Recording, StoryProject } from "@/lib/memory/contracts";
 import { edlKey } from "@/lib/studio/edl";
-import { checkSources, MAX_STORY_MS, type Edl } from "./render";
+import { checkSources, exportFile, isExportId, MAX_STORY_MS, type Edl } from "./render";
 
 // Story projects on real recordings: created from Time Machine moments or
 // Recall ranges, saved as the editor changes them, rendered by the worker.
@@ -105,7 +107,125 @@ export function saveStory(db: Db, id: string, input: SaveInput): { updatedAt: nu
   return { updatedAt };
 }
 
-export type StoryListItem = { id: string; title: string; aspect: string; clipCount: number; durationMs: number; updatedAt: number; coverUrl: string | null; lastExport: ExportView | null };
+export function renameStory(db: Db, id: string, title: string): { title: string; updatedAt: number } | { error: string; status: number } {
+  const project = db.select({ id: storyProjects.id }).from(storyProjects).where(eq(storyProjects.id, id)).get();
+  if (!project) return { error: "Not found.", status: 404 };
+  const nextTitle = title.trim().slice(0, 80) || "My story";
+  const updatedAt = Date.now();
+  db.update(storyProjects).set({ title: nextTitle, updatedAt }).where(eq(storyProjects.id, id)).run();
+  return { title: nextTitle, updatedAt };
+}
+
+export function duplicateStory(db: Db, id: string): { id: string } | { error: string; status: number } {
+  let result: { id: string } | { error: string; status: number } = { error: "Not found.", status: 404 };
+  db.$client
+    .transaction(() => {
+      const project = db.select().from(storyProjects).where(eq(storyProjects.id, id)).get();
+      if (!project) return;
+      const clips = db.select().from(storyClips).where(eq(storyClips.projectId, id)).orderBy(asc(storyClips.position)).all();
+      const duplicateId = newId("sty");
+      const now = Date.now();
+      const title = `Copy of ${project.title}`.slice(0, 80);
+      db.insert(storyProjects)
+        .values({
+          id: duplicateId,
+          title,
+          aspect: project.aspect,
+          sourceSessionId: project.sourceSessionId,
+          captions: project.captions,
+          framing: project.framing,
+          updatedAt: now,
+        })
+        .run();
+      clips.forEach((clip, position) => {
+        db.insert(storyClips)
+          .values({
+            id: newId("stc"),
+            projectId: duplicateId,
+            position,
+            recordingId: clip.recordingId,
+            momentId: clip.momentId,
+            suggestionId: clip.suggestionId,
+            inMs: clip.inMs,
+            outMs: clip.outMs,
+            caption: clip.caption,
+          })
+          .run();
+      });
+      result = { id: duplicateId };
+    })
+    .immediate();
+  return result;
+}
+
+type DeleteResult = { ok: true } | { error: string; status: number };
+
+function removeOwnedExportFiles(id: string): void {
+  if (!isExportId(id)) throw new Error("Invalid export id.");
+  const output = exportFile(id);
+  const files = [output, output.replace(/\.mp4$/, ".part.mp4"), output.replace(/\.mp4$/, ".srt"), ...Array.from({ length: MAX_STORY_CLIPS }, (_, i) => output.replace(/\.mp4$/, `.cap${i}.png`))];
+  for (const file of files) {
+    if (path.dirname(file) !== path.dirname(output)) throw new Error("Invalid export path.");
+    let stat: fs.Stats;
+    try {
+      stat = fs.lstatSync(file);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    if (!stat.isFile()) throw new Error("Export storage contains an unexpected entry.");
+    fs.rmSync(file);
+  }
+}
+
+export function deleteExport(db: Db, id: string, projectId?: string): DeleteResult {
+  let result: DeleteResult = { error: "Not found.", status: 404 };
+  db.$client
+    .transaction(() => {
+      const row = db.select().from(renderExports).where(eq(renderExports.id, id)).get();
+      if (!row || (projectId && row.projectId !== projectId)) return;
+      const view = exportsFor(db, row.projectId).find((item) => item.id === id);
+      if (view?.status === "queued" || view?.status === "rendering") {
+        result = { error: "Wait for this export to finish before deleting it.", status: 409 };
+        return;
+      }
+      try {
+        removeOwnedExportFiles(id);
+      } catch {
+        result = { error: "The export file couldn’t be removed.", status: 500 };
+        return;
+      }
+      db.delete(renderExports).where(eq(renderExports.id, id)).run();
+      result = { ok: true };
+    })
+    .immediate();
+  return result;
+}
+
+export function deleteStory(db: Db, id: string): DeleteResult {
+  let result: DeleteResult = { error: "Not found.", status: 404 };
+  db.$client
+    .transaction(() => {
+      if (!db.select({ id: storyProjects.id }).from(storyProjects).where(eq(storyProjects.id, id)).get()) return;
+      const exports = exportsFor(db, id);
+      if (exports.some((item) => item.status === "queued" || item.status === "rendering")) {
+        result = { error: "Wait for this story’s export to finish before deleting it.", status: 409 };
+        return;
+      }
+      try {
+        for (const item of exports) removeOwnedExportFiles(item.id);
+      } catch {
+        result = { error: "One or more export files couldn’t be removed.", status: 500 };
+        return;
+      }
+      db.delete(storyProjects).where(eq(storyProjects.id, id)).run();
+      result = { ok: true };
+    })
+    .immediate();
+  return result;
+}
+
+export type StoryListItem = { id: string; title: string; aspect: string; clipCount: number; durationMs: number; createdAt: number; updatedAt: number; coverUrl: string | null; lastExport: ExportView | null };
 
 export function listStories(db: Db, urls: MediaUrls): StoryListItem[] {
   return db
@@ -122,15 +242,17 @@ export function listStories(db: Db, urls: MediaUrls): StoryListItem[] {
         aspect: p.aspect,
         clipCount: clips.length,
         durationMs: clips.reduce((a, c) => a + (c.outMs - c.inMs), 0),
+        createdAt: p.createdAt,
         updatedAt: p.updatedAt,
         coverUrl: first?.recordingId ? (urls.get(first.recordingId)?.posterUrl ?? null) : null,
-        lastExport: exportsFor(db, p.id)[0] ?? null,
+        lastExport: exportsFor(db, p.id, 1)[0] ?? null,
       };
     });
 }
 
 export type StoryView = {
   project: StoryProject;
+  createdAt: number;
   updatedAt: number;
   recordings: Record<string, Recording>;
   moments: Record<string, Moment>;
@@ -208,6 +330,7 @@ export function storyView(db: Db, id: string, urls: MediaUrls): StoryView | null
       // A clip from a moment keeps the "clip_<moment>" id the editor uses to know it's already added.
       clips: clips.map((c) => ({ id: c.suggestionId ? `clip_${c.suggestionId}` : c.id, recordingId: c.recordingId, momentId: c.suggestionId, inMs: c.inMs, outMs: c.outMs, caption: c.caption })),
     },
+    createdAt: p.createdAt,
     updatedAt: p.updatedAt,
     recordings: recs,
     moments,
@@ -239,15 +362,15 @@ export type ExportView = {
 };
 
 
-export function exportsFor(db: Db, projectId: string, limit = 5): ExportView[] {
+export function exportsFor(db: Db, projectId: string, limit = Number.POSITIVE_INFINITY): ExportView[] {
   return db
     .select({ e: renderExports, job: { status: jobs.status, stage: jobs.stage, progress: jobs.progress, error: jobs.error } })
     .from(renderExports)
     .leftJoin(jobs, eq(jobs.id, renderExports.jobId))
     .where(eq(renderExports.projectId, projectId))
     .orderBy(desc(renderExports.createdAt), desc(renderExports.id))
-    .limit(limit)
     .all()
+    .slice(0, limit)
     .map(({ e, job }) => {
       const edl = e.edlJson ? (JSON.parse(e.edlJson) as Edl) : null;
       // Final states come from the export row; in-flight ones from the job (it survives worker restarts).
@@ -278,7 +401,7 @@ export function requestExport(db: Db, projectId: string): { id: string } | { err
     .transaction(() => {
       const p = db.select().from(storyProjects).where(eq(storyProjects.id, projectId)).get();
       if (!p) return;
-      const active = exportsFor(db, projectId, 10).find((x) => x.status === "queued" || x.status === "rendering");
+      const active = exportsFor(db, projectId).find((x) => x.status === "queued" || x.status === "rendering");
       if (active) {
         res = { error: "This story is already rendering.", status: 409 };
         return;

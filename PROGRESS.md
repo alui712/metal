@@ -19,8 +19,32 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 7 Real Story Studio (persistent stories, FFmpeg MP4 export) | ✅ Complete |
 | 8A Final UI/UX polish | ✅ Complete |
 | 8B Multi-POV Sync | ✅ Complete |
+| Story Studio management | ✅ Complete |
 | 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Story Studio management ✅ (2026-10-24)
+
+Saved projects and their rendered files can now be managed without touching source media.
+
+### Implemented
+- Story cards have accessible actions to rename, duplicate, and delete a project. Destructive actions require confirmation; a duplicate gets new project/clip ids and no copied export history.
+- Cards show created and edited dates, mutation success/failure feedback, and a stronger first-use state linking to Time Machine and Recall.
+- The export dialog lists every prior render with status, resolution, duration, file size, date, download, and a “Story changed” badge when its rendered EDL no longer matches the current edit.
+- Exports can be deleted after confirmation. Project deletion cleans all of its export artifacts; both operations refuse queued/running renders.
+- Cleanup derives only validated `exp_` filenames in `data/exports`. Missing files are safe to remove from history, cleanup failures preserve the database row, and original recordings, Smart Clips, models, and source files are never removed.
+- Story/export reads and writes keep the existing same-origin and privileged-action checks; no local path is returned.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (161 passed, 10 environment-dependent tests skipped) · `npm run build` ✅.
+- Small synthetic FFmpeg media covered export creation, metadata, download, file cleanup, already-missing files, cross-project ownership, and source-recording preservation.
+- Headless Chromium covered rename and duplicate persistence, deletion cancellation/confirmation, export history/download/delete, success feedback, reloads, keyboard-accessible controls, desktop, and 390 px with no horizontal overflow or console errors.
+
+### Known limitations
+- Running exports cannot be cancelled or deleted; let the worker finish, then remove the export or project.
+- Export history is intentionally complete and unpaginated because METAL is local-first; very large long-lived libraries may eventually need pagination.
 
 ---
 

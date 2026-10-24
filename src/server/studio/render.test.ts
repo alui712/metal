@@ -211,6 +211,28 @@ describe.skipIf(!hasFfmpeg)("story export (real FFmpeg)", () => {
     expect(fs.statSync(m.render.exportFile(latest(sid).id)).size).toBeGreaterThan(10_000);
   }, 120_000);
 
+  it("deletes only an owned export file and tolerates an already-missing file", async () => {
+    const sid = story([["a.mp4", 0, 1500]]);
+    const other = story([["a.mp4", 2000, 3500]]);
+    m.stories.requestExport(m.db, sid);
+    await runJobs();
+    const first = latest(sid);
+    const firstFile = m.render.exportFile(first.id);
+    expect(fs.existsSync(firstFile)).toBe(true);
+    expect(m.stories.deleteExport(m.db, first.id, other)).toMatchObject({ status: 404 });
+    expect(fs.existsSync(firstFile)).toBe(true);
+    expect(m.stories.deleteExport(m.db, first.id, sid)).toEqual({ ok: true });
+    expect(fs.existsSync(firstFile)).toBe(false);
+    expect(m.stories.exportsFor(m.db, sid)).toEqual([]);
+
+    m.stories.requestExport(m.db, other);
+    await runJobs();
+    const second = latest(other);
+    fs.rmSync(m.render.exportFile(second.id));
+    expect(m.stories.deleteExport(m.db, second.id, other)).toEqual({ ok: true });
+    expect(m.stories.exportsFor(m.db, other)).toEqual([]);
+  }, 120_000);
+
   it("refuses missing sources up front and fails corrupt ones honestly", async () => {
     const sid = story([["b.mkv", 0, 1500]]);
     const rec = m.db.select().from(m.schema.recordings).where(eq(m.schema.recordings.id, ids["b.mkv"])).get()!;

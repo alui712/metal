@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { AlertTriangle, Check, Download, Film, LoaderCircle, RotateCcw } from "lucide-react";
+import { AlertTriangle, Check, Download, Film, LoaderCircle, RotateCcw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button, buttonClass } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -68,6 +68,9 @@ export function RealExportDialog({
 }) {
   const reduce = useReducedMotion();
   const [starting, setStarting] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const player = useRef<HTMLVideoElement>(null);
   const latest = exports[0];
@@ -95,6 +98,22 @@ export function RealExportDialog({
     else if (!res.ok) setError(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Export failed to start (${res.status}).`);
     await onRefresh();
     setStarting(false);
+  }
+
+  async function removeExport(id: string) {
+    setDeleting(id);
+    setError(null);
+    setHistoryNotice(null);
+    const res = await fetch(`/api/exports/${id}`, { method: "DELETE", headers: HEADERS, body: JSON.stringify({ projectId: storyId }) }).catch(() => null);
+    if (!res?.ok) {
+      const body = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : {};
+      setError(body.error ?? "Couldn’t delete the export.");
+    } else {
+      setConfirmDelete(null);
+      setHistoryNotice("Export deleted.");
+      await onRefresh();
+    }
+    setDeleting(null);
   }
 
   return (
@@ -196,6 +215,66 @@ export function RealExportDialog({
           </Button>
         </aside>
       </div>
+
+      <section className="border-t border-line px-6 py-5" aria-labelledby="export-history-title">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 id="export-history-title" className="text-[15px] font-semibold text-ink">Export history</h3>
+            <p className="mt-0.5 text-[12px] text-ink-faint">Previous renders stay available until you delete them.</p>
+          </div>
+          <span className="text-[12px] text-ink-faint">{exports.length} export{exports.length === 1 ? "" : "s"}</span>
+        </div>
+        {historyNotice && <p role="status" className="mt-3 text-[12.5px] text-ok">{historyNotice}</p>}
+        {exports.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-dashed border-line px-4 py-5 text-center text-[13px] text-ink-muted">No exported videos yet.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-line overflow-hidden rounded-2xl border border-line" aria-label="Previous exports">
+            {exports.map((item) => {
+              const output = ASPECT_SIZE[item.aspect as keyof typeof ASPECT_SIZE] ?? ASPECT_SIZE["16:9"];
+              const active = item.status === "queued" || item.status === "rendering";
+              const outdated = item.edlKey !== current;
+              return (
+                <li key={item.id} className="flex flex-col gap-3 bg-surface-2 px-4 py-3 sm:flex-row sm:items-center">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={cn("text-[12px] font-medium", item.status === "done" ? "text-ok" : item.status === "failed" ? "text-danger" : "text-accent-ink")}>
+                        {item.status === "done" ? "Ready" : item.status === "failed" ? "Failed" : item.status === "rendering" ? `Rendering ${Math.round(item.progress * 100)}%` : "Queued"}
+                      </span>
+                      {outdated && item.status === "done" && <span className="rounded-full border border-warn/25 bg-warn/10 px-2 py-0.5 text-[10px] font-medium text-warn">Story changed</span>}
+                    </div>
+                    <p className="mt-1 text-[12px] text-ink-muted">
+                      {output.w}×{output.h}
+                      {item.durationMs !== null ? ` · ${timecode(item.durationMs)}` : ""}
+                      {item.sizeBytes !== null ? ` · ${fileSize(item.sizeBytes)}` : ""}
+                      {` · ${new Date(item.finishedAt ?? item.createdAt).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`}
+                    </p>
+                    {item.status === "failed" && item.error && <p className="mt-1 truncate text-[11.5px] text-danger">{item.error}</p>}
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    {item.status === "done" && item.fileUrl && (
+                      <a href={`${item.fileUrl}?download=1`} download className={buttonClass("secondary", "sm")}>
+                        <Download className="size-3.5" aria-hidden /> Download
+                      </a>
+                    )}
+                    {confirmDelete === item.id ? (
+                      <>
+                        <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(null)}><X className="size-3.5" aria-hidden /> Cancel</Button>
+                        <Button size="sm" variant="secondary" className="border-danger/30 text-danger hover:bg-danger/10" disabled={deleting === item.id} onClick={() => void removeExport(item.id)}>
+                          {deleting === item.id ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />} Confirm delete
+                        </Button>
+                      </>
+                    ) : (
+                      <Button size="sm" variant="ghost" disabled={active || deleting !== null} aria-label={`Delete export from ${new Date(item.createdAt).toLocaleDateString()}`} title={active ? "Wait for rendering to finish" : undefined} onClick={() => setConfirmDelete(item.id)}>
+                        <Trash2 className="size-3.5" aria-hidden /> Delete
+                      </Button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </Modal>
   );
 }

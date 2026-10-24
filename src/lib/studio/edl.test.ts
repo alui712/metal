@@ -3,6 +3,7 @@ import type { StoryProject } from "../memory/contracts";
 import {
   MIN_CLIP_MS,
   applyOp,
+  edlKey,
   historyReducer,
   initHistory,
   locate,
@@ -71,6 +72,14 @@ describe("EDL operations", () => {
     expect(locate(project, 6000)).toMatchObject({ index: 1, offsetMs: 1000, clipStartMs: 5000 });
     expect(locate(project, 99_999)).toMatchObject({ index: 2, offsetMs: 3000 });
     expect(locate({ ...project, clips: [] }, 0)).toBeNull();
+  });
+
+  it("detects render-affecting edits without marking a title-only rename stale", () => {
+    const key = edlKey(project);
+    const renamed: StoryProject = { ...project, title: "Renamed" };
+    expect(edlKey(renamed)).toBe(key);
+    expect(edlKey(applyOp(project, { type: "trim", clipId: "a", inMs: 1000, outMs: 5000 }))).not.toBe(key);
+    expect(edlKey(applyOp(project, { type: "setAspect", aspect: "9:16" }))).not.toBe(key);
   });
 });
 
