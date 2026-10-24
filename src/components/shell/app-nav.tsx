@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Command, Search, Upload } from "lucide-react";
+import { Command, Search } from "lucide-react";
 import { motion } from "motion/react";
 import { Wordmark } from "@/components/brand/logo";
+import { CaptureStatusPill, SidebarCaptureStatus } from "@/components/capture/capture-status";
 import { cn } from "@/lib/cn";
 import { isActive, primaryNav, secondaryNav, type NavItem } from "./nav-items";
 import { openCommandPalette } from "./command-palette";
@@ -82,9 +83,7 @@ export function SidebarNav({ pathname }: { pathname: string | null }) {
             </li>
           ))}
         </ul>
-        <p className="px-3 text-[11.5px] leading-relaxed text-ink-faint">
-          Showing demo memories. Your own recordings appear here once import is connected.
-        </p>
+        <SidebarCaptureStatus />
       </div>
     </nav>
   );
@@ -126,7 +125,7 @@ export function TabBar({ pathname }: { pathname: string | null }) {
   );
 }
 
-/** Small-screen top bar: brand, import, search. */
+/** Small-screen top bar: brand, capture status, search. */
 export function MobileHeader() {
   return (
     <header className="flex items-center justify-between px-4 pt-4 md:hidden">
@@ -134,13 +133,7 @@ export function MobileHeader() {
         <Wordmark />
       </Link>
       <div className="flex gap-2">
-        <Link
-          href="/import"
-          aria-label="Import recordings"
-          className="grid size-10 place-items-center rounded-xl border border-line bg-surface-2 text-ink-muted"
-        >
-          <Upload className="size-[18px]" strokeWidth={1.75} aria-hidden />
-        </Link>
+        <CaptureStatusPill />
         <button
           type="button"
           onClick={openCommandPalette}

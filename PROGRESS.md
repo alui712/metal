@@ -8,7 +8,7 @@ Product: a standalone **desktop** gameplay recording and clipping app (Electron 
 |---|---|
 | 0 Foundation | ✅ Complete |
 | 1 Cinematic UI (demo fixtures) | ✅ Complete |
-| 1b Desktop-first UX (capture home, Sources, capture states) | ⏳ Not started |
+| 1b Desktop-first UX (capture home, Sources, capture settings) | ✅ Complete |
 | 2 Electron shell (secure preload, server + worker lifecycle) | ⏳ Not started |
 | 3 Ingestion (fingerprint/dedupe, probe, proxy, thumbnails, streaming) — needs FFmpeg | ⏳ Not started |
 | 4 OBS capture (record, replay buffer, Save Clip, hotkey, auto-import) | ⏳ Not started |
@@ -18,6 +18,58 @@ Product: a standalone **desktop** gameplay recording and clipping app (Electron 
 | 8 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 9 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV | ⏳ Not started |
+
+---
+
+## Phase 1b — Desktop capture UX ✅ (2026-10-23)
+
+### Implemented
+- **Capture-first Home** (`/`):
+  - capture console: OBS status, REC indicator, Start recording, and Save last *N* (the length follows the replay-buffer setting) with its hotkey;
+  - AI Smart Clip entry, quick access to Recall, Time Machine and Studio, Recall search, recent recordings and saved moments (demo-labeled).
+- **Sources** (`/sources`):
+  - OBS card with setup steps; host, port and password fields;
+  - watched folders (finished-file, dedupe and read-only rules);
+  - local Medal recordings folder (no account, no cloud, not affiliated, never modified);
+  - manual import (links to the working `/import`).
+- **Capture settings** (`/settings`):
+  - replay buffer length (15 s–5 min) with a clip-size estimate;
+  - quality presets (720p60 / 1080p60 / 1440p60) and MKV/MP4 guidance;
+  - hotkey recorder: Electron-style accelerators; it rejects keys without a modifier, conflicts and reserved combos;
+  - audio options, with the separate mic track depending on the mic.
+- **Desktop shell:**
+  - nav now leads with Capture;
+  - Sources and Capture settings added to the sidebar and ⌘K;
+  - sidebar capture-status card and mobile header status pill (replaces the mobile Import shortcut; Import stays in Sources and ⌘K);
+  - `/status` gains a "Capture (OBS)" check.
+- **Logic:**
+  - `src/lib/capture/settings.ts`: zod-validated preferences with per-field fallback, hotkey capture/validation, size estimates;
+  - `src/lib/capture/status.ts`: the capture-state contract, fixed to `not-connected` until Phase 4;
+  - settings persist per device in `localStorage` via `useSyncExternalStore`, with SSR defaults and guarded storage access.
+
+### Honesty
+- Start recording, Save clip, Connect to OBS, Add folder and Choose Medal folder are disabled. Each one points to an explanation of what's missing and which phase adds it.
+- No recording timer or "recording" state is ever shown.
+- The settings page states that preferences take effect only once OBS is connected.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (47 tests; +10 for capture settings and hotkeys) · `npm run build` ✅
+- Browser scenario against the dev server (:3001): 69 checks pass.
+  - **Phase 1b checks:**
+    - capture controls are disabled and say nothing is recording;
+    - replay length and hotkey persist and show up on Home;
+    - hotkey conflicts and missing modifiers are rejected;
+    - the mic/separate-track dependency works;
+    - reset restores the defaults;
+    - the Sources controls are disabled and the import link works;
+    - `/status` shows the OBS check;
+    - no horizontal scroll at 390 px on `/sources` and `/settings`.
+  - All Phase 1 checks still pass.
+
+### Known issues / not yet done
+- No Electron, OBS, folder watching or recording yet (Phases 2, 4, 5).
+- Settings live in this browser's storage until the desktop shell persists them.
+- The OBS password field is display-only; the desktop app will keep it in the system keychain.
 
 ---
 

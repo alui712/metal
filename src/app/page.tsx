@@ -1,12 +1,12 @@
-import { ArrowRight, ArrowUpRight, Film, HardDrive } from "lucide-react";
+import { ArrowUpRight, AudioLines, Clapperboard, Film, History, Laugh, MessageSquareQuote, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
+import { CaptureConsole } from "@/components/capture/capture-console";
 import { HeroSearch } from "@/components/home/hero-search";
-import { MomentCard, SessionCard } from "@/components/memory/cards";
-import { SceneArt } from "@/components/media/scene-art";
+import { MomentCard, RecordingThumb } from "@/components/memory/cards";
 import { DemoBadge } from "@/components/ui/demo-badge";
 import { InView, Reveal } from "@/components/ui/motion";
-import { ButtonLink, EmptyState, PageContainer, SectionHeading } from "@/components/ui/page";
+import { EmptyState, PageContainer, SectionHeading } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
 import { formatDate } from "@/lib/format";
 import { getMemoryRepository } from "@/lib/memory/repository";
@@ -17,208 +17,184 @@ const repo = getMemoryRepository();
 async function LibraryStatus() {
   const { recordingCount } = await getLibraryStats();
   return (
-    <span>
+    <>
       {recordingCount === 0
-        ? "No recordings imported yet — you're exploring demo memories."
-        : `${recordingCount} imported recording${recordingCount === 1 ? "" : "s"} · the views below still show demo memories until ingestion is connected.`}
-    </span>
+        ? "Nothing captured or imported yet — these are demo recordings."
+        : `${recordingCount} imported recording${recordingCount === 1 ? "" : "s"} · shown below are still demo recordings until ingestion is connected.`}
+    </>
   );
 }
 
-const WAYS_IN = [
-  {
-    n: "01",
-    href: "/recall",
-    title: "Recall",
-    body: "Ask in plain language. Jump to the exact second, with the evidence that matched.",
-    art: { variant: "arena", hue: 168, seed: 4 } as const,
-  },
-  {
-    n: "02",
-    href: "/sessions",
-    title: "Time Machine",
-    body: "Every night you played, on a timeline. Open one and relive it like a documentary.",
-    art: { variant: "peaks", hue: 205, seed: 9 } as const,
-  },
-  {
-    n: "03",
-    href: "/studio",
-    title: "Story Studio",
-    body: "Arrange the best moments, set the format, and shape them into something to share.",
-    art: { variant: "city", hue: 312, seed: 2 } as const,
-  },
+const QUICK = [
+  { href: "/recall", title: "Recall", body: "Find any moment by describing it.", icon: Search },
+  { href: "/sessions", title: "Time Machine", body: "Relive whole nights on a timeline.", icon: History },
+  { href: "/studio", title: "Story Studio", body: "Cut the best moments into a story.", icon: Clapperboard },
 ];
 
+const SMART_SIGNALS = [
+  { icon: Laugh, label: "Laughter and reactions" },
+  { icon: AudioLines, label: "Hype and volume peaks" },
+  { icon: MessageSquareQuote, label: "Clutch callouts in voice chat" },
+];
+
+function SmartClipCard() {
+  return (
+    <section
+      aria-labelledby="smart-clip-heading"
+      className="relative isolate overflow-hidden rounded-3xl border border-accent/25 bg-surface-2/70 p-6"
+    >
+      <div aria-hidden className="absolute -right-16 -top-20 -z-10 size-64 rounded-full bg-accent/20 blur-3xl" />
+      <div className="flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.2em] text-accent-ink">
+        <Sparkles className="size-4" aria-hidden /> AI Smart Clip
+      </div>
+      <h2 id="smart-clip-heading" className="mt-3 text-[1.5rem] font-semibold leading-tight tracking-[-0.025em] text-ink">
+        Let METAL find the clip.
+      </h2>
+      <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
+        Play without reaching for a hotkey. Smart Clip reviews your recording and saves the moments worth keeping, each with
+        the evidence it found.
+      </p>
+      <ul className="mt-5 space-y-2.5">
+        {SMART_SIGNALS.map(({ icon: Icon, label }) => (
+          <li key={label} className="flex items-center gap-3 text-[13.5px] text-ink-muted">
+            <Icon className="size-4 text-accent-ink" strokeWidth={1.75} aria-hidden />
+            {label}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-5 rounded-xl border border-line bg-surface/60 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-faint">
+        Arrives in Phase 6. It needs real recordings and on-device analysis — until then it stays off rather than guessing.
+      </p>
+      <Link
+        href="/recall?q=everyone%20laughing"
+        className="mt-4 inline-flex items-center gap-1.5 rounded-md text-[13px] font-medium text-accent-ink transition-colors hover:text-white"
+      >
+        See what found moments look like (demo) <ArrowUpRight className="size-4" aria-hidden />
+      </Link>
+    </section>
+  );
+}
+
 export default function Home() {
-  const sessions = repo.sessions();
-  const latest = sessions[0];
-
-  if (!latest) {
-    return (
-      <PageTransition>
-        <PageContainer>
-          <EmptyState
-            icon={Film}
-            title="Your library is waiting"
-            description="Import a few gameplay recordings and METAL will turn them into moments you can search, relive, and cut into stories."
-            action={{ href: "/import", label: "Import recordings" }}
-          />
-        </PageContainer>
-      </PageTransition>
-    );
-  }
-
-  const latestGame = repo.game(latest.gameId);
-  const recentMoments = sessions
-    .flatMap((s) => repo.momentsForSession(s.id).filter((m) => m.score >= 0.75))
-    .slice(0, 10);
-  const featured = sessions.slice(0, 3);
+  const recordings = [...repo.recordings()].sort((a, b) => b.recordedAt - a.recordedAt).slice(0, 4);
+  const savedMoments = repo.topMoments(10);
 
   return (
     <PageTransition>
-      {/* ── Hero ─────────────────────────────────────────── */}
-      <section aria-labelledby="hero-title" className="relative isolate overflow-hidden">
-        <div aria-hidden className="absolute inset-0 -z-10 opacity-90">
-          <SceneArt art={latest.art} />
-        </div>
-        <div aria-hidden className="grain absolute inset-0 -z-10" />
-        <div aria-hidden className="absolute inset-0 -z-10 bg-gradient-to-r from-bg via-bg/70 to-bg/10" />
-        <div aria-hidden className="scrim-b absolute inset-0 -z-10" />
-
-        <div className="mx-auto flex min-h-[min(88svh,860px)] w-full max-w-7xl flex-col justify-end px-4 pb-14 pt-24 sm:px-8 md:pb-20">
+      <PageContainer className="space-y-16 pb-24 md:space-y-20">
+        <div className="space-y-8">
           <Reveal>
-            <div className="flex flex-wrap items-center gap-3">
-              <p className="text-[12px] font-medium uppercase tracking-[0.24em] text-accent-ink">
-                Your gaming memory
-              </p>
-              <DemoBadge />
-            </div>
+            <header className="flex flex-col gap-2">
+              <p className="text-[12px] font-medium uppercase tracking-[0.24em] text-accent-ink">Capture</p>
+              <h1 className="text-[clamp(2.25rem,4.6vw,3.75rem)] font-semibold leading-[1] tracking-[-0.045em] text-ink">
+                Every moment has a{" "}
+                <span className="font-display font-normal italic tracking-[-0.02em] text-accent-ink">story.</span>
+              </h1>
+            </header>
           </Reveal>
-          <Reveal delay={0.08}>
-            <h1
-              id="hero-title"
-              className="mt-6 max-w-4xl text-[clamp(3rem,8.5vw,7.25rem)] font-semibold leading-[0.9] tracking-[-0.05em] text-ink"
-            >
-              Every moment
-              <br />
-              has a{" "}
-              <span className="font-display font-normal italic tracking-[-0.02em] text-accent-ink">story.</span>
-            </h1>
-          </Reveal>
-          <Reveal delay={0.16}>
-            <p className="mt-7 max-w-xl text-[17px] leading-relaxed text-ink-muted sm:text-[18px]">
-              Search your recordings in plain language, relive whole nights on a timeline, and cut the
-              best of it into something worth sharing.
-            </p>
-          </Reveal>
-          <Reveal delay={0.24} className="mt-9">
-            <HeroSearch />
-          </Reveal>
-          <Reveal delay={0.4} className="mt-12 flex flex-col gap-4 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="flex items-center gap-2.5 text-[13px] text-ink-faint">
-              <HardDrive className="size-4 shrink-0" strokeWidth={1.75} aria-hidden />
-              <Suspense fallback={<span>Checking your library…</span>}>
-                <LibraryStatus />
-              </Suspense>
-            </p>
-            <Link
-              href={`/sessions/${latest.id}`}
-              className="group inline-flex items-center gap-2 text-[13px] text-ink-muted transition-colors hover:text-ink"
-            >
-              <span className="text-ink-faint">Latest session</span>
-              <span className="font-medium">{latest.title}</span>
-              <span className="text-ink-faint">· {latestGame?.name}, {formatDate(latest.startedAt)}</span>
-              <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
-            </Link>
-          </Reveal>
-        </div>
-      </section>
 
-      <PageContainer className="space-y-24 pb-24 md:pt-6">
-        {/* ── Recent moments rail ─────────────────────────── */}
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)]">
+            <Reveal delay={0.06}>
+              <CaptureConsole />
+            </Reveal>
+            <Reveal delay={0.12} className="flex flex-col gap-6">
+              <SmartClipCard />
+              <nav aria-label="Your memories" className="overflow-hidden rounded-3xl border border-line bg-surface-2/60">
+                <ul className="divide-y divide-line">
+                  {QUICK.map(({ href, title, body, icon: Icon }) => (
+                    <li key={href}>
+                      <Link href={href} className="group flex items-center gap-4 px-5 py-4 transition-colors hover:bg-surface-3/60">
+                        <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-line bg-surface-3 text-accent-ink">
+                          <Icon className="size-[18px]" strokeWidth={1.75} aria-hidden />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[14.5px] font-medium text-ink">{title}</span>
+                          <span className="block truncate text-[12.5px] text-ink-faint">{body}</span>
+                        </span>
+                        <ArrowUpRight className="size-4 text-ink-faint transition-all group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-accent-ink" aria-hidden />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
+            </Reveal>
+          </div>
+        </div>
+
+        {/* ── Recall ─────────────────────────────────────── */}
+        <section aria-labelledby="ask-heading">
+          <SectionHeading id="ask-heading" title="Ask your memories" />
+          <HeroSearch />
+        </section>
+
+        {/* ── Recent recordings ──────────────────────────── */}
         <section aria-labelledby="recent-heading">
           <SectionHeading
             id="recent-heading"
-            title="Recent highlights"
+            title="Recent recordings"
             action={
               <Link href="/library" className="text-[13px] text-ink-muted transition-colors hover:text-ink">
                 Open library →
               </Link>
             }
           />
+          <div className="mb-5 flex flex-wrap items-center gap-3 text-[13px] text-ink-faint">
+            <DemoBadge />
+            <Suspense fallback={<span>Checking your library…</span>}>
+              <span>
+                <LibraryStatus />
+              </span>
+            </Suspense>
+          </div>
+          {recordings.length === 0 ? (
+            <EmptyState
+              icon={Film}
+              title="No recordings yet"
+              description="Connect OBS or add a recordings folder, and everything you capture shows up here."
+              action={{ href: "/sources", label: "Open Sources" }}
+            />
+          ) : (
+            <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+              {recordings.map((r, i) => (
+                <li key={r.id}>
+                  <InView delay={i * 0.05}>
+                    <Link href={r.sessionId ? `/sessions/${r.sessionId}` : "/library"} className="group block">
+                      <RecordingThumb recording={r} className="transition-transform duration-500 group-hover:scale-[1.015]" />
+                      <p className="mt-3 truncate text-[14px] font-medium text-ink">{r.title}</p>
+                      <p className="mt-0.5 truncate text-[12.5px] text-ink-faint">
+                        {repo.game(r.gameId)?.name} · {formatDate(r.recordedAt)} · {r.ownerLabel === "You" ? "Your POV" : `${r.ownerLabel}’s POV`}
+                      </p>
+                    </Link>
+                  </InView>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* ── Saved moments ──────────────────────────────── */}
+        <section aria-labelledby="moments-heading">
+          <SectionHeading
+            id="moments-heading"
+            title="Saved moments"
+            action={
+              <Link href="/recall" className="text-[13px] text-ink-muted transition-colors hover:text-ink">
+                Search all →
+              </Link>
+            }
+          />
           <InView>
             <ul className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8">
-              {recentMoments.map((m) => {
+              {savedMoments.map((m) => {
                 const rec = repo.recording(m.recordingId)!;
                 return (
                   <li key={m.id} className="w-[min(78vw,300px)] shrink-0 snap-start">
-                    <MomentCard
-                      moment={m}
-                      recording={rec}
-                      game={repo.game(rec.gameId)}
-                      href={`/sessions/${rec.sessionId}?moment=${m.id}`}
-                    />
+                    <MomentCard moment={m} recording={rec} game={repo.game(rec.gameId)} href={`/sessions/${rec.sessionId}?moment=${m.id}`} />
                   </li>
                 );
               })}
             </ul>
           </InView>
-        </section>
-
-        {/* ── Ways in ─────────────────────────────────────── */}
-        <section aria-labelledby="ways-heading">
-          <SectionHeading id="ways-heading" title="Three ways in" />
-          <ol className="border-t border-line">
-            {WAYS_IN.map((w, i) => (
-              <li key={w.href}>
-                <InView delay={i * 0.06}>
-                  <Link
-                    href={w.href}
-                    className="group grid grid-cols-[auto_1fr_auto] items-center gap-5 border-b border-line py-7 sm:grid-cols-[4rem_1fr_minmax(0,16rem)_auto] sm:gap-8 sm:py-9"
-                  >
-                    <span className="font-mono text-[13px] text-ink-faint">{w.n}</span>
-                    <span>
-                      <span className="block text-[clamp(1.75rem,4vw,2.75rem)] font-semibold tracking-[-0.035em] text-ink transition-colors group-hover:text-white">
-                        {w.title}
-                      </span>
-                      <span className="mt-1.5 block max-w-lg text-[15px] leading-relaxed text-ink-muted">{w.body}</span>
-                    </span>
-                    <span className="relative hidden aspect-[16/9] overflow-hidden rounded-xl opacity-60 ring-1 ring-line transition-all duration-500 group-hover:opacity-100 sm:block">
-                      <SceneArt art={w.art} />
-                    </span>
-                    <ArrowUpRight
-                      className="size-6 text-ink-faint transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-accent-ink"
-                      strokeWidth={1.5}
-                      aria-hidden
-                    />
-                  </Link>
-                </InView>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        {/* ── Featured sessions ───────────────────────────── */}
-        <section aria-labelledby="sessions-heading">
-          <SectionHeading
-            id="sessions-heading"
-            title="Featured sessions"
-            action={<ButtonLink href="/sessions" variant="ghost" size="sm">Open Time Machine →</ButtonLink>}
-          />
-          <div className="grid gap-5 lg:grid-cols-3">
-            {featured.map((s, i) => (
-              <InView key={s.id} delay={i * 0.08} className={i === 0 ? "lg:col-span-2 lg:row-span-2" : undefined}>
-                <SessionCard
-                  session={s}
-                  game={repo.game(s.gameId)}
-                  momentCount={repo.momentsForSession(s.id).length}
-                  href={`/sessions/${s.id}`}
-                  size={i === 0 ? "lg" : "md"}
-                  className="h-full"
-                />
-              </InView>
-            ))}
-          </div>
         </section>
       </PageContainer>
     </PageTransition>

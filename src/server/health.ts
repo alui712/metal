@@ -88,6 +88,18 @@ function checkAnthropic(): HealthCheck {
   };
 }
 
+function checkCapture(): HealthCheck {
+  // Honest placeholder until the OBS adapter exists; never reports a connection.
+  return {
+    id: "capture",
+    label: "Capture (OBS)",
+    state: "warn",
+    detail: "Not connected — OBS integration arrives in Phase 4",
+    fix: "Install OBS 28+ and enable its WebSocket server",
+    affects: ["Recording", "Save clip", "Replay buffer"],
+  };
+}
+
 async function checkStorage(): Promise<HealthCheck> {
   try {
     await fs.mkdir(paths.media, { recursive: true });
@@ -137,5 +149,5 @@ export async function runHealthChecks(): Promise<HealthCheck[]> {
     checkFfmpeg(),
     checkWhisper(),
   ]);
-  return [storage, checkWorker(), ffmpeg, whisper, checkAnthropic()];
+  return [storage, checkWorker(), checkCapture(), ffmpeg, whisper, checkAnthropic()];
 }
