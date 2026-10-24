@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { VideoPlayer } from "@/components/media/demo-player";
+import { PovPanel } from "@/components/pov/pov-panel";
 import { AutoRefresh } from "@/components/recordings/auto-refresh";
 import { RemoveRecordingButton } from "@/components/recordings/remove-button";
 import { SmartClipWorkspace } from "@/components/smartclip/smart-clip-workspace";
@@ -71,7 +72,7 @@ async function RecordingView({ params, searchParams }: { params: PageProps<"/rec
         )}
       </div>
 
-      <aside aria-label="Recording details" className="space-y-6">
+      <aside aria-label="Recording details" className="min-w-0 space-y-6">
         <dl className="divide-y divide-line overflow-hidden rounded-2xl border border-line bg-surface-2/60 text-[13px]">
           {details(r).map(([k, v]) => (
             <div key={k} className="flex justify-between gap-4 px-4 py-2.5">
@@ -80,6 +81,7 @@ async function RecordingView({ params, searchParams }: { params: PageProps<"/rec
             </div>
           ))}
         </dl>
+        {r.videoUrl && r.origin !== "clip" && <PovPanel recordingId={r.id} />}
         <RemoveRecordingButton id={r.id} title={r.title} />
       </aside>
     </div>

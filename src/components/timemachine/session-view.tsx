@@ -482,6 +482,9 @@ function RecordingRow({
         </span>
       </span>
       <div className="flex w-full flex-wrap items-center gap-2 pl-[5.75rem] sm:w-auto sm:pl-0">
+        <Link href={`/recordings/${r.id}#povs`} className={buttonClass("ghost", "sm")} title="Find other players’ recordings of this">
+          Other POVs
+        </Link>
         {canSplit && (
           <button type="button" disabled={busy} onClick={onSplit} className={buttonClass("ghost", "sm")} title="Start a new session from this recording onward">
             Split here

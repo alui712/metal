@@ -4,6 +4,7 @@ import {
   blob,
   index,
   integer,
+  primaryKey,
   real,
   sqliteTable,
   text,
@@ -534,3 +535,60 @@ export const appSettings = sqliteTable("app_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+// ── Multi-POV (ADR 0019) ────────────────────────────────────
+// A POV group is recordings the user paired as views of the same play.
+// Group time = a member's own time + its offset, so switching POVs keeps
+// the moment. Membership is always the user's decision; offsets can be
+// suggested (clocks / shared audio) until the user confirms or adjusts them.
+
+export const povGroups = sqliteTable("pov_groups", {
+  id: text("id").primaryKey(),
+  createdAt: createdAt(),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+export const povMembers = sqliteTable(
+  "pov_members",
+  {
+    recordingId: text("recording_id")
+      .primaryKey()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    groupId: text("group_id")
+      .notNull()
+      .references(() => povGroups.id, { onDelete: "cascade" }),
+    /** Where this recording's 0:00 sits on the group timeline (ms; may be negative). */
+    offsetMs: integer("offset_ms").notNull(),
+    /** What the offset came from: the first member, recording clocks, shared audio, or the user. */
+    syncSource: text("sync_source", { enum: ["anchor", "clock", "audio", "manual"] }).notNull(),
+    /** The user confirmed (or set) this offset; otherwise it is a suggestion. */
+    syncConfirmed: integer("sync_confirmed", { mode: "boolean" }).notNull().default(false),
+    /** Audio correlation behind an audio-suggested offset (0–1). */
+    audioScore: real("audio_score"),
+    addedAt: createdAt(),
+  },
+  (t) => [index("pov_members_group_idx").on(t.groupId)],
+);
+
+/** Latest "Find other POVs" evidence for a recording → candidate pair. */
+export const povMatches = sqliteTable(
+  "pov_matches",
+  {
+    recordingId: text("recording_id")
+      .notNull()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    candidateId: text("candidate_id")
+      .notNull()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    /** reliable: shared audio lines up clearly; weak: a peak, but not distinct; none: no shared audio found; no-audio / error: couldn't check. */
+    audio: text("audio", { enum: ["reliable", "weak", "none", "no-audio", "error"] }).notNull(),
+    /** Candidate's 0:00 relative to the recording's 0:00 (ms), when audio found one. */
+    offsetMs: integer("offset_ms"),
+    score: real("score"),
+    /** Best peak ÷ best peak elsewhere: how distinct the alignment is. */
+    distinct: real("distinct"),
+    overlapMs: integer("overlap_ms"),
+    computedAt: integer("computed_at").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.recordingId, t.candidateId] })],
+);

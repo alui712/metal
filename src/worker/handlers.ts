@@ -4,6 +4,7 @@ import { analyzeRecording } from "../server/analysis/analyze";
 import { transcribeRecording } from "../server/analysis/transcribe";
 import { importObsFile } from "../server/capture/import";
 import { ingestRecording } from "../server/media/ingest";
+import { matchPovs } from "../server/pov/povs";
 import { exportClip } from "../server/smartclip/export";
 import { importFolderFile } from "../server/sources/import";
 import { renderStory } from "../server/studio/render";
@@ -27,4 +28,5 @@ export const handlers: Record<string, JobHandler> = {
   "clip-export": exportClip,
   transcribe: transcribeRecording,
   "story-export": renderStory,
+  "pov-match": matchPovs,
 };

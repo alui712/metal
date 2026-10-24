@@ -18,8 +18,73 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 6B Real Time Machine (sessions, Relive, Studio handoff) | ✅ Complete |
 | 7 Real Story Studio (persistent stories, FFmpeg MP4 export) | ✅ Complete |
 | 8A Final UI/UX polish | ✅ Complete |
-| 8B 3-minute demo | ⏳ Not started |
-| Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+| 8B Multi-POV Sync | ✅ Complete |
+| 3-minute demo | ⏳ Not started |
+| Stretch: Wrapped · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 8B — Multi-POV Sync ✅ (2026-10-24)
+
+Watch the same play from teammates' recordings (local files imported with permission). Migration `0010_multi_pov`. No new dependencies. ADR 0019.
+
+### Implemented
+- **Find other POVs** (recording page panel; "Other POVs" link on every Time Machine recording row):
+  - **Candidates come only from evidence:** recording clocks that overlap or are within 2 min, matching game tags, and shared audio. Undated recordings are checked by audio only.
+  - **Exclusions:** Smart Clip cuts of the same footage and recordings tagged with a different game are never suggested.
+  - **Audio comparison:** runs locally in the worker (`pov-match` job): a spectral-flux envelope plus FFT cross-correlation, with Pearson correlation over each overlap, ranked by significance and refined below 10 ms.
+  - **Labels:** "Likely the same match" only with reliable shared audio (distinctness ≥ 2.2 and prominence ≥ 12), and the evidence is listed: overlap, shared-audio offset, game. Clock-only matches are "Possible — not confirmed"; weak peaks say "not conclusive".
+  - **Empty state:** an honest message with an Import link. Recordings can also be paired by hand from a list.
+- **Sync:**
+  - `pov_groups` / `pov_members` persist each POV's offset on a shared timeline; groups join or merge, up to 6 POVs.
+  - Offsets come from audio, clocks or by hand, and stay **Suggested sync** until **Sync looks right** or a manual nudge, which turns them into **Sync confirmed**.
+  - Nudges are ±1 s, ±0.1 s, or ±1 frame at that POV's own fps (30 vs 60 verified).
+  - Different lengths, frame rates and partial coverage are handled through group time.
+- **Viewer** (`/povs/[id]`):
+  - **Views:** "One POV", with instant switching (1–6 keys or the list) that keeps the exact moment, or "Side by side" (2-column grid; stacked on mobile).
+  - **Clock:** one clock, led by the audible POV. Followers are drift-corrected by rate or re-seek, hidden POVs included.
+  - **Audio:** exactly one POV is audible ("Click to listen" on a tile), with mute (M).
+  - **Coverage:** "who recorded when" lanes. Each tile shows "starts recording in …" or "recording has ended" when it has no footage at that moment.
+  - **Edge cases:** buffering spinners, and an "unavailable" overlay for missing files (including errors that happen before hydration).
+  - **Player names:** editable, and they persist (`recordings.owner_label`).
+  - **Keyboard:** Space, ←/→, 1–6, M, V.
+- **Studio handoff:** **Clip this moment to Story Studio** creates a story through the existing `createStory` ranges path, with the active POV's recording id and own-time range (±5 s, clamped). The export engine is unchanged.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (167 tests; 14 in `src/server/pov/`) · `npm run build` ✅
+  - **Audio:**
+    - true pairs are found exactly (≤ 15 ms) across 12 synthetic plays, and any "reliable" result on a short overlap is exact;
+    - unrelated audio is never reliable;
+    - a regression test pins the real-footage false positive found during testing (distinctness 1.92, prominence 9.8 → "weak");
+    - real FFmpeg files at 30 vs 60 fps and different lengths align to within 30 ms;
+    - a file without audio is handled.
+  - **Service** (real files through the upload and worker pipeline):
+    - clocks alone give "possible"; after listening, B is "likely" at 12 250 ms ± 30;
+    - an overlapping recording with different audio stays "possible"; an undated recording with shared audio is found; an undated unrelated one is not listed;
+    - Smart Clip cuts are excluded;
+    - pairing, manual pairing, nudging, confirming, merging and unpairing work, and recordings are untouched;
+    - the Studio range is exact.
+- **Real playback in the browser** (localhost:3001; two synced sample recordings imported through the app):
+  - **Scenario:** 35 checks.
+  - **Discovery and labels:** "Find other POVs" shows B as likely at +12.25 s, the overlapping unrelated C stays unconfirmed, and tone-heavy unrelated footage is not "likely".
+  - **Switching:** a paused switch lands within 18 ms of the same moment, and switching while playing keeps the timeline going.
+  - **Sync between POVs:** hidden POVs follow within ~15 ms, and side-by-side drift was 29–46 ms.
+  - **Audio:** exactly one POV is audible.
+  - **Coverage:** "starts recording in 0:11" shows before B began.
+  - **Sync edits:** confirm, +317 ms of nudges (3 × 0.1 s + 1 frame at 60 fps) persisted after reload, then nudged back; the player name persisted.
+  - **Studio handoff:** opens the Studio with B's exact id and range.
+  - **Other cases:**
+    - a blocked video shows "unavailable" while the other POV keeps playing;
+    - the empty state shows Import;
+    - the Time Machine row links to the panel;
+    - 390 px and reduced motion work.
+  - **Regression suites:** scenario-dev 69, p2 27, p3 10, p5hub 3, p5c 12, p6 18, p6b 33 (the date-filter check is now independent of the sample data), p7 24, p7m, Phase 8A Relive 9, Studio 7 and misc 7 — all passing.
+  - The test browser now runs with `--mute-audio`.
+
+### Known limitations
+- Audio alignment needs shared sound, such as voice chat or loud game events both players heard. Otherwise the result is "possible" and you pair and line up by hand.
+- One constant offset per POV: speed drift inside a recording isn't corrected. Only the first hour of each file is compared.
+- The test data left in the library includes the three POV sample recordings (A and B are paired; B is named "Sample player B") and the stories the Studio handoff test created. Nothing was deleted.
 
 ---
 

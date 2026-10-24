@@ -22,3 +22,4 @@ Short records of decisions that shape METAL. Add a new numbered file when a deci
 | [0016](0016-real-time-machine.md) | Real Time Machine: evidence-backed recording times, lockable automatic sessions, Relive player, Studio handoff | Accepted |
 | [0017](0017-real-story-studio.md) | Real Story Studio: persistent stories, one-pass normalized FFmpeg export in the worker, verified before success | Accepted |
 | [0018](0018-burned-in-captions.md) | Burned-in captions: sharp SVG → PNG overlays timed per clip, shared preview/export layout, subtitle track kept | Accepted |
+| [0019](0019-multi-pov-sync.md) | Multi-POV Sync: evidence-only discovery (clocks, game, shared-audio spectral flux), offset groups with suggested vs confirmed sync, one shared playback clock | Accepted |

@@ -71,6 +71,13 @@
       "when": 1792861463250,
       "tag": "0009_story_studio",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792865219164,
+      "tag": "0010_multi_pov",
+      "breakpoints": true
     }
   ]
 }
