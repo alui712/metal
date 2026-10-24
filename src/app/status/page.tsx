@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 import { RefreshButton } from "@/components/status/refresh-button";
 import { PageContainer, PageHeader } from "@/components/ui/page";
+import { PageTransition } from "@/components/ui/page-transition";
 import { cn } from "@/lib/cn";
 import { runHealthChecks, type CheckState } from "@/server/health";
 
@@ -84,16 +85,18 @@ function ChecksSkeleton() {
 
 export default function StatusPage() {
   return (
-    <PageContainer className="max-w-4xl">
-      <PageHeader
-        eyebrow="System"
-        title="Status"
-        description="Live checks of the local services METAL depends on. Features degrade gracefully when one is unavailable — nothing is ever faked."
-        actions={<RefreshButton />}
-      />
-      <Suspense fallback={<ChecksSkeleton />}>
-        <Checks />
-      </Suspense>
-    </PageContainer>
+    <PageTransition>
+      <PageContainer className="max-w-4xl">
+        <PageHeader
+          eyebrow="System"
+          title="Status"
+          description="Live checks of the local services METAL depends on. Features degrade gracefully when one is unavailable — nothing is ever faked."
+          actions={<RefreshButton />}
+        />
+        <Suspense fallback={<ChecksSkeleton />}>
+          <Checks />
+        </Suspense>
+      </PageContainer>
+    </PageTransition>
   );
 }

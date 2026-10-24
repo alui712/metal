@@ -2,19 +2,61 @@
 
 > "Every moment has a story."
 
-Roadmap and acceptance criteria: see the approved plan (phases 0–7). Architecture decisions: [`docs/decisions/`](docs/decisions/README.md).
+Product: a standalone **desktop** gameplay recording and clipping app (Electron + this Next.js app; recording via OBS). Final submission: a 3-minute 1080p demo — Capture → AI Smart Clip → Recall → Time Machine → Story Studio. Architecture decisions: [`docs/decisions/`](docs/decisions/README.md) (desktop direction: ADR 0007).
 
 | Phase | Status |
 |---|---|
 | 0 Foundation | ✅ Complete |
-| 1 Import & playback | ⏳ Not started |
-| 2 Analysis pipeline | ⏳ Not started |
-| 3 Recall | ⏳ Not started |
-| 4 Time Machine | ⏳ Not started |
-| 5 Story Studio | ⏳ Not started |
-| 6 Polish & demo hardening | ⏳ Not started |
-| 7a Wrapped *(stretch)* | ⏳ Not started |
-| 7b Multi-POV *(stretch)* | ⏳ Not started |
+| 1 Cinematic UI (demo fixtures) | ✅ Complete |
+| 1b Desktop-first UX (capture home, Sources, capture states) | ⏳ Not started |
+| 2 Electron shell (secure preload, server + worker lifecycle) | ⏳ Not started |
+| 3 Ingestion (fingerprint/dedupe, probe, proxy, thumbnails, streaming) — needs FFmpeg | ⏳ Not started |
+| 4 OBS capture (record, replay buffer, Save Clip, hotkey, auto-import) | ⏳ Not started |
+| 5 Local folder connector | ⏳ Not started |
+| 6 Analysis + AI Smart Clip — needs whisper.cpp | ⏳ Not started |
+| 7 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
+| 8 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
+| 9 Polish & 3-minute demo | ⏳ Not started |
+| Stretch: Wrapped, Multi-POV | ⏳ Not started |
+
+---
+
+## Phase 1 — Cinematic UI ✅ (2026-10-23)
+
+### Implemented
+- **Data layer** — contracts (`src/lib/memory/contracts.ts`) and a `MemoryRepository` with a demo implementation over fictional fixtures: 5 games, 5 sessions, 13 recordings, ~26 moments. Labeled keyword search with stemming (ADR 0008).
+- **Pages** — Home (cinematic hero, highlights, three ways in, featured sessions), Library (grid/list, filters, detail sheet), Recall (search, filters, evidence, inline player), Time Machine (session explorer, session detail with multi-lane timeline and keyboard moment stepping, full-screen Relive), Story Studio (clip timeline with drag + keyboard reorder, trim, captions, 16:9 / 9:16 / 1:1, sequenced preview, undo/redo, Export dialog), Import (drag-drop validation, local previews), branded 404 and error pages.
+- **Media** — procedural SVG poster art (`SceneArt`), a player with simulated playback for fixtures and a real `<video>` path for future media.
+- **Motion** — React View Transitions (shared session-art morph, directional nav), Motion animations, global `MotionConfig reducedMotion="user"`.
+- **Branding** — METAL icon (`src/app/icon.svg`); create-next-app favicon and starter SVGs removed (approved).
+- **Honesty** — "Demo data" badges on every fixture surface. Simulated playback and keyword-only search are labeled. Render MP4, Import and natural-language edits are disabled with explanations. The edit list downloads as real JSON.
+- **Docs** — ADR 0007 (desktop direction) and ADR 0008 (demo fixtures).
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (37 tests: edit-list operations, repository/search, import validation, plus Phase 0 suites) · `npm run build` ✅
+- Browser scenario (headless Chrome via CDP, against the dev server on :3001 and a production build): 48 checks pass. Coverage:
+  - navigation and the ⌘K palette;
+  - Recall queries and evidence;
+  - timeline keyboard stepping and `?moment=` deep links;
+  - Relive;
+  - Studio reorder/trim/remove/undo/aspect/export dialog;
+  - import validation;
+  - 404s;
+  - no horizontal scroll at 390 px on every page;
+  - reduced motion.
+- Remaining console output is expected only: the 404 resource log for an unknown route, and Motion's dev notice when reduced motion is emulated.
+
+### Fixed during Phase 1 verification
+- Hydration mismatches in dev: `SceneArt` shared one random generator across child components, so React's dev double-render drew different geometry. Each scene now seeds its own generator.
+- Relive hydration mismatch under reduced motion: initial animation targets no longer depend on `useReducedMotion` (unknown during SSR).
+- `/sessions/[id]` and `/relive` read `params` outside `<Suspense>` (instant-navigation insight); content now renders inside a Suspense boundary. Known sessions still prerender in full.
+- Timeline: recording labels were covered by moment markers (labels now sit above the bars). Library filter collapsed on mobile. Player badge clipped on narrow players (shortened to "Simulated · no video"). Arena art and the Home hero were too dark.
+
+### Known issues / not yet done
+- All content is demo fixtures. No real import, analysis, search or export yet (Phases 3–8).
+- Unknown session ids render the 404 page inside a streamed boundary, so the HTTP status is 200 rather than 404. This doesn't matter for the local desktop app.
+- `src/components/ui/coming-soon.tsx` is unused (kept).
+- The Home page is search-first; it becomes capture-first in Phase 1b.
 
 ---
 

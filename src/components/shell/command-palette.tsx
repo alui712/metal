@@ -3,10 +3,13 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useRouter } from "next/navigation";
-import { CornerDownLeft, Search, Sparkles } from "lucide-react";
+import { CornerDownLeft, History, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
+import { getMemoryRepository } from "@/lib/memory/repository";
 import { primaryNav, secondaryNav } from "./nav-items";
+
+const repo = getMemoryRepository();
 
 const OPEN_EVENT = "metal:open-command-palette";
 
@@ -74,6 +77,16 @@ export function CommandPalette() {
         icon: item.icon,
         run: go(item.href),
       }));
+    const sessionActions: Action[] = repo
+      .sessions()
+      .filter((s) => q && `${s.title} ${repo.game(s.gameId)?.name}`.toLowerCase().includes(q.toLowerCase()))
+      .map((s) => ({
+        id: `session:${s.id}`,
+        label: s.title,
+        hint: "Session",
+        icon: History,
+        run: go(`/sessions/${s.id}`),
+      }));
     if (!q) return navActions;
     return [
       {
@@ -83,6 +96,7 @@ export function CommandPalette() {
         icon: Sparkles,
         run: go(`/recall?q=${encodeURIComponent(q)}`),
       },
+      ...sessionActions,
       ...navActions,
     ];
   }, [query, router, close]);

@@ -87,11 +87,10 @@ body {
   border-radius: 6px;
 }
 
-/* Faint film grain + violet bloom behind content. */
+/* One quiet violet bloom at the top of the canvas; everything else graphite. */
 .metal-backdrop {
   background:
-    radial-gradient(60rem 36rem at 70% -10%, rgb(139 92 255 / 0.14), transparent 60%),
-    radial-gradient(40rem 30rem at -10% 110%, rgb(115 64 245 / 0.08), transparent 60%),
+    radial-gradient(56rem 30rem at 72% -12%, rgb(139 92 255 / 0.1), transparent 60%),
     var(--graphite-950);
 }
 
@@ -101,7 +100,133 @@ body {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
 }
 
+/* Film grain for cinematic surfaces (static, GPU-cheap). */
+.grain {
+  position: relative;
+}
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.09;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Bottom fade used over hero art. */
+.scrim-b {
+  background: linear-gradient(to top, var(--graphite-950) 0%, rgb(7 7 9 / 0.75) 35%, rgb(7 7 9 / 0) 75%);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+* {
+  scrollbar-color: var(--graphite-600) transparent;
+  scrollbar-width: thin;
+}
+
+input[type="range"] {
+  accent-color: var(--violet-500);
+}
+
+/* ── View transitions (React <ViewTransition>) ─────────────────────────── */
+
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-old(.page-out) {
+  animation: 160ms ease-in both vt-fade reverse;
+}
+::view-transition-new(.page-in) {
+  animation:
+    260ms var(--ease-out) 80ms both vt-fade,
+    420ms var(--ease-out) 80ms both vt-rise;
+}
+
+::view-transition-old(.nav-forward) {
+  --slide-offset: -48px;
+  animation:
+    150ms ease-in both vt-fade reverse,
+    400ms ease-in-out both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 48px;
+  animation:
+    220ms ease-out 140ms both vt-fade,
+    400ms ease-in-out both vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --slide-offset: 48px;
+  animation:
+    150ms ease-in both vt-fade reverse,
+    400ms ease-in-out both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -48px;
+  animation:
+    220ms ease-out 140ms both vt-fade,
+    400ms ease-in-out both vt-slide;
+}
+
+::view-transition-group(.morph) {
+  animation-duration: 480ms;
+  animation-timing-function: var(--ease-out);
+}
+::view-transition-image-pair(.morph) {
+  animation-name: vt-via-blur;
+}
+
+/* The sidebar stays put while pages change. */
+::view-transition-group(app-sidebar) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(app-sidebar) {
+  display: none;
+}
+::view-transition-new(app-sidebar) {
+  animation: none;
+}
+
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes vt-rise {
+  from {
+    translate: 0 10px;
+  }
+}
+@keyframes vt-slide {
+  from {
+    translate: var(--slide-offset);
+  }
+  to {
+    translate: 0;
+  }
+}
+@keyframes vt-via-blur {
+  30% {
+    filter: blur(3px);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+
   *,
   *::before,
   *::after {

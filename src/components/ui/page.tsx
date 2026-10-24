@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
-import Link from "next/link";
 import { cn } from "@/lib/cn";
+import { ButtonLink } from "./button";
+
+export { ButtonLink };
 
 export function PageContainer({
   children,
@@ -10,7 +12,7 @@ export function PageContainer({
   className?: string;
 }) {
   return (
-    <div className={cn("mx-auto w-full max-w-6xl px-4 py-8 sm:px-8 md:py-12", className)}>
+    <div className={cn("mx-auto w-full max-w-7xl px-4 py-8 sm:px-8 md:py-12", className)}>
       {children}
     </div>
   );
@@ -21,29 +23,55 @@ export function PageHeader({
   title,
   description,
   actions,
+  badge,
 }: {
   eyebrow?: string;
   title: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
+  badge?: React.ReactNode;
 }) {
   return (
     <header className="mb-10 flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
       <div className="max-w-2xl">
-        {eyebrow && (
-          <p className="mb-3 text-[12px] font-medium uppercase tracking-[0.2em] text-accent-ink">
-            {eyebrow}
-          </p>
+        {(eyebrow || badge) && (
+          <div className="mb-3 flex items-center gap-3">
+            {eyebrow && (
+              <p className="text-[12px] font-medium uppercase tracking-[0.2em] text-accent-ink">{eyebrow}</p>
+            )}
+            {badge}
+          </div>
         )}
-        <h1 className="text-[clamp(2rem,4vw,3rem)] font-semibold leading-[1.05] tracking-[-0.03em] text-ink">
+        <h1 className="text-[clamp(2.25rem,4.5vw,3.5rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-ink">
           {title}
         </h1>
         {description && (
           <p className="mt-4 text-[16px] leading-relaxed text-ink-muted">{description}</p>
         )}
       </div>
-      {actions && <div className="flex shrink-0 gap-3">{actions}</div>}
+      {actions && <div className="flex shrink-0 flex-wrap gap-3">{actions}</div>}
     </header>
+  );
+}
+
+export function SectionHeading({
+  id,
+  title,
+  action,
+  className,
+}: {
+  id?: string;
+  title: string;
+  action?: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("mb-5 flex items-end justify-between gap-4", className)}>
+      <h2 id={id} className="text-[13px] font-medium uppercase tracking-[0.18em] text-ink-faint">
+        {title}
+      </h2>
+      {action}
+    </div>
   );
 }
 
@@ -52,24 +80,31 @@ export function EmptyState({
   title,
   description,
   action,
+  children,
+  className,
 }: {
   icon: LucideIcon;
   title: string;
   description: React.ReactNode;
   action?: { href: string; label: string };
+  children?: React.ReactNode;
+  className?: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-line bg-surface-2/70 px-6 py-16 text-center sm:px-12">
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-3xl border border-line bg-surface-2/70 px-6 py-16 text-center sm:px-12",
+        className,
+      )}
+    >
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-0 h-48 w-[36rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"
+        className="pointer-events-none absolute left-1/2 top-0 h-40 w-[30rem] max-w-full -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/15 blur-3xl"
       />
       <div className="relative mx-auto grid size-14 place-items-center rounded-2xl border border-line-strong bg-surface-3">
         <Icon className="size-6 text-accent-ink" strokeWidth={1.5} aria-hidden />
       </div>
-      <h2 className="relative mt-6 text-[20px] font-semibold tracking-[-0.01em] text-ink">
-        {title}
-      </h2>
+      <h2 className="relative mt-6 text-[20px] font-semibold tracking-[-0.01em] text-ink">{title}</h2>
       <p className="relative mx-auto mt-2 max-w-md text-[15px] leading-relaxed text-ink-muted">
         {description}
       </p>
@@ -78,33 +113,7 @@ export function EmptyState({
           {action.label}
         </ButtonLink>
       )}
+      {children && <div className="relative mt-8">{children}</div>}
     </div>
-  );
-}
-
-export function ButtonLink({
-  href,
-  children,
-  variant = "primary",
-  className,
-}: {
-  href: string;
-  children: React.ReactNode;
-  variant?: "primary" | "secondary";
-  className?: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className={cn(
-        "inline-flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-[14px] font-medium transition-all duration-200",
-        variant === "primary"
-          ? "bg-accent text-white shadow-[0_8px_30px_-8px_var(--violet-500)] hover:bg-accent-strong"
-          : "border border-line-strong bg-surface-3 text-ink hover:bg-surface-4",
-        className,
-      )}
-    >
-      {children}
-    </Link>
   );
 }
