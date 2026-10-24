@@ -10,13 +10,67 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 1 Cinematic UI (demo fixtures) | ✅ Complete |
 | 1b Desktop-first UX (capture home, Sources, capture settings) | ✅ Complete |
 | 2 Real video ingestion | ✅ Complete |
-| 3 OBS capture (record, replay buffer, Save Clip, auto-import) | ⏳ Not started |
+| 3 OBS capture (record, replay buffer, Save Clip, auto-import) | ✅ Complete |
 | 4 Watched folders & local Medal folder connector | ⏳ Not started |
 | 5 Analysis + AI Smart Clip — needs whisper.cpp | ⏳ Not started |
 | 6 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
 | 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 3 — OBS capture ✅ (2026-10-24)
+
+### Implemented
+- **obs-websocket v5 client** (`src/server/capture/obs-client.ts`): the Hello/Identify handshake, SHA-256 challenge auth, requests with timeouts, events, and close-code mapping (4009 bad password, 4010 unsupported version).
+- **Capture service in the worker** (ADR 0011):
+  - connects from the saved settings and reconnects with backoff;
+  - stops retrying after an auth failure;
+  - mirrors OBS's real state into `capture_state`;
+  - runs UI commands from `capture_commands`, which expire after 10 s.
+- **Commands:** start and stop recording, start and stop the replay buffer, and save the replay.
+  - Starting the buffer sets OBS's replay length (`RecRBTime`), but only while the buffer is stopped.
+  - Save Clip reports success only after OBS's `ReplayBufferSaved` event.
+- **Auto-import (`obs-import` job):**
+  - Triggered by any replay save (from METAL or OBS's hotkey) and by any finished recording.
+  - The path must be absolute, a regular file with an allowed extension (no symlinks), and its realpath must be inside OBS's recording folder. OBS must be on loopback.
+  - The job waits for the file to stop changing, then imports it through the Phase 2 pipeline with dedupe. The source is recorded as `recordings.origin`.
+- **API:**
+  - `GET /api/capture`: live state with no secrets or paths.
+  - `POST /api/capture/command`: same-origin plus custom header; returns 503 if the worker is offline, 409 if not connected, and 504 on timeout.
+  - `GET` and `PUT /api/capture/config`: loopback only; the password is write-only and saved in a 0600 file under `data/`.
+- **UI:**
+  - The Home capture console runs on live state: REC timer, Start/Stop recording, replay buffer toggle, "Save last N", and clip status (saving → importing → processing → ready, with Open).
+  - The Sources OBS card is a working connection form.
+  - The sidebar and mobile status are live, and `/status` has a live OBS check.
+  - Settings copy explains that quality, format, and hotkeys are set in OBS.
+- **Schema:** migration `0003` adds `recordings.origin`, `capture_state`, and `capture_commands`.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (76 tests; +16 for capture against a fake obs-websocket server) · `npm run build` ✅
+  - The capture tests cover the auth vector, handshake, wrong or missing password, unreachable OBS, request errors, and events.
+  - They also cover service connect, no retry after an auth failure, record and replay commands with duration, confirmed save, hotkey-style saves, a refused save, drop and reconnect, expired commands, and no password in the view.
+  - Path checks: outside folder, `..`, symlink, wrong extension, relative path. Also wait-until-stable.
+- **Real OBS 32.1.1** on this Mac, through :3001 and the worker:
+  - Wrong password is rejected with an honest error and no retry loop.
+  - Start recording, then stop after ~6 s: the 6.3 s H.264/AAC MKV was imported automatically and is `ready` (`obs-recording`).
+  - Replay buffer started at 30 s, then Save: OBS confirmed, and the clip (26.3 s; OBS trims to keyframes) was imported and is `ready` (`obs-replay`).
+  - Both files have a poster and a proxy. Range 206 works, and the clip plays and seeks in the browser.
+  - Disconnecting from METAL leaves OBS's replay buffer running; commands are refused with 409; reconnecting keeps the saved password.
+  - Worker restart (a real socket drop): the UI shows "Worker offline" and commands get 503, then METAL reconnects automatically.
+  - Stop replay buffer works. OBS was left as found: buffer off, not recording, replay length unchanged at 30 s.
+- **Browser (CDP)**, desktop and 390 px:
+  - Home, Sources, `/status`, and the mobile pill all show the live connection; controls are enabled.
+  - The password field is never prefilled, and no secret appears in the HTML.
+  - No console errors. Phase 1/2 regression is 69/69, after updating the eight assertions that expected the "not connected" placeholder.
+
+### Known issues / limitations
+- **The OBS Save Replay hotkey was not tested live**, because no hotkey is set in OBS. It uses the same `ReplayBufferSaved` event path as the Save button, which was verified live and in unit tests.
+- Replay clips can run a few seconds shorter than the configured length, because OBS trims the buffer to keyframes.
+- The worker must be running for capture. Remote OBS on another computer isn't supported (files must be on this disk).
+- Quality, format, audio tracks, and hotkeys are configured in OBS, not METAL.
+- The OBS password is stored in plain text in `data/obs-connection.json` (mode 0600, local only), not in the OS keychain.
 
 ---
 

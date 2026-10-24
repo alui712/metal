@@ -1,5 +1,6 @@
 import type { Db } from "../server/db/client";
 import type { Job } from "../server/jobs/queue";
+import { importObsFile } from "../server/capture/import";
 import { ingestRecording } from "../server/media/ingest";
 
 export type JobContext = {
@@ -15,4 +16,5 @@ export type JobHandler = (ctx: JobContext) => Promise<void>;
 /** Job kind → handler. Feature phases register their handlers here. */
 export const handlers: Record<string, JobHandler> = {
   ingest: ingestRecording,
+  "obs-import": importObsFile,
 };

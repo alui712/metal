@@ -37,7 +37,12 @@ export function titleFromFilename(filename: string): string {
  */
 export async function receiveUpload(
   db: Db,
-  input: { body: ReadableStream<Uint8Array>; filename: string; lastModified?: number | null },
+  input: {
+    body: ReadableStream<Uint8Array>;
+    filename: string;
+    lastModified?: number | null;
+    origin?: "upload" | "obs-replay" | "obs-recording";
+  },
 ): Promise<UploadResult> {
   const ext = path.extname(input.filename).slice(1).toLowerCase();
   if (!isMediaExt(ext)) throw new UploadError(415, "Unsupported file type. Use MP4, MOV, WebM, or MKV.");
@@ -104,6 +109,7 @@ export async function receiveUpload(
             contentHash,
             recordedAt: lm && lm > Date.UTC(2000, 0, 1) && lm < Date.now() + 86_400_000 ? lm : null,
             status: "imported",
+            origin: input.origin ?? "upload",
           })
           .run();
         enqueueJob(db, { kind: "ingest", recordingId: id, maxAttempts: 2 });

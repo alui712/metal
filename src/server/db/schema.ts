@@ -40,6 +40,10 @@ export const recordings = sqliteTable(
     container: text("container"),
     videoCodec: text("video_codec"),
     audioCodec: text("audio_codec"),
+    /** How it arrived: a manual upload, an OBS replay-buffer clip, or a full OBS recording. */
+    origin: text("origin", { enum: ["upload", "obs-replay", "obs-recording"] })
+      .notNull()
+      .default("upload"),
     recordedAt: integer("recorded_at"),
     importedAt: createdAt(),
     status: text("status", {
@@ -97,6 +101,49 @@ export const workers = sqliteTable("workers", {
   heartbeatAt: integer("heartbeat_at").notNull(),
   currentJobId: text("current_job_id"),
 });
+
+/**
+ * Live OBS state, published by the worker’s capture service (single row,
+ * id = 1). Never contains credentials.
+ */
+export const captureState = sqliteTable("capture_state", {
+  id: integer("id").primaryKey(),
+  connection: text("connection", { enum: ["disabled", "connecting", "connected", "error"] })
+    .notNull()
+    .default("disabled"),
+  error: text("error"),
+  obsVersion: text("obs_version"),
+  recording: integer("recording", { mode: "boolean" }).notNull().default(false),
+  recordDurationMs: integer("record_duration_ms").notNull().default(0),
+  replayActive: integer("replay_active", { mode: "boolean" }).notNull().default(false),
+  /** Replay length OBS is actually configured with (seconds), if readable. */
+  replaySeconds: integer("replay_seconds"),
+  replayAvailable: integer("replay_available", { mode: "boolean" }).notNull().default(false),
+  lastClipStatus: text("last_clip_status", { enum: ["saving", "importing", "imported", "duplicate", "failed"] }),
+  lastClipKind: text("last_clip_kind", { enum: ["replay", "recording"] }),
+  lastClipAt: integer("last_clip_at"),
+  lastClipRecordingId: text("last_clip_recording_id"),
+  lastClipError: text("last_clip_error"),
+  updatedAt: integer("updated_at").notNull(),
+});
+
+/** Capture actions requested by the UI, executed by the worker. */
+export const captureCommands = sqliteTable(
+  "capture_commands",
+  {
+    id: text("id").primaryKey(),
+    action: text("action").notNull(),
+    payloadJson: text("payload_json").notNull().default("{}"),
+    status: text("status", { enum: ["pending", "done", "failed"] })
+      .notNull()
+      .default("pending"),
+    error: text("error"),
+    resultJson: text("result_json"),
+    createdAt: createdAt(),
+    finishedAt: integer("finished_at"),
+  },
+  (t) => [index("capture_commands_status_idx").on(t.status, t.createdAt)],
+);
 
 /** Provenance ledger: every model-generated result is recorded here. */
 export const aiOutputs = sqliteTable(

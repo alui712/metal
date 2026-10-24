@@ -1,32 +1,47 @@
-// The capture engine's state as the UI should present it. Until the OBS
-// adapter exists (Phase 3) this is the only honest answer: not connected.
-// The shape is what the live adapter will report.
+// Client-safe capture state, published by the worker's OBS service and
+// served by /api/capture. Never contains credentials or file paths.
 
-export type CaptureConnection = "not-connected" | "connecting" | "connected" | "error";
+export type CaptureConnection = "not-configured" | "worker-offline" | "connecting" | "connected" | "error";
 
-export type CaptureStatus = {
-  engine: "obs";
+export type ClipStatus = "saving" | "importing" | "imported" | "duplicate" | "failed";
+
+export type CaptureView = {
+  configured: boolean;
+  workerOnline: boolean;
   connection: CaptureConnection;
+  error: string | null;
+  obsVersion: string | null;
   recording: boolean;
-  replayBufferActive: boolean;
-  /** One-line explanation shown next to the state. */
-  detail: string;
-  /** When the missing piece arrives, for unavailable controls. */
-  availableIn: string | null;
+  recordDurationMs: number;
+  replayActive: boolean;
+  /** OBS has a replay buffer configured (Settings → Output). */
+  replayAvailable: boolean;
+  /** The replay length OBS is actually using, in seconds. */
+  replaySeconds: number | null;
+  lastClip: { status: ClipStatus; kind: "replay" | "recording"; at: number; recordingId: string | null; error: string | null } | null;
+  updatedAt: number | null;
 };
 
-export const CAPTURE_STATUS: CaptureStatus = {
-  engine: "obs",
-  connection: "not-connected",
+/** Before the first poll answers. Never implies a connection. */
+export const INITIAL_CAPTURE: CaptureView = {
+  configured: false,
+  workerOnline: false,
+  connection: "not-configured",
+  error: null,
+  obsVersion: null,
   recording: false,
-  replayBufferActive: false,
-  detail: "METAL records through OBS. The OBS connection arrives in Phase 3.",
-  availableIn: "Phase 3",
+  recordDurationMs: 0,
+  replayActive: false,
+  replayAvailable: false,
+  replaySeconds: null,
+  lastClip: null,
+  updatedAt: null,
 };
 
 export const CONNECTION_LABEL: Record<CaptureConnection, string> = {
-  "not-connected": "Not connected",
+  "not-configured": "Not connected",
+  "worker-offline": "Worker offline",
   connecting: "Connecting…",
   connected: "Connected",
-  error: "Connection failed",
+  error: "Not connected",
 };

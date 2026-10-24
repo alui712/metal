@@ -124,7 +124,7 @@ export function CaptureSettingsForm() {
           ))}
         </div>
         <p className="mt-3 text-[12.5px] leading-relaxed text-ink-faint">
-          A browser can’t hear keys while a game has focus, so in-game shortcuts go through OBS: set the same keys under OBS → Settings → Hotkeys. METAL listens for OBS’s “replay saved” event (Phase 3), so clips saved that way land in your library.
+          A browser can’t hear keys while a game has focus, so in-game shortcuts go through OBS: set the same keys under OBS → Settings → Hotkeys. METAL listens for OBS’s “replay saved” event, so clips saved that way land in your library.
         </p>
       </Section>
 

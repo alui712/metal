@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { CheckCircle2, ExternalLink, FolderOpen, FolderSearch, Radio, Upload } from "lucide-react";
+import { CheckCircle2, FolderOpen, FolderSearch, Upload } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { PageContainer, PageHeader } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
-import { Field, SourceCard, Steps, Unavailable, inputClass } from "@/components/sources/source-card";
+import { ObsCard } from "@/components/sources/obs-card";
+import { SourceCard, Unavailable } from "@/components/sources/source-card";
 
 export const metadata: Metadata = { title: "Sources" };
 
@@ -25,51 +26,7 @@ export default function SourcesPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* ── OBS ───────────────────────────────────── */}
-          <SourceCard
-            id="obs"
-            icon={Radio}
-            title="OBS Studio"
-            state="not-connected"
-            description="The capture engine. METAL tells OBS when to record and save clips through its built-in WebSocket server — OBS does the recording."
-            className="lg:row-span-2"
-          >
-            <h3 className="mb-3 text-[12px] font-medium uppercase tracking-[0.18em] text-ink-faint">Set up OBS</h3>
-            <Steps
-              steps={[
-                <>
-                  Install{" "}
-                  <a href="https://obsproject.com" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent-ink underline-offset-4 hover:underline">
-                    OBS Studio 28 or newer <ExternalLink className="size-3" aria-hidden />
-                    <span className="sr-only">(opens in a new tab)</span>
-                  </a>
-                  .
-                </>,
-                <>In OBS, open <b className="font-medium text-ink">Tools → WebSocket Server Settings</b> and turn on <b className="font-medium text-ink">Enable WebSocket server</b>.</>,
-                <>Keep authentication on and copy the server password.</>,
-                <>Under <b className="font-medium text-ink">Settings → Output → Replay Buffer</b>, enable the replay buffer so you can save clips after the fact.</>,
-              ]}
-            />
-            <form aria-labelledby="obs-title" className="mt-7 grid gap-4 rounded-2xl border border-line bg-surface/50 p-4 sm:grid-cols-[1fr_7rem]">
-              <Field label="Host" htmlFor="obs-host">
-                <input id="obs-host" className={inputClass} defaultValue="127.0.0.1" disabled aria-describedby="obs-unavailable" />
-              </Field>
-              <Field label="Port" htmlFor="obs-port">
-                <input id="obs-port" className={inputClass} defaultValue="4455" inputMode="numeric" disabled aria-describedby="obs-unavailable" />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Password" htmlFor="obs-password" hint="Kept by METAL’s local server and never sent back to the browser.">
-                  <input id="obs-password" type="password" className={inputClass} placeholder="From OBS WebSocket settings" autoComplete="off" disabled aria-describedby="obs-unavailable" />
-                </Field>
-              </div>
-              <div className="flex flex-wrap gap-3 sm:col-span-2">
-                <Button disabled aria-describedby="obs-unavailable">Connect to OBS</Button>
-              </div>
-            </form>
-            <Unavailable id="obs-unavailable">
-              Connecting to OBS arrives in Phase 3. Until then METAL can’t start, stop, or save
-              recordings — and won’t show anything as recorded.
-            </Unavailable>
-          </SourceCard>
+          <ObsCard />
 
           {/* ── Watched folders ───────────────────────── */}
           <SourceCard

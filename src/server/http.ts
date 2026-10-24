@@ -12,3 +12,12 @@ export function sameOrigin(request: Request): boolean {
 }
 
 export const jsonError = (status: number, message: string) => Response.json({ error: message }, { status });
+
+/**
+ * Guard for privileged local actions (OBS control, settings): same origin,
+ * plus a custom header so a cross-site form or simple request can't trigger it.
+ */
+export function privileged(request: Request): Response | null {
+  if (!sameOrigin(request) || request.headers.get("x-metal-action") !== "1") return jsonError(403, "Forbidden.");
+  return null;
+}

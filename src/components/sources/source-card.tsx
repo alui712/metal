@@ -1,12 +1,17 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type SourceState = "not-connected" | "ready" | "coming";
+export type SourceState = "not-connected" | "ready" | "coming" | "connected" | "connecting" | "error" | "worker-offline" | "checking";
 
 const STATE: Record<SourceState, { label: string; dot: string; text: string }> = {
   "not-connected": { label: "Not connected", dot: "bg-ink-faint", text: "text-ink-muted" },
   coming: { label: "Coming soon", dot: "bg-warn", text: "text-warn" },
   ready: { label: "Available now", dot: "bg-ok shadow-[0_0_10px_var(--ok)]", text: "text-ok" },
+  connected: { label: "Connected", dot: "bg-ok shadow-[0_0_10px_var(--ok)]", text: "text-ok" },
+  connecting: { label: "Connecting…", dot: "bg-warn animate-pulse", text: "text-warn" },
+  error: { label: "Not connected", dot: "bg-danger", text: "text-danger" },
+  "worker-offline": { label: "Worker offline", dot: "bg-warn", text: "text-warn" },
+  checking: { label: "Checking…", dot: "bg-ink-faint", text: "text-ink-muted" },
 };
 
 export function SourceCard({

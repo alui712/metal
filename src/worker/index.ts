@@ -1,3 +1,4 @@
+import { CaptureService } from "../server/capture/service";
 import { getDb } from "../server/db/client";
 import { newId } from "../server/ids";
 import {
@@ -22,6 +23,10 @@ let currentJobId: string | null = null;
 function log(message: string) {
   console.log(`[worker ${new Date().toISOString()}] ${message}`);
 }
+
+// OBS connection runs alongside the job loop (all I/O is async).
+const capture = new CaptureService(db, { log });
+const captureTimer = setInterval(() => void capture.tick(), 500);
 
 const heartbeat = setInterval(() => {
   workerHeartbeat(db, worker, currentJobId);
@@ -70,6 +75,8 @@ function stop() {
   log("shutting down…");
   shutdown.abort();
   clearInterval(heartbeat);
+  clearInterval(captureTimer);
+  capture.disconnect();
   removeWorker(db, worker.id);
   // An in-flight job is left "running"; its stale heartbeat lets the next
   // worker reclaim it.

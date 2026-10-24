@@ -3,6 +3,7 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import { promisify } from "node:util";
 import { count } from "drizzle-orm";
+import { captureView } from "./capture/state";
 import { config, paths } from "./config";
 import { getDb } from "./db/client";
 import { recordings } from "./db/schema";
@@ -89,15 +90,19 @@ function checkAnthropic(): HealthCheck {
 }
 
 function checkCapture(): HealthCheck {
-  // Honest placeholder until the OBS adapter exists; never reports a connection.
-  return {
-    id: "capture",
-    label: "Capture (OBS)",
-    state: "warn",
-    detail: "Not connected — OBS integration arrives in Phase 3",
-    fix: "Install OBS 28+ and enable its WebSocket server",
-    affects: ["Recording", "Save clip", "Replay buffer"],
-  };
+  const base = { id: "capture", label: "Capture (OBS)", affects: ["Recording", "Save clip", "Replay buffer"] };
+  const s = captureView(getDb());
+  if (s.connection === "connected") {
+    return {
+      ...base,
+      state: s.replayAvailable ? "ok" : "warn",
+      detail: `Connected to OBS ${s.obsVersion ?? ""}`.trim() + (s.replayAvailable ? "" : " · replay buffer not enabled"),
+      fix: s.replayAvailable ? undefined : "OBS → Settings → Output → enable Replay Buffer",
+    };
+  }
+  if (!s.configured) return { ...base, state: "warn", detail: "Not set up", fix: "Connect OBS in Sources" };
+  if (s.connection === "worker-offline") return { ...base, state: "error", detail: "Worker offline — OBS can’t be reached", fix: "npm run worker" };
+  return { ...base, state: "error", detail: s.error ?? "Connecting…", fix: "Open OBS → Tools → WebSocket Server Settings" };
 }
 
 async function checkStorage(): Promise<HealthCheck> {

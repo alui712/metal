@@ -14,3 +14,4 @@ Short records of decisions that shape METAL. Add a new numbered file when a deci
 | [0008](0008-demo-fixtures-behind-repository.md) | Demo fixtures behind a repository interface, labeled in the UI | Accepted |
 | [0009](0009-web-first-hackathon-mvp.md) | Web-first local app for the hackathon MVP; Electron deferred | Accepted |
 | [0010](0010-ingestion-and-managed-storage.md) | Streamed uploads into managed storage; ffprobe/poster/proxy ingest job; range streaming | Accepted |
+| [0011](0011-obs-capture-via-worker.md) | OBS capture via obs-websocket, owned by the worker; event-driven, validated auto-import | Accepted |
