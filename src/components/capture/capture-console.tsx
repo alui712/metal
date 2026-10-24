@@ -90,7 +90,7 @@ export function CaptureConsole() {
         </dl>
       </div>
       <p id="capture-unavailable" className="border-t border-line bg-surface/40 px-4 py-3 text-[12.5px] leading-relaxed text-ink-faint sm:px-5">
-        Recording controls unlock when OBS is connected (Phase 4). Nothing is being recorded right now.
+        Recording controls unlock when OBS is connected (Phase 3). Nothing is being recorded right now.
       </p>
     </section>
   );

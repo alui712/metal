@@ -2,22 +2,45 @@
 
 > "Every moment has a story."
 
-Product: a standalone **desktop** gameplay recording and clipping app (Electron + this Next.js app; recording via OBS). Final submission: a 3-minute 1080p demo — Capture → AI Smart Clip → Recall → Time Machine → Story Studio. Architecture decisions: [`docs/decisions/`](docs/decisions/README.md) (desktop direction: ADR 0007).
+Product: a local, **web-first** gameplay recording and clipping app (Next.js server + worker on localhost; recording via OBS; Electron deferred — ADR 0009). Final submission: a 3-minute 1080p demo — Capture → AI Smart Clip → Recall → Time Machine → Story Studio. Architecture decisions: [`docs/decisions/`](docs/decisions/README.md).
 
 | Phase | Status |
 |---|---|
 | 0 Foundation | ✅ Complete |
 | 1 Cinematic UI (demo fixtures) | ✅ Complete |
 | 1b Desktop-first UX (capture home, Sources, capture settings) | ✅ Complete |
-| 2 Electron shell (secure preload, server + worker lifecycle) | ⏳ Not started |
-| 3 Ingestion (fingerprint/dedupe, probe, proxy, thumbnails, streaming) — needs FFmpeg | ⏳ Not started |
-| 4 OBS capture (record, replay buffer, Save Clip, hotkey, auto-import) | ⏳ Not started |
-| 5 Local folder connector | ⏳ Not started |
-| 6 Analysis + AI Smart Clip — needs whisper.cpp | ⏳ Not started |
-| 7 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
-| 8 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
-| 9 Polish & 3-minute demo | ⏳ Not started |
-| Stretch: Wrapped, Multi-POV | ⏳ Not started |
+| 2 Real video ingestion | ✅ Complete |
+| 3 OBS capture (record, replay buffer, Save Clip, auto-import) | ⏳ Not started |
+| 4 Watched folders & local Medal folder connector | ⏳ Not started |
+| 5 Analysis + AI Smart Clip — needs whisper.cpp | ⏳ Not started |
+| 6 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
+| 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
+| 8 Polish & 3-minute demo | ⏳ Not started |
+| Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 2 — Real video ingestion ✅ (2026-10-24)
+
+### Implemented
+- **Upload** (`POST /api/recordings`) — raw-body streaming into `data/media/.incoming`, SHA-256 while streaming, magic-byte check against the extension, 20 GB limit enforced mid-stream, Origin/Host check + custom header (no cross-site uploads). Import page uploads sequentially with real progress (XHR).
+- **Dedupe** — unique `content_hash`; identical re-uploads are discarded and point to the existing recording ("Already in your library — skipped").
+- **Ingest job** (worker, existing queue) — ffprobe metadata (duration, resolution, fps, container, codecs, creation time) → poster JPEG → H.264/AAC proxy only when the browser can't play the original → `ready`. Progress stages shown live. Corrupt/non-video files fail permanently (no retry) with a friendly message; no paths or raw tool output reach the UI.
+- **Streaming** (`GET /api/media/:id/video|poster`) — by recording id only, single-range 206/416, `nosniff`, missing file → 404.
+- **Library & Home** — "Your recordings" (real, polled while processing) above clearly separated "Demo memories"; Home shows real recent recordings, falling back to labeled demo ones.
+- **Recording page** (`/recordings/:id`) — real player with seeking, details (codec, resolution, fps, size, playback source), processing/failed/missing-file states, honest "not analyzed yet", remove (deletes METAL's copy only).
+- **Schema** — migration `0002`: `content_hash` (unique), `container`, `video_codec`, `audio_codec` (documented in ADR 0010). Dev server picks up new migrations after HMR.
+- **Docs** — ADR 0009 (web-first, Electron deferred), ADR 0010 (ingestion), roadmap renumbered; UI phase references updated.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (60 tests; +13 media: range parsing, magic bytes, probe parsing/proxy decision, and an end-to-end ingest against real FFmpeg — MP4 as-is, MKV→H.264 proxy, dedupe, corrupt file, non-video rejection, path containment) · `npm run build` ✅
+- On the dev server (:3001) with the worker: API upload of H.264 MP4, HEVC MKV, and a corrupt file; duplicate upload; cross-origin upload refused (403); Range 206, out-of-range 416, traversal-style id 404.
+- Browser (CDP): UI import of a MOV + a duplicate → "Ready to watch" / "Already in your library"; real posters in Library; `<video>` metadata, seek to 5 s, and playback advance for the MP4 and the MKV proxy; failed and missing-file states; remove → back to Library; no paths in the UI; no horizontal scroll at 390 px; no console errors.
+
+### Known issues / not yet done
+- The worker must be running for imports to finish (`npm run dev:all`, or `npm run worker` next to `npm run dev`); the import page says when processing is paused.
+- Recall, Time Machine, and Studio still use demo fixtures until analysis (Phases 5–6).
+- Uploads go one file at a time; there's no cancel button mid-upload yet.
 
 ---
 

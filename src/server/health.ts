@@ -94,7 +94,7 @@ function checkCapture(): HealthCheck {
     id: "capture",
     label: "Capture (OBS)",
     state: "warn",
-    detail: "Not connected — OBS integration arrives in Phase 4",
+    detail: "Not connected — OBS integration arrives in Phase 3",
     fix: "Install OBS 28+ and enable its WebSocket server",
     affects: ["Recording", "Save clip", "Replay buffer"],
   };

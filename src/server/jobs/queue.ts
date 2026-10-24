@@ -110,14 +110,15 @@ export function completeJob(db: Db, jobId: string): void {
     .run();
 }
 
-/** Requeues the job if attempts remain, otherwise marks it failed. */
-export function failJob(db: Db, jobId: string, error: string): Job {
+/** Requeues the job if attempts remain (and `retry` allows), otherwise marks it failed. */
+export function failJob(db: Db, jobId: string, error: string, { retry = true } = {}): Job {
+  const retries = retry ? sql`${jobs.attempts} < ${jobs.maxAttempts}` : sql`0`;
   return db
     .update(jobs)
     .set({
-      status: sql`CASE WHEN ${jobs.attempts} < ${jobs.maxAttempts} THEN 'queued' ELSE 'failed' END`,
+      status: sql`CASE WHEN ${retries} THEN 'queued' ELSE 'failed' END`,
       error,
-      finishedAt: sql`CASE WHEN ${jobs.attempts} < ${jobs.maxAttempts} THEN NULL ELSE ${Date.now()} END`,
+      finishedAt: sql`CASE WHEN ${retries} THEN NULL ELSE ${Date.now()} END`,
     })
     .where(eq(jobs.id, jobId))
     .returning()

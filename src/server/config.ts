@@ -9,7 +9,10 @@ function resolveFromRoot(p: string): string {
 }
 
 export const config = {
-  dataDir: resolveFromRoot(process.env.METAL_DATA_DIR ?? "data"),
+  // Getter: read at use, so an override set after import (tests) still applies.
+  get dataDir(): string {
+    return resolveFromRoot(process.env.METAL_DATA_DIR ?? "data");
+  },
   ffmpegPath: process.env.FFMPEG_PATH ?? "ffmpeg",
   ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
   whisperPath: process.env.WHISPER_PATH ?? "whisper-cli",

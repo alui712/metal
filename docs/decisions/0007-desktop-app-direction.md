@@ -1,6 +1,6 @@
 # 0007 — Desktop-first: Electron wrapper, OBS capture, local folder connector
 
-**Status:** Accepted (direction set during Phase 1; implementation from Phase 2)
+**Status:** Electron shell deferred for the hackathon MVP by [0009](0009-web-first-hackathon-mvp.md). OBS, folder connector, and data-safety rules still apply.
 
 ## Context
 METAL is a standalone desktop gameplay recording and clipping app, not a companion website. The final submission is a 3-minute 1080p product demo following Capture → AI Smart Clip → Recall → Time Machine → Story Studio. Phase 0/1 built a local Next.js server, a worker process, and the UI.

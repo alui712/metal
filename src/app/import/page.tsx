@@ -12,7 +12,7 @@ export default function ImportPage() {
         <PageHeader
           eyebrow="Import"
           title="Bring in your recordings"
-          description="Add gameplay videos from this computer. METAL checks them right here in your browser before anything is imported."
+          description="Add gameplay videos from this computer. METAL previews them in your browser first, then copies them into your library and makes them ready to watch."
         />
         <ImportExperience />
       </PageContainer>

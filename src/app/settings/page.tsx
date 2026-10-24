@@ -16,7 +16,7 @@ export default function SettingsPage() {
           description="How METAL asks OBS to record: how far back clips reach, quality, shortcuts, and audio."
         />
         <Notice tone="info" className="mb-2">
-          Saved on this device as you change them. They take effect once OBS is connected (Phase 4) — nothing is being
+          Saved on this device as you change them. They take effect once OBS is connected (Phase 3) — nothing is being
           recorded yet.
         </Notice>
         <CaptureSettingsForm />

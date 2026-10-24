@@ -29,8 +29,13 @@ export function openDb(file: string): Db {
 
 // Survive dev-server HMR without leaking connections.
 const globalForDb = globalThis as unknown as { __metalDb?: Db };
+// Re-evaluated on HMR (e.g. after a schema change), so a connection opened
+// by an earlier module version still gets new migrations.
+let migratedThisModule = false;
 
 export function getDb(): Db {
-  globalForDb.__metalDb ??= openDb(paths.db);
+  if (!globalForDb.__metalDb) globalForDb.__metalDb = openDb(paths.db);
+  else if (!migratedThisModule) migrate(globalForDb.__metalDb, { migrationsFolder: MIGRATIONS_DIR });
+  migratedThisModule = true;
   return globalForDb.__metalDb;
 }

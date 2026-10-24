@@ -38,7 +38,7 @@ export function RecordingPlayer({
   return <SimulatedPlayer recording={recording} moments={moments} seek={seek} className={className} title={title} />;
 }
 
-function VideoPlayer({
+export function VideoPlayer({
   src,
   poster,
   seek,

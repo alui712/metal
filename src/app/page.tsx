@@ -1,4 +1,4 @@
-import { ArrowUpRight, AudioLines, Clapperboard, Film, History, Laugh, MessageSquareQuote, Search, Sparkles } from "lucide-react";
+import { ArrowUpRight, AudioLines, Clapperboard, History, Laugh, MessageSquareQuote, Search, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { CaptureConsole } from "@/components/capture/capture-console";
@@ -6,21 +6,59 @@ import { HeroSearch } from "@/components/home/hero-search";
 import { MomentCard, RecordingThumb } from "@/components/memory/cards";
 import { DemoBadge } from "@/components/ui/demo-badge";
 import { InView, Reveal } from "@/components/ui/motion";
-import { EmptyState, PageContainer, SectionHeading } from "@/components/ui/page";
+import { PageContainer, SectionHeading } from "@/components/ui/page";
+import { AutoRefresh } from "@/components/recordings/auto-refresh";
+import { RecordingTile } from "@/components/recordings/recording-tile";
+import { RecordingsSkeleton } from "@/components/recordings/your-recordings";
 import { PageTransition } from "@/components/ui/page-transition";
 import { formatDate } from "@/lib/format";
 import { getMemoryRepository } from "@/lib/memory/repository";
-import { getLibraryStats } from "@/server/library";
+import { listRecordings } from "@/server/recordings";
 
 const repo = getMemoryRepository();
 
-async function LibraryStatus() {
-  const { recordingCount } = await getLibraryStats();
+/** Real recordings when there are any; otherwise clearly labeled demo ones. */
+async function RecentRecordings() {
+  const real = await listRecordings();
+  if (real.length) {
+    return (
+      <>
+        {real.some((r) => r.status === "imported" || r.status === "processing") && <AutoRefresh />}
+        <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+          {real.slice(0, 4).map((r) => (
+            <li key={r.id}>
+              <RecordingTile recording={r} />
+            </li>
+          ))}
+        </ul>
+      </>
+    );
+  }
+  const demo = [...repo.recordings()].sort((a, b) => b.recordedAt - a.recordedAt).slice(0, 4);
   return (
     <>
-      {recordingCount === 0
-        ? "Nothing captured or imported yet — these are demo recordings."
-        : `${recordingCount} imported recording${recordingCount === 1 ? "" : "s"} · shown below are still demo recordings until ingestion is connected.`}
+      <p className="mb-5 flex flex-wrap items-center gap-3 text-[13px] text-ink-faint">
+        <DemoBadge />
+        Nothing imported yet — these are demo recordings.{" "}
+        <Link href="/import" className="font-medium text-accent-ink hover:text-white">
+          Import your own →
+        </Link>
+      </p>
+      <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        {demo.map((r, i) => (
+          <li key={r.id}>
+            <InView delay={i * 0.05}>
+              <Link href={r.sessionId ? `/sessions/${r.sessionId}` : "/library"} className="group block">
+                <RecordingThumb recording={r} className="transition-transform duration-500 group-hover:scale-[1.015]" />
+                <p className="mt-3 truncate text-[14px] font-medium text-ink">{r.title}</p>
+                <p className="mt-0.5 truncate text-[12.5px] text-ink-faint">
+                  {repo.game(r.gameId)?.name} · {formatDate(r.recordedAt)} · {r.ownerLabel === "You" ? "Your POV" : `${r.ownerLabel}’s POV`}
+                </p>
+              </Link>
+            </InView>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
@@ -63,7 +101,7 @@ function SmartClipCard() {
         ))}
       </ul>
       <p className="mt-5 rounded-xl border border-line bg-surface/60 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-ink-faint">
-        Arrives in Phase 6. It needs real recordings and on-device analysis — until then it stays off rather than guessing.
+        Arrives in Phase 5. It needs real recordings and on-device analysis — until then it stays off rather than guessing.
       </p>
       <Link
         href="/recall?q=everyone%20laughing"
@@ -76,7 +114,6 @@ function SmartClipCard() {
 }
 
 export default function Home() {
-  const recordings = [...repo.recordings()].sort((a, b) => b.recordedAt - a.recordedAt).slice(0, 4);
   const savedMoments = repo.topMoments(10);
 
   return (
@@ -138,38 +175,9 @@ export default function Home() {
               </Link>
             }
           />
-          <div className="mb-5 flex flex-wrap items-center gap-3 text-[13px] text-ink-faint">
-            <DemoBadge />
-            <Suspense fallback={<span>Checking your library…</span>}>
-              <span>
-                <LibraryStatus />
-              </span>
-            </Suspense>
-          </div>
-          {recordings.length === 0 ? (
-            <EmptyState
-              icon={Film}
-              title="No recordings yet"
-              description="Connect OBS or add a recordings folder, and everything you capture shows up here."
-              action={{ href: "/sources", label: "Open Sources" }}
-            />
-          ) : (
-            <ul className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-              {recordings.map((r, i) => (
-                <li key={r.id}>
-                  <InView delay={i * 0.05}>
-                    <Link href={r.sessionId ? `/sessions/${r.sessionId}` : "/library"} className="group block">
-                      <RecordingThumb recording={r} className="transition-transform duration-500 group-hover:scale-[1.015]" />
-                      <p className="mt-3 truncate text-[14px] font-medium text-ink">{r.title}</p>
-                      <p className="mt-0.5 truncate text-[12.5px] text-ink-faint">
-                        {repo.game(r.gameId)?.name} · {formatDate(r.recordedAt)} · {r.ownerLabel === "You" ? "Your POV" : `${r.ownerLabel}’s POV`}
-                      </p>
-                    </Link>
-                  </InView>
-                </li>
-              ))}
-            </ul>
-          )}
+          <Suspense fallback={<RecordingsSkeleton />}>
+            <RecentRecordings />
+          </Suspense>
         </section>
 
         {/* ── Saved moments ──────────────────────────────── */}
@@ -183,6 +191,10 @@ export default function Home() {
               </Link>
             }
           />
+          <p className="mb-5 flex flex-wrap items-center gap-3 text-[13px] text-ink-faint">
+            <DemoBadge />
+            Sample moments — your own appear once analysis arrives (Phase 5).
+          </p>
           <InView>
             <ul className="scrollbar-none -mx-4 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-2 sm:-mx-8 sm:px-8">
               {savedMoments.map((m) => {

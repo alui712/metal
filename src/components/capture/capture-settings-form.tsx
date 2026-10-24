@@ -117,14 +117,14 @@ export function CaptureSettingsForm() {
         <p className="mt-4 text-[13px] text-ink-faint">≈ {fileSize(hourBytes)} per hour of full-session recording (estimate).</p>
       </Section>
 
-      <Section id="hotkeys-heading" title="Hotkeys" description="Global shortcuts that work while you’re in a game. Each needs a modifier (or an F-key) so it won’t fire while you type.">
+      <Section id="hotkeys-heading" title="Hotkeys" description="Shortcuts for saving and marking clips. Each needs a modifier (or an F-key) so it won’t fire while you type.">
         <div className="divide-y divide-line rounded-2xl border border-line bg-surface-2/60 px-5">
           {(Object.keys(HOTKEY_ACTIONS) as HotkeyAction[]).map((a) => (
             <HotkeyField key={a} action={a} hotkeys={settings.hotkeys} onChange={setHotkey(a)} />
           ))}
         </div>
         <p className="mt-3 text-[12.5px] leading-relaxed text-ink-faint">
-          Some full-screen games block global shortcuts. METAL will also listen for OBS’s own “Save Replay” hotkey, so a clip saved from OBS still shows up here.
+          A browser can’t hear keys while a game has focus, so in-game shortcuts go through OBS: set the same keys under OBS → Settings → Hotkeys. METAL listens for OBS’s “replay saved” event (Phase 3), so clips saved that way land in your library.
         </p>
       </Section>
 

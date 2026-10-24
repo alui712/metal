@@ -21,8 +21,8 @@ const ICONS: Record<StepState, typeof Check> = {
 };
 
 /**
- * Processing progress for one recording. Phase 2 drives it from real job
- * state; until then every step renders as "unavailable".
+ * Processing progress for one recording, driven by real upload and job
+ * state. Analysis steps stay "unavailable" until that pipeline exists.
  */
 export function PipelineSteps({
   states,

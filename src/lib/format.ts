@@ -42,6 +42,12 @@ export const formatMonth = (t: number) => monthFmt.format(t);
 export const formatShortMonth = (t: number) => shortMonthFmt.format(t);
 export const formatDay = (t: number) => dayFmt.format(t);
 
+// Real recordings are rendered by Server Components on the user's own
+// machine, so local time is both correct and hydration-safe there.
+const localFmt = new Intl.DateTimeFormat(LOCALE, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+/** Server Components only: local date and time. */
+export const formatLocalDateTime = (t: number) => localFmt.format(t);
+
 export function fileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];

@@ -3,8 +3,8 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_SETTINGS, parseSettings, type CaptureSettings } from "@/lib/capture/settings";
 
-// Per-device preferences in localStorage until the desktop shell can persist
-// them (Phase 2). Storage can be unavailable (private mode), so every access
+// Per-device preferences in localStorage until the local server persists
+// them alongside the OBS adapter (Phase 3). Storage can be unavailable (private mode), so every access
 // is guarded and the defaults always render.
 
 const KEY = "metal.capture-settings.v1";

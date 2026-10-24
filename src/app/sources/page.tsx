@@ -57,7 +57,7 @@ export default function SourcesPage() {
                 <input id="obs-port" className={inputClass} defaultValue="4455" inputMode="numeric" disabled aria-describedby="obs-unavailable" />
               </Field>
               <div className="sm:col-span-2">
-                <Field label="Password" htmlFor="obs-password" hint="The desktop app will keep this in your system keychain — never in the browser.">
+                <Field label="Password" htmlFor="obs-password" hint="Kept by METAL’s local server and never sent back to the browser.">
                   <input id="obs-password" type="password" className={inputClass} placeholder="From OBS WebSocket settings" autoComplete="off" disabled aria-describedby="obs-unavailable" />
                 </Field>
               </div>
@@ -66,7 +66,7 @@ export default function SourcesPage() {
               </div>
             </form>
             <Unavailable id="obs-unavailable">
-              Connecting to OBS arrives in Phase 4, inside the desktop app. Until then METAL can’t start, stop, or save
+              Connecting to OBS arrives in Phase 3. Until then METAL can’t start, stop, or save
               recordings — and won’t show anything as recorded.
             </Unavailable>
           </SourceCard>
@@ -76,7 +76,7 @@ export default function SourcesPage() {
             id="folders"
             icon={FolderSearch}
             title="Watched folders"
-            state="needs-desktop"
+            state="coming"
             description="Point METAL at any folder where recordings land — OBS’s output folder, another recorder, or an external drive."
           >
             <div className="rounded-2xl border border-dashed border-line-strong px-4 py-6 text-center text-[13px] text-ink-faint">
@@ -96,7 +96,7 @@ export default function SourcesPage() {
               </Button>
             </div>
             <Unavailable id="folders-unavailable">
-              Choosing folders needs the desktop app (Phase 2); watching them arrives in Phase 5.
+              Watching folders arrives in Phase 4. METAL’s local worker will watch the folders you add.
             </Unavailable>
           </SourceCard>
 
@@ -105,7 +105,7 @@ export default function SourcesPage() {
             id="medal"
             icon={FolderOpen}
             title="Medal recordings folder"
-            state="needs-desktop"
+            state="coming"
             description={
               <>
                 Already clip with Medal? Choose the folder where Medal saves clips on this computer and METAL will index
@@ -118,7 +118,7 @@ export default function SourcesPage() {
                 <FolderOpen className="size-4" aria-hidden /> Choose Medal folder…
               </Button>
               <Unavailable id="medal-unavailable">
-                Arrives with folder watching (Phase 5). METAL isn’t affiliated with Medal and never modifies Medal’s files.
+                Arrives with folder watching (Phase 4). METAL isn’t affiliated with Medal and never modifies Medal’s files.
               </Unavailable>
             </div>
           </SourceCard>
@@ -136,7 +136,7 @@ export default function SourcesPage() {
               <ButtonLink href="/import" variant="secondary">
                 <Upload className="size-4" aria-hidden /> Choose videos
               </ButtonLink>
-              <p className="text-[12.5px] text-ink-faint">Checking and previewing work today; adding them to your library arrives with ingestion (Phase 3).</p>
+              <p className="text-[12.5px] text-ink-faint">Copied into your library, checked with FFprobe, and ready to watch with a thumbnail.</p>
             </div>
           </SourceCard>
         </div>

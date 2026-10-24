@@ -34,6 +34,12 @@ export const recordings = sqliteTable(
     height: integer("height"),
     fps: real("fps"),
     sizeBytes: integer("size_bytes"),
+    /** SHA-256 of the original file; unique, so re-importing the same video is a no-op. */
+    contentHash: text("content_hash"),
+    /** ffprobe format name, e.g. "mov,mp4,m4a,3gp,3g2,mj2". */
+    container: text("container"),
+    videoCodec: text("video_codec"),
+    audioCodec: text("audio_codec"),
     recordedAt: integer("recorded_at"),
     importedAt: createdAt(),
     status: text("status", {
@@ -48,6 +54,7 @@ export const recordings = sqliteTable(
   },
   (t) => [
     index("recordings_session_idx").on(t.sessionId),
+    uniqueIndex("recordings_content_hash_idx").on(t.contentHash),
     index("recordings_recorded_at_idx").on(t.recordedAt),
   ],
 );

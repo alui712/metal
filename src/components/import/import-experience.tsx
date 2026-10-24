@@ -1,21 +1,46 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { CircleAlert, FileVideo, HardDrive, Info, LoaderCircle, Trash2, Upload, X } from "lucide-react";
+import { ArrowRight, CircleAlert, FileVideo, HardDrive, Info, LoaderCircle, Trash2, Upload, X } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ACCEPTED_EXTENSIONS, MAX_FILES, extensionOf, fileKey, partitionFiles } from "@/lib/import/validate";
 import { fileSize, plural, timecode } from "@/lib/format";
+import { fetchRecordingStatus, isProcessing, uploadRecording } from "@/lib/recordings/client";
+import { STAGE_LABEL, type LibraryRecording } from "@/lib/recordings/types";
 import { cn } from "@/lib/cn";
 import { Button, IconButton } from "@/components/ui/button";
 import { EASE_OUT } from "@/components/ui/motion";
-import { PipelineSteps } from "./pipeline-steps";
+import { PipelineSteps, type StepState } from "./pipeline-steps";
 
 type Preview =
   | { state: "reading" }
   | { state: "ready"; durationMs: number; width: number; height: number; poster: string | null }
   | { state: "unplayable" };
 
-type Item = { id: string; file: File; preview: Preview };
+type Upload =
+  | { state: "idle" }
+  | { state: "uploading"; loaded: number; total: number }
+  | { state: "error"; message: string }
+  | { state: "sent"; duplicate: boolean; recording: LibraryRecording };
+
+type Item = { id: string; file: File; preview: Preview; upload: Upload };
+
+/** Pipeline chips from real upload + job state. AI steps arrive with analysis. */
+function stepStates(u: Upload): Record<"store" | "probe" | "proxy" | "transcribe" | "analyze" | "index", StepState> {
+  const ai = { transcribe: "unavailable", analyze: "unavailable", index: "unavailable" } as const;
+  if (u.state === "idle") return { store: "pending", probe: "pending", proxy: "pending", ...ai };
+  if (u.state === "uploading") return { store: "active", probe: "pending", proxy: "pending", ...ai };
+  if (u.state === "error") return { store: "failed", probe: "pending", proxy: "pending", ...ai };
+  const r = u.recording;
+  if (r.status === "ready" || r.status === "analyzed") return { store: "done", probe: "done", proxy: "done", ...ai };
+  if (r.status === "failed") {
+    const probed = r.durationMs !== null;
+    return { store: "done", probe: probed ? "done" : "failed", proxy: probed ? "failed" : "pending", ...ai };
+  }
+  const late = r.stage === "thumbnail" || r.stage === "transcoding";
+  return { store: "done", probe: late ? "done" : r.status === "processing" ? "active" : "pending", proxy: late ? "active" : "pending", ...ai };
+}
 type Rejection = { id: string; name: string; reason: string };
 
 /** Reads duration, size, and a poster frame entirely in the browser. */
@@ -75,14 +100,69 @@ export function ImportExperience() {
   const [items, setItems] = useState<Item[]>([]);
   const [rejections, setRejections] = useState<Rejection[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [workerOnline, setWorkerOnline] = useState(true);
   const dragDepth = useRef(0);
+
+  const patch = (id: string, upload: Upload) => setItems((prev) => prev.map((i) => (i.id === id ? { ...i, upload } : i)));
+
+  async function importAll() {
+    setBusy(true);
+    // One at a time: large files shouldn't compete for disk and bandwidth.
+    for (const item of items.filter((i) => i.upload.state === "idle" || i.upload.state === "error")) {
+      patch(item.id, { state: "uploading", loaded: 0, total: item.file.size });
+      try {
+        const res = await uploadRecording(item.file, (loaded, total) => patch(item.id, { state: "uploading", loaded, total }));
+        patch(item.id, { state: "sent", ...res });
+      } catch (err) {
+        patch(item.id, { state: "error", message: err instanceof Error ? err.message : "Upload failed" });
+      }
+    }
+    setBusy(false);
+  }
+
+  // Poll processing state for sent recordings until each settles.
+  const pendingIds = items
+    .flatMap((i) => (i.upload.state === "sent" && isProcessing(i.upload.recording) ? [i.upload.recording.id] : []))
+    .join(",");
+  useEffect(() => {
+    if (!pendingIds) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const { workerOnline, recordings } = await fetchRecordingStatus(pendingIds.split(","));
+        if (cancelled) return;
+        setWorkerOnline(workerOnline);
+        const byId = new Map(recordings.map((r) => [r.id, r]));
+        setItems((prev) =>
+          prev.map((i) => {
+            const next = i.upload.state === "sent" ? byId.get(i.upload.recording.id) : undefined;
+            return next && i.upload.state === "sent" ? { ...i, upload: { ...i.upload, recording: next } } : i;
+          }),
+        );
+      } catch {
+        /* transient; next tick retries */
+      }
+    };
+    const timer = setInterval(tick, 1000);
+    void tick();
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [pendingIds]);
 
   function addFiles(list: FileList | File[]) {
     const files = Array.from(list);
     if (!files.length) return;
     const { accepted, rejected } = partitionFiles(files, new Set(items.map((i) => fileKey(i.file))));
     setRejections(rejected.map((r, n) => ({ id: `${Date.now()}-${n}`, name: r.file.name, reason: r.reason })));
-    const added = accepted.map((file, n) => ({ id: `${fileKey(file)}-${Date.now()}-${n}`, file, preview: { state: "reading" } as Preview }));
+    const added = accepted.map((file, n) => ({
+      id: `${fileKey(file)}-${Date.now()}-${n}`,
+      file,
+      preview: { state: "reading" } as Preview,
+      upload: { state: "idle" } as Upload,
+    }));
     setItems((prev) => [...prev, ...added]);
     for (const item of added) {
       void readLocalPreview(item.file).then((preview) =>
@@ -103,6 +183,7 @@ export function ImportExperience() {
   }, []);
 
   const totalBytes = items.reduce((s, i) => s + i.file.size, 0);
+  const toImport = items.filter((i) => i.upload.state === "idle" || i.upload.state === "error").length;
 
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
@@ -205,9 +286,9 @@ export function ImportExperience() {
           <section aria-labelledby="queue-heading" className="mt-10">
             <div className="mb-4 flex items-end justify-between gap-4">
               <h2 id="queue-heading" className="text-[13px] font-medium uppercase tracking-[0.18em] text-ink-faint">
-                Ready to import · {plural(items.length, "file")} · {fileSize(totalBytes)}
+                {plural(items.length, "file")} · {fileSize(totalBytes)}
               </h2>
-              <Button variant="ghost" size="sm" onClick={() => setItems([])}>
+              <Button variant="ghost" size="sm" onClick={() => setItems([])} disabled={busy}>
                 Clear all
               </Button>
             </div>
@@ -245,7 +326,8 @@ export function ImportExperience() {
                             {item.file.name}
                           </p>
                           <IconButton
-                            aria-label={`Remove ${item.file.name}`}
+                            disabled={item.upload.state === "uploading"}
+                            aria-label={`Remove ${item.file.name} from this list`}
                             onClick={() => setItems((prev) => prev.filter((i) => i.id !== item.id))}
                             className="-m-2 size-9"
                           >
@@ -256,19 +338,10 @@ export function ImportExperience() {
                           {extensionOf(item.file.name).toUpperCase()} · {fileSize(item.file.size)}
                           {item.preview.state === "ready" && ` · ${item.preview.width}×${item.preview.height}`}
                         </p>
-                        <p className="mt-1 text-[12.5px]">
-                          {item.preview.state === "reading" && <span className="text-ink-faint">Reading metadata locally…</span>}
-                          {item.preview.state === "ready" && <span className="text-ok">Previewed locally</span>}
-                          {item.preview.state === "unplayable" && (
-                            <span className="text-warn">Your browser can’t preview this codec — it would be converted during import.</span>
-                          )}
-                        </p>
+                        <ItemStatus item={item} />
                       </div>
                     </div>
-                    <PipelineSteps
-                      className="mt-4"
-                      states={{ store: "unavailable", probe: "unavailable", proxy: "unavailable", transcribe: "unavailable", analyze: "unavailable", index: "unavailable" }}
-                    />
+                    <PipelineSteps className="mt-4" states={stepStates(item.upload)} />
                   </motion.li>
                 ))}
               </AnimatePresence>
@@ -277,11 +350,20 @@ export function ImportExperience() {
             <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-line bg-surface-2/50 p-5 sm:flex-row sm:items-center sm:justify-between">
               <p id="ingest-note" className="flex gap-2.5 text-[13px] leading-relaxed text-ink-muted">
                 <Info className="mt-0.5 size-4 shrink-0 text-ink-faint" aria-hidden />
-                Ingestion isn’t connected yet — nothing has been uploaded. These files were only read by your browser
-                to preview them.
+                {workerOnline
+                  ? "Files are copied into METAL’s library folder on this computer, checked with FFprobe, and given a thumbnail. The originals are never changed. Voice and moment analysis arrive in a later phase."
+                  : "Processing is paused: the background worker isn’t running. Uploaded files are safe and will be processed when it starts (npm run worker)."}
               </p>
-              <Button disabled aria-describedby="ingest-note" className="shrink-0">
-                Import {plural(items.length, "recording")}
+              <Button onClick={importAll} disabled={busy || toImport === 0} aria-describedby="ingest-note" className="shrink-0">
+                {busy ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden /> Importing…
+                  </>
+                ) : toImport > 0 ? (
+                  `Import ${plural(toImport, "recording")}`
+                ) : (
+                  "Imported"
+                )}
               </Button>
             </div>
           </section>
@@ -302,7 +384,7 @@ export function ImportExperience() {
           <h2 className="text-[13px] font-medium uppercase tracking-[0.18em] text-ink-faint">Stays on your machine</h2>
           <p className="mt-3 flex gap-2.5">
             <HardDrive className="mt-0.5 size-4 shrink-0 text-ink-faint" aria-hidden />
-            Originals are kept untouched in METAL’s local library folder. Nothing is sent anywhere to import a file.
+            METAL copies each file into its local library folder and never changes your original. Nothing leaves this computer.
           </p>
         </div>
         <p className="border-t border-line pt-6 text-[12.5px] text-ink-faint">
@@ -310,5 +392,57 @@ export function ImportExperience() {
         </p>
       </aside>
     </div>
+  );
+}
+
+function ItemStatus({ item }: { item: Item }) {
+  const u = item.upload;
+  const p = item.preview;
+  let content: React.ReactNode;
+  if (u.state === "uploading") {
+    const pct = u.total ? Math.round((u.loaded / u.total) * 100) : 0;
+    content = (
+      <span className="flex items-center gap-3 text-accent-ink">
+        Uploading {pct}%
+        <span className="h-1 w-32 overflow-hidden rounded-full bg-surface-4" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label={`Uploading ${item.file.name}`}>
+          <span className="block h-full rounded-full bg-accent transition-[width]" style={{ width: `${pct}%` }} />
+        </span>
+      </span>
+    );
+  } else if (u.state === "error") {
+    content = <span className="text-danger">{u.message}</span>;
+  } else if (u.state === "sent") {
+    const r = u.recording;
+    const open = (
+      <Link href={`/recordings/${r.id}`} className="inline-flex items-center gap-1 font-medium text-accent-ink hover:text-white">
+        Open <ArrowRight className="size-3.5" aria-hidden />
+      </Link>
+    );
+    if (u.duplicate) content = <span className="flex flex-wrap gap-2 text-ink-muted">Already in your library — skipped. {open}</span>;
+    else if (r.status === "failed") content = <span className="text-danger">{r.error ?? "Processing failed."}</span>;
+    else if (r.status === "ready" || r.status === "analyzed") content = <span className="flex flex-wrap gap-2 text-ok">Ready to watch. {open}</span>;
+    else {
+      const pct = Math.round(r.progress * 100);
+      content = (
+        <span className="text-accent-ink">
+          {STAGE_LABEL[r.stage ?? "queued"] ?? "Processing"}
+          {r.stage === "transcoding" && ` · ${pct}%`}…
+        </span>
+      );
+    }
+  } else {
+    content =
+      p.state === "reading" ? (
+        <span className="text-ink-faint">Reading metadata locally…</span>
+      ) : p.state === "ready" ? (
+        <span className="text-ink-faint">Previewed locally · not imported yet</span>
+      ) : (
+        <span className="text-warn">Your browser can’t preview this codec — METAL makes a playable copy when it imports.</span>
+      );
+  }
+  return (
+    <p className="mt-1 text-[12.5px]" aria-live="polite">
+      {content}
+    </p>
   );
 }

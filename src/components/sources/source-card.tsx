@@ -1,11 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type SourceState = "not-connected" | "ready" | "needs-desktop";
+export type SourceState = "not-connected" | "ready" | "coming";
 
 const STATE: Record<SourceState, { label: string; dot: string; text: string }> = {
   "not-connected": { label: "Not connected", dot: "bg-ink-faint", text: "text-ink-muted" },
-  "needs-desktop": { label: "Needs the desktop app", dot: "bg-warn", text: "text-warn" },
+  coming: { label: "Coming soon", dot: "bg-warn", text: "text-warn" },
   ready: { label: "Available now", dot: "bg-ok shadow-[0_0_10px_var(--ok)]", text: "text-ok" },
 };
 

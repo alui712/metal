@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Capture preferences. Phase 1b only stores them on this device; the OBS
-// adapter (Phase 4) applies them. Pure module: shared by UI and tests.
+// adapter (Phase 3) applies them. Pure module: shared by UI and tests.
 
 export const REPLAY_OPTIONS = [15, 30, 60, 120, 300] as const;
 export type ReplaySeconds = (typeof REPLAY_OPTIONS)[number];

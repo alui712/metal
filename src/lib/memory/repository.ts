@@ -11,7 +11,7 @@ import { DEMO_SEARCH_METHOD, searchMoments } from "./demo/search";
 
 /**
  * Read API every METAL surface uses. Phase 1 ships the demo implementation
- * (pure, isomorphic — usable from Server and Client Components). Phase 2
+ * (pure, isomorphic — usable from Server and Client Components). Phase 6
  * adds a SQLite-backed implementation with the same contract.
  */
 export interface MemoryRepository {

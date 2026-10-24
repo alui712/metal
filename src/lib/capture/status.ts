@@ -1,5 +1,5 @@
 // The capture engine's state as the UI should present it. Until the OBS
-// adapter exists (Phase 4) this is the only honest answer: not connected.
+// adapter exists (Phase 3) this is the only honest answer: not connected.
 // The shape is what the live adapter will report.
 
 export type CaptureConnection = "not-connected" | "connecting" | "connected" | "error";
@@ -20,8 +20,8 @@ export const CAPTURE_STATUS: CaptureStatus = {
   connection: "not-connected",
   recording: false,
   replayBufferActive: false,
-  detail: "METAL records through OBS. The OBS connection arrives in Phase 4.",
-  availableIn: "Phase 4",
+  detail: "METAL records through OBS. The OBS connection arrives in Phase 3.",
+  availableIn: "Phase 3",
 };
 
 export const CONNECTION_LABEL: Record<CaptureConnection, string> = {

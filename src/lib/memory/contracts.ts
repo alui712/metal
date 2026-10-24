@@ -1,5 +1,5 @@
 // Data contracts shared by every METAL surface. The Phase 1 demo adapter
-// and the Phase 2 database adapter both produce these shapes; field names
+// and the database adapter (Phase 6) both produce these shapes; field names
 // mirror the SQLite schema in src/server/db/schema.ts.
 
 /** Where the data came from. UI must label anything that isn't "library". */

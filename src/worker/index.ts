@@ -8,6 +8,7 @@ import {
   reportProgress,
   workerHeartbeat,
 } from "../server/jobs/queue";
+import { PermanentJobError } from "../server/jobs/errors";
 import { handlers } from "./handlers";
 
 const POLL_MS = 1000;
@@ -48,7 +49,7 @@ async function runOnce(): Promise<boolean> {
     log(`done  ${job.kind} ${job.id}`);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const after = failJob(db, job.id, message);
+    const after = failJob(db, job.id, message, { retry: !(err instanceof PermanentJobError) });
     log(`fail  ${job.kind} ${job.id} → ${after.status}: ${message}`);
   } finally {
     currentJobId = null;
