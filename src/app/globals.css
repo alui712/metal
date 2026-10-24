@@ -114,6 +114,47 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* ── Showcase (/showcase): full-bleed, no app chrome ───────────────────── */
+
+/* CSS rather than a pathname check, so the prerendered page never flashes the sidebar.
+   Next keeps the previous route mounted in a hidden <Activity> (display: none on its
+   root), so only a visible immersive page counts. */
+body:has([data-immersive]:not([style*="display: none"])) [data-shell] {
+  display: none;
+}
+/* Room to scroll past the guided-demo dock. */
+body:has(.tour-dock) #main {
+  padding-bottom: 13rem;
+}
+body:has([data-immersive]:not([style*="display: none"])) #main {
+  padding-bottom: 0;
+}
+@media (min-width: 768px) {
+  body:has([data-immersive]:not([style*="display: none"])) .tour-dock {
+    left: 50%;
+    width: min(44rem, calc(100vw - 4rem));
+  }
+}
+body:has([data-immersive]:not([style*="display: none"])) .tour-dock {
+  bottom: 1.5rem;
+}
+
+.showcase-stage {
+  background:
+    radial-gradient(62rem 40rem at 14% 4%, rgb(139 92 255 / 0.22), transparent 62%),
+    radial-gradient(52rem 38rem at 92% 58%, rgb(115 64 245 / 0.16), transparent 64%),
+    radial-gradient(90rem 40rem at 50% 118%, rgb(75 34 201 / 0.3), transparent 62%),
+    var(--graphite-950);
+}
+
+.showcase-grid {
+  background-image:
+    linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(ellipse 72% 62% at 46% 36%, black, transparent 78%);
+}
+
 /* Bottom fade used over hero art. */
 .scrim-b {
   background: linear-gradient(to top, var(--graphite-950) 0%, rgb(7 7 9 / 0.75) 35%, rgb(7 7 9 / 0) 75%);

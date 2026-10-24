@@ -21,8 +21,19 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 8B Multi-POV Sync | ✅ Complete |
 | Story Studio management | ✅ Complete |
 | 8C Demo readiness | ✅ Complete |
+| Judge Experience (showcase, guided tour, home polish) | ✅ Complete |
 | Demo video / trailer | ⏳ Not started |
 | Stretch: Wrapped · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Judge Experience ✅ (2026-10-24)
+
+- `/showcase`: cinematic, chrome-free first impression. It has a logo reveal; the headline "The game ends. The moment doesn’t."; a fanned stack of the featured night's most vivid real recordings (muted hover preview, no autoplay); "Start guided demo" and "Enter METAL"; and four feature cards backed by real evidence.
+- Guided tour: four stops on real content (a real spoken line in Recall, the best night, the latest POV group, the latest story), carried by a dock across the app with Back/Next, a link home to the showcase, minimise and end. It falls back to index pages with honest tips.
+- Home: Featured night band and "Jump into a feature" cards first; then Capture, Ask your memories and Recent recordings. There are showcase entry points in the sidebar, mobile header and ⌘K.
+- Fixed: hidden `<Activity>` routes kept `data-immersive` in the DOM and hid the sidebar after leaving the showcase.
+- Verified: typecheck, lint, 177 tests, build (`/showcase` ◐), `demo:check` 20/20, and a headless journey at 1920 and 390 (14 checks). ADR 0020.
 
 ---
 

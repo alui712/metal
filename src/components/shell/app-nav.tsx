@@ -2,12 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Command, Search } from "lucide-react";
+import { Command, Search, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { Wordmark } from "@/components/brand/logo";
 import { CaptureStatusPill, SidebarCaptureStatus } from "@/components/capture/capture-status";
 import { cn } from "@/lib/cn";
-import { isActive, primaryNav, secondaryNav, type NavItem } from "./nav-items";
+import { isActive, primaryNav, secondaryNav, showcaseNav, type NavItem } from "./nav-items";
 import { openCommandPalette } from "./command-palette";
 
 function SidebarLink({ item, active }: { item: NavItem; active: boolean }) {
@@ -68,6 +68,15 @@ export function SidebarNav({ pathname }: { pathname: string | null }) {
       </button>
 
       <ul className="flex flex-col gap-0.5">
+        <li className="mb-2">
+          <Link
+            href={showcaseNav.href}
+            className="group mx-1 flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/[0.08] px-3 py-2.5 text-[13.5px] font-medium text-accent-ink transition-colors hover:border-accent/55 hover:bg-accent/15 hover:text-white"
+          >
+            <Sparkles className="size-4" strokeWidth={1.75} aria-hidden />
+            <span className="flex-1">Showcase &amp; guided demo</span>
+          </Link>
+        </li>
         {primaryNav.map((item) => (
           <li key={item.href}>
             <SidebarLink item={item} active={isActive(item.href, pathname)} />
@@ -97,6 +106,7 @@ export function LiveSidebarNav() {
 export function TabBar({ pathname }: { pathname: string | null }) {
   return (
     <nav
+      data-shell
       aria-label="Primary"
       className="glass fixed inset-x-3 bottom-3 z-40 rounded-2xl border border-line-strong pb-[env(safe-area-inset-bottom)] md:hidden"
     >
@@ -128,12 +138,19 @@ export function TabBar({ pathname }: { pathname: string | null }) {
 /** Small-screen top bar: brand, capture status, search. */
 export function MobileHeader() {
   return (
-    <header className="flex items-center justify-between px-4 pt-4 md:hidden">
+    <header data-shell className="flex items-center justify-between px-4 pt-4 md:hidden">
       <Link href="/" aria-label="METAL home" className="rounded-lg">
         <Wordmark />
       </Link>
       <div className="flex gap-2">
         <CaptureStatusPill />
+        <Link
+          href={showcaseNav.href}
+          aria-label="Showcase and guided demo"
+          className="grid size-10 place-items-center rounded-xl border border-accent/30 bg-accent/10 text-accent-ink"
+        >
+          <Sparkles className="size-[18px]" strokeWidth={1.75} aria-hidden />
+        </Link>
         <button
           type="button"
           onClick={openCommandPalette}

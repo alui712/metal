@@ -7,7 +7,7 @@ import { CornerDownLeft, History, Search, Sparkles } from "lucide-react";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import { getMemoryRepository } from "@/lib/memory/repository";
-import { primaryNav, secondaryNav } from "./nav-items";
+import { primaryNav, secondaryNav, showcaseNav } from "./nav-items";
 
 const repo = getMemoryRepository();
 
@@ -64,7 +64,7 @@ export function CommandPalette() {
       router.push(href);
       close();
     };
-    const navActions: Action[] = [...primaryNav, ...secondaryNav]
+    const navActions: Action[] = [...primaryNav, ...secondaryNav, showcaseNav]
       .filter(
         (item) =>
           !q ||

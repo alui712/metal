@@ -8,6 +8,7 @@ import {
   Scissors,
   Search,
   SlidersHorizontal,
+  Sparkles,
   Upload,
   type LucideIcon,
 } from "lucide-react";
@@ -37,6 +38,9 @@ export const secondaryNav: NavItem[] = [
   { href: "/import", label: "Import", hint: "Add recordings", icon: Upload },
   { href: "/status", label: "System status", shortLabel: "Status", hint: "Services & worker health", icon: Activity },
 ];
+
+/** The judge-facing entry: showcase + guided demo. Shown apart from the feature nav. */
+export const showcaseNav: NavItem = { href: "/showcase", label: "Showcase", hint: "Guided demo for first-time visitors", icon: Sparkles };
 
 export function isActive(href: string, pathname: string | null): boolean {
   if (!pathname) return false;

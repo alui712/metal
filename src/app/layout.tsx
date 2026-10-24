@@ -8,6 +8,7 @@ import {
   SidebarNav,
   TabBar,
 } from "@/components/shell/app-nav";
+import { TourDock } from "@/components/judge/tour-dock";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { MotionProvider } from "@/components/shell/motion-provider";
 import "./globals.css";
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           </a>
           <div className="flex min-h-dvh">
             <aside
+              data-shell
               style={{ viewTransitionName: "app-sidebar" }}
               className="sticky top-0 hidden h-dvh w-64 shrink-0 border-r border-line bg-surface/70 px-3 py-5 md:block"
             >
@@ -73,6 +75,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <LiveTabBar />
           </Suspense>
           <CommandPalette />
+          {/* The guided judge tour; usePathname needs a boundary under Cache Components. */}
+          <Suspense fallback={null}>
+            <TourDock />
+          </Suspense>
         </MotionProvider>
       </body>
     </html>
