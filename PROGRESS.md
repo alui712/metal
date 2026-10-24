@@ -11,12 +11,79 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 1b Desktop-first UX (capture home, Sources, capture settings) | ✅ Complete |
 | 2 Real video ingestion | ✅ Complete |
 | 3 OBS capture (record, replay buffer, Save Clip, auto-import) | ✅ Complete |
-| 4 Watched folders & local Medal folder connector | ⏳ Not started |
+| 4 Watched folders & local Medal folder connector | ✅ Complete |
 | 5 Analysis + AI Smart Clip — needs whisper.cpp | ⏳ Not started |
 | 6 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
 | 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 4 — Recording folder sync ✅ (2026-10-24)
+
+### Implemented
+- **Sources:**
+  - "Watched folders" (generic or OBS) and "Medal recordings folder" are working cards.
+  - Add a folder by pasting its path or with the native macOS chooser (Choose…); nothing is saved until you confirm.
+  - A one-click "Watch OBS's folder" uses the path OBS reports.
+  - Each folder has Rescan, Pause/Resume, Retry failed, and Remove (with a confirm step).
+  - Status shown per folder: watching, scanning, paused, unavailable, or no permission (with macOS Privacy guidance), plus "worker offline".
+  - Counts: in library, importing, couldn't import (by file name and reason), and no longer in folder.
+- **Validation (`checkFolder`):**
+  - Folders must exist and be resolved to their real path.
+  - Not allowed: the disk root, home or account roots, system folders, `~/Library`, hidden folders, METAL's own data folder (or one containing it), or a folder overlapping one already watched.
+  - The UI only ever sees `~/…` display paths and file names.
+- **Worker `FolderSync`:**
+  - An initial scan when the worker starts or a folder is added, which also catches files added while METAL was off.
+  - Rescans every 15 s, or every 2 s while files are settling, and `fs.watch` triggers early rescans.
+  - Skips symlinks, hidden files, non-video files, and anything deeper than 4 levels.
+  - A file is complete once it's unchanged for 4 s or more; files OBS may still be recording into are deferred.
+  - Renames are followed. Removed files are marked missing, and their recordings stay. A missing folder keeps its records and recovers when the folder returns.
+  - Interrupted imports are re-queued.
+- **`folder-import` job:**
+  - Checks the path again: relative, no `..`, a regular file, realpath inside the folder.
+  - Waits until the file is stable, then validates it with ffprobe. Invalid files get no recording; a freshly written file that isn't readable yet is re-checked for 60 s first.
+  - Imports through the Phase 2 pipeline (read-only stream, sniffing, SHA-256 dedupe, poster, metadata, proxy). Recordings get `origin: folder`.
+- **Dedupe across sources:**
+  - Content hash, plus the server-only `recordings.source_path`.
+  - Folder sync waits for an in-flight OBS auto-import of the same file, then links to it, and vice versa.
+- **Shared code:** `src/server/media/local-file.ts` (path containment, link-by-source, read-only import, wait-until-stable), now also used by the Phase 3 OBS import.
+- **Schema:** migration `0004` adds `watched_folders`, `folder_files`, `recordings.source_path`, and `capture_state.record_directory`. Documented in ADR 0012.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (89 tests; +13 folder sync against real files and real FFmpeg) · `npm run build` ✅ (no warnings)
+  - The new tests cover:
+    - folder validation (root, home, system, `~/Library`, hidden, data dir, file, missing, overlap);
+    - initial scan with real metadata and poster, with the source byte-identical afterwards;
+    - unsafe entries (symlinked file and folder, hidden, `.txt`);
+    - a growing file, and a fresh unreadable file re-checked later;
+    - duplicates (folder copy, and a manual upload found later in the folder);
+    - rename, removal, corrupt and fake videos, and a tampered `../` path;
+    - worker restart (offline addition, vanished job), unavailable folder and recovery, pause, OBS in-flight deferral and linking, and removing a folder.
+- **Real files**, with the live worker and :3001 (test folder in the session scratchpad):
+  - Initial scan imported a new clip: `ready`, 8 s, with a poster.
+  - Copies of the two real Phase 3 OBS clips were linked as duplicates, not re-imported.
+  - A file written in real time by FFmpeg waited until it was complete, then imported (`ready`, 6.1 s).
+  - A rename was followed with no re-import. A fake `.mp4` was rejected with a reason. Symlinks to `~/Movies` and to another file were ignored.
+  - A file added while the worker was stopped was imported on start.
+  - Moving the folder away showed "Folder unavailable" and kept the records; moving it back resumed watching.
+- **API:** root, `~`, `~/Library/Caches`, relative paths, the repo or data dir, and missing folders are all rejected with clear messages. Requests without the header get 403, cross-origin requests get 403, and an unknown folder gets 404.
+- **Browser (CDP):**
+  - Sources lists folders with counts, problem file names, and no absolute paths. The OBS-folder preset is offered.
+  - Adding a Medal folder by path imported its clip. Pause, Resume, Rescan, and Remove with confirm all work. A rejected path shows the error.
+  - The Library shows the folder imports. No horizontal scroll at 390 px; fixed a card overflow from long paths.
+- **Regression:**
+  - Phase 1/2: 69/69. The OBS assertions now follow the live replay-buffer state, and "Add folder" expects the live form.
+  - Phase 2 checks: 27/27. The CSS-dependent "Demo memories" check now matches the heading's DOM text instead of its uppercased `innerText`.
+  - Phase 3 browser checks: 11/11. Real OBS: a 4 s recording was auto-imported through the refactored path (`ready`, source recorded).
+
+### Known issues / limitations
+- **Not verified live:** watching OBS's real output folder (`~/Movies`, which holds unrelated videos) and clicking the native macOS chooser (it needs a person). Deduping between OBS and a watched folder is covered by unit tests, and by linking the real OBS clips copied into a test folder.
+- The folder chooser is macOS-only; elsewhere, paste the path.
+- Files are copied into METAL's library, not indexed in place, so storage grows with each import. Removing a folder keeps its recordings.
+- Scans are capped at 4 levels deep and 20,000 files per folder.
+- Test clips from this phase's real-file checks are in the Library. They can be removed there.
 
 ---
 

@@ -1,5 +1,6 @@
 import { CaptureService } from "../server/capture/service";
 import { getDb } from "../server/db/client";
+import { FolderSync } from "../server/sources/sync";
 import { newId } from "../server/ids";
 import {
   claimNextJob,
@@ -27,6 +28,10 @@ function log(message: string) {
 // OBS connection runs alongside the job loop (all I/O is async).
 const capture = new CaptureService(db, { log });
 const captureTimer = setInterval(() => void capture.tick(), 500);
+
+// Watched folders: scans on start (catching files added while offline), then on change.
+const folders = new FolderSync(db, { log });
+const folderTimer = setInterval(() => void folders.tick(), 500);
 
 const heartbeat = setInterval(() => {
   workerHeartbeat(db, worker, currentJobId);
@@ -76,6 +81,8 @@ function stop() {
   shutdown.abort();
   clearInterval(heartbeat);
   clearInterval(captureTimer);
+  clearInterval(folderTimer);
+  folders.close();
   capture.disconnect();
   removeWorker(db, worker.id);
   // An in-flight job is left "running"; its stale heartbeat lets the next

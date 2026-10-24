@@ -2,6 +2,7 @@ import type { Db } from "../server/db/client";
 import type { Job } from "../server/jobs/queue";
 import { importObsFile } from "../server/capture/import";
 import { ingestRecording } from "../server/media/ingest";
+import { importFolderFile } from "../server/sources/import";
 
 export type JobContext = {
   db: Db;
@@ -17,4 +18,5 @@ export type JobHandler = (ctx: JobContext) => Promise<void>;
 export const handlers: Record<string, JobHandler> = {
   ingest: ingestRecording,
   "obs-import": importObsFile,
+  "folder-import": importFolderFile,
 };

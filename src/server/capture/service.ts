@@ -165,6 +165,7 @@ export class CaptureService {
       replayActive,
       replayAvailable,
       replaySeconds: await this.readReplaySeconds(),
+      recordDirectory: this.recordDir,
     });
   }
 

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { recordings } from "../db/schema";
 import { newId } from "../ids";
@@ -41,7 +41,9 @@ export async function receiveUpload(
     body: ReadableStream<Uint8Array>;
     filename: string;
     lastModified?: number | null;
-    origin?: "upload" | "obs-replay" | "obs-recording";
+    origin?: "upload" | "obs-replay" | "obs-recording" | "folder";
+    /** Real path of a local source file (server-only). */
+    sourcePath?: string;
   },
 ): Promise<UploadResult> {
   const ext = path.extname(input.filename).slice(1).toLowerCase();
@@ -89,6 +91,13 @@ export async function receiveUpload(
     const existing = db.select({ id: recordings.id }).from(recordings).where(eq(recordings.contentHash, contentHash)).get();
     if (existing) {
       fs.rmSync(tmp, { force: true });
+      // Remember where it came from, so the same file isn't copied again.
+      if (input.sourcePath) {
+        db.update(recordings)
+          .set({ sourcePath: input.sourcePath })
+          .where(and(eq(recordings.id, existing.id), isNull(recordings.sourcePath)))
+          .run();
+      }
       return { id: existing.id, duplicate: true };
     }
 
@@ -110,6 +119,7 @@ export async function receiveUpload(
             recordedAt: lm && lm > Date.UTC(2000, 0, 1) && lm < Date.now() + 86_400_000 ? lm : null,
             status: "imported",
             origin: input.origin ?? "upload",
+            sourcePath: input.sourcePath ?? null,
           })
           .run();
         enqueueJob(db, { kind: "ingest", recordingId: id, maxAttempts: 2 });

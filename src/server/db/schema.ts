@@ -40,10 +40,16 @@ export const recordings = sqliteTable(
     container: text("container"),
     videoCodec: text("video_codec"),
     audioCodec: text("audio_codec"),
-    /** How it arrived: a manual upload, an OBS replay-buffer clip, or a full OBS recording. */
-    origin: text("origin", { enum: ["upload", "obs-replay", "obs-recording"] })
+    /** How it arrived: a manual upload, an OBS replay-buffer clip, a full OBS recording, or a watched folder. */
+    origin: text("origin", { enum: ["upload", "obs-replay", "obs-recording", "folder"] })
       .notNull()
       .default("upload"),
+    /**
+     * Absolute real path of the local file it was copied from (OBS or a
+     * watched folder). Server-only: used to link the same file across
+     * sources without copying it twice. Never sent to clients.
+     */
+    sourcePath: text("source_path"),
     recordedAt: integer("recorded_at"),
     importedAt: createdAt(),
     status: text("status", {
@@ -60,6 +66,7 @@ export const recordings = sqliteTable(
     index("recordings_session_idx").on(t.sessionId),
     uniqueIndex("recordings_content_hash_idx").on(t.contentHash),
     index("recordings_recorded_at_idx").on(t.recordedAt),
+    index("recordings_source_path_idx").on(t.sourcePath),
   ],
 );
 
@@ -124,8 +131,61 @@ export const captureState = sqliteTable("capture_state", {
   lastClipAt: integer("last_clip_at"),
   lastClipRecordingId: text("last_clip_recording_id"),
   lastClipError: text("last_clip_error"),
+  /** OBS's recording folder (server-only; offered as a watched-folder preset). */
+  recordDirectory: text("record_directory"),
   updatedAt: integer("updated_at").notNull(),
 });
+
+/**
+ * Folders the user explicitly chose to watch. `path` is the resolved real
+ * path; the worker only ever reads inside it.
+ */
+export const watchedFolders = sqliteTable(
+  "watched_folders",
+  {
+    id: text("id").primaryKey(),
+    kind: text("kind", { enum: ["obs", "medal", "generic"] }).notNull(),
+    label: text("label").notNull(),
+    path: text("path").notNull(),
+    /** User intent. */
+    status: text("status", { enum: ["active", "paused"] }).notNull().default("active"),
+    /** What the worker last observed. */
+    state: text("state", { enum: ["pending", "scanning", "watching", "unavailable", "denied", "paused"] })
+      .notNull()
+      .default("pending"),
+    error: text("error"),
+    lastScanAt: integer("last_scan_at"),
+    rescanRequestedAt: integer("rescan_requested_at"),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("watched_folders_path_idx").on(t.path)],
+);
+
+/** Every video file seen in a watched folder, so each is processed once. */
+export const folderFiles = sqliteTable(
+  "folder_files",
+  {
+    id: text("id").primaryKey(),
+    folderId: text("folder_id")
+      .notNull()
+      .references(() => watchedFolders.id, { onDelete: "cascade" }),
+    /** Path relative to the folder (never absolute). */
+    relPath: text("rel_path").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    mtimeMs: real("mtime_ms").notNull(),
+    /** Last time size or mtime changed; a file is complete once this is old enough. */
+    changedAt: integer("changed_at").notNull(),
+    present: integer("present", { mode: "boolean" }).notNull().default(true),
+    status: text("status", { enum: ["pending", "importing", "imported", "duplicate", "invalid", "failed"] })
+      .notNull()
+      .default("pending"),
+    recordingId: text("recording_id").references(() => recordings.id, { onDelete: "set null" }),
+    jobId: text("job_id"),
+    error: text("error"),
+    firstSeenAt: createdAt(),
+  },
+  (t) => [uniqueIndex("folder_files_path_idx").on(t.folderId, t.relPath), index("folder_files_status_idx").on(t.folderId, t.status)],
+);
 
 /** Capture actions requested by the UI, executed by the worker. */
 export const captureCommands = sqliteTable(

@@ -1,7 +1,19 @@
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/cn";
 
-export type SourceState = "not-connected" | "ready" | "coming" | "connected" | "connecting" | "error" | "worker-offline" | "checking";
+export type SourceState =
+  | "not-connected"
+  | "ready"
+  | "coming"
+  | "connected"
+  | "connecting"
+  | "error"
+  | "worker-offline"
+  | "checking"
+  | "watching"
+  | "attention"
+  | "paused"
+  | "empty";
 
 const STATE: Record<SourceState, { label: string; dot: string; text: string }> = {
   "not-connected": { label: "Not connected", dot: "bg-ink-faint", text: "text-ink-muted" },
@@ -12,6 +24,10 @@ const STATE: Record<SourceState, { label: string; dot: string; text: string }> =
   error: { label: "Not connected", dot: "bg-danger", text: "text-danger" },
   "worker-offline": { label: "Worker offline", dot: "bg-warn", text: "text-warn" },
   checking: { label: "Checking…", dot: "bg-ink-faint", text: "text-ink-muted" },
+  watching: { label: "Watching", dot: "bg-ok shadow-[0_0_10px_var(--ok)]", text: "text-ok" },
+  attention: { label: "Needs attention", dot: "bg-danger", text: "text-danger" },
+  paused: { label: "Paused", dot: "bg-warn", text: "text-warn" },
+  empty: { label: "Not set up", dot: "bg-ink-faint", text: "text-ink-muted" },
 };
 
 export function SourceCard({
@@ -33,7 +49,7 @@ export function SourceCard({
 }) {
   const s = STATE[state];
   return (
-    <section aria-labelledby={`${id}-title`} className={cn("flex flex-col rounded-3xl border border-line bg-surface-2/60 p-6 sm:p-7", className)}>
+    <section aria-labelledby={`${id}-title`} className={cn("flex min-w-0 flex-col rounded-3xl border border-line bg-surface-2/60 p-6 sm:p-7", className)}>
       <div className="flex items-start gap-4">
         <span className="grid size-11 shrink-0 place-items-center rounded-2xl border border-line-strong bg-surface-3 text-accent-ink">
           <Icon className="size-5" strokeWidth={1.75} aria-hidden />
