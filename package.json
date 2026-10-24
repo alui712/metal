@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "worker": "tsx --env-file-if-exists=.env.local src/worker/index.ts",
     "dev:all": "concurrently -k -n web,worker -c magenta,cyan \"npm:dev\" \"npm:worker\"",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "demo:check": "node scripts/demo-check/cdp.mjs scripts/demo-check/journey.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.3.1",
