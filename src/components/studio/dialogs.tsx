@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { EASE_OUT } from "@/components/ui/motion";
 import { ASPECT_SIZE, type StudioLibrary } from "./types";
 
-function Modal({
+export function Modal({
   open,
   onOpenChange,
   title,
@@ -120,9 +120,8 @@ export function ExportDialog({
             <FileVideo className="size-4" aria-hidden /> MP4 rendering isn’t available yet
           </p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">
-            {library.source === "demo"
-              ? "Exports are rendered locally with FFmpeg from your real recordings. That pipeline arrives in a later phase, and demo clips have no video to render — so METAL won’t pretend to export one."
-              : "These clips are your real recordings, and the edit list below already has their exact ids and time ranges. Rendering them to one MP4 with FFmpeg arrives in Phase 7 — until then, preview plays the edit from the originals."}
+            Demo clips have no video to render, so METAL won’t pretend to export one. Stories made from your own recordings
+            (from Time Machine or Recall) render real MP4s with FFmpeg.
           </p>
         </div>
 

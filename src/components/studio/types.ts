@@ -7,6 +7,8 @@ export type StudioLibrary = {
   recordings: Record<string, Recording>;
   moments: Record<string, Moment>;
   gameNames: Record<string, string>;
+  /** Real stories: clips whose source can't be used right now (clip id → reason). */
+  issues?: Record<string, string>;
 };
 
 export const ASPECT_SIZE = {

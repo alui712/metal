@@ -6,6 +6,7 @@ import { importObsFile } from "../server/capture/import";
 import { ingestRecording } from "../server/media/ingest";
 import { exportClip } from "../server/smartclip/export";
 import { importFolderFile } from "../server/sources/import";
+import { renderStory } from "../server/studio/render";
 
 export type JobContext = {
   db: Db;
@@ -25,4 +26,5 @@ export const handlers: Record<string, JobHandler> = {
   analyze: analyzeRecording,
   "clip-export": exportClip,
   transcribe: transcribeRecording,
+  "story-export": renderStory,
 };

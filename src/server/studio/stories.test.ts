@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/client";
 import { clipSuggestions, recordings, storyClips } from "../db/schema";
 import { trimBounds } from "@/lib/studio/seed";
-import { syncSessions } from "./sessions";
+import { syncSessions } from "../timemachine/sessions";
 import { createStory, storyView } from "./stories";
 
 const T = (s: string) => new Date(s).getTime();

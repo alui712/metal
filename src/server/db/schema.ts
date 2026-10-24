@@ -462,6 +462,10 @@ export const storyProjects = sqliteTable("story_projects", {
   sourceSessionId: text("source_session_id").references(() => sessions.id, {
     onDelete: "set null",
   }),
+  /** Show clip captions (preview overlay; exported as a subtitle track). */
+  captions: integer("captions", { mode: "boolean" }).notNull().default(true),
+  /** How sources that don't match the output shape are framed: crop to fill, or fit with bars. */
+  framing: text("framing", { enum: ["fill", "fit"] }).notNull().default("fill"),
   createdAt: createdAt(),
   updatedAt: integer("updated_at").notNull(),
 });
@@ -474,9 +478,8 @@ export const storyClips = sqliteTable(
       .notNull()
       .references(() => storyProjects.id, { onDelete: "cascade" }),
     position: integer("position").notNull(),
-    recordingId: text("recording_id")
-      .notNull()
-      .references(() => recordings.id, { onDelete: "cascade" }),
+    /** null: the source recording was deleted (the clip is kept so the editor can say so). */
+    recordingId: text("recording_id").references(() => recordings.id, { onDelete: "set null" }),
     momentId: text("moment_id").references(() => moments.id, {
       onDelete: "set null",
     }),
@@ -519,6 +522,10 @@ export const renderExports = sqliteTable("exports", {
   sizeBytes: integer("size_bytes"),
   jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
   ffmpegCmd: text("ffmpeg_cmd"),
+  /** The edit list exactly as rendered (later edits don't change an export). */
+  edlJson: text("edl_json"),
+  error: text("error"),
+  finishedAt: integer("finished_at"),
   createdAt: createdAt(),
 });
 

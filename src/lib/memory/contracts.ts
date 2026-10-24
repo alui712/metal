@@ -146,6 +146,8 @@ export type StoryProject = {
   title: string;
   aspect: Aspect;
   captions: boolean;
+  /** Real stories: crop sources to fill the frame, or fit them with bars. */
+  framing?: "fill" | "fit";
   clips: StoryClip[];
   sourceSessionId: string | null;
 };

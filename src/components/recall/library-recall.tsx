@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, ExternalLink, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
+import { CircleAlert, Clapperboard, ExternalLink, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -274,6 +274,7 @@ export function LibraryRecall() {
                     <Link href={`/recordings/${current.recordingId}?t=${current.seekMs}`} className="inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink">
                       Open recording <ExternalLink className="size-3.5" aria-hidden />
                     </Link>
+                    <StartStory hit={current} />
                   </div>
                 </div>
                 <p className="mt-2 text-[11.5px] leading-relaxed text-ink-faint">
@@ -285,5 +286,44 @@ export function LibraryRecall() {
         </div>
       )}
     </div>
+  );
+}
+
+/** Recall → Story Studio: a clip around the matched lines (±3 s), captioned with what was actually said. */
+function StartStory({ hit }: { hit: Hit }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function start() {
+    setBusy(true);
+    setError(null);
+    const caption = hit.lines.map((l) => l.text).join(" ").slice(0, 200) || null;
+    const res = await fetch("/api/stories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-metal-action": "1" },
+      body: JSON.stringify({
+        sessionId: null,
+        title: `${hit.recording.title} · ${timecode(hit.startMs)}`,
+        ranges: [{ recordingId: hit.recordingId, inMs: Math.max(0, hit.startMs - 3000), outMs: Math.min(hit.recording.durationMs ?? hit.endMs + 3000, hit.endMs + 3000), caption }],
+      }),
+    }).catch(() => null);
+    const json = res ? ((await res.json().catch(() => ({}))) as { id?: string; error?: string }) : {};
+    if (res?.ok && json.id) router.push(`/studio?story=${json.id}`);
+    else {
+      setError(json.error ?? "Couldn’t start a story.");
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <button type="button" onClick={start} disabled={busy} className="inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink disabled:opacity-50">
+        <Clapperboard className="size-3.5" aria-hidden /> {busy ? "Starting…" : "Start a story"}
+      </button>
+      {error && (
+        <span role="alert" className="text-danger">
+          {error}
+        </span>
+      )}
+    </>
   );
 }

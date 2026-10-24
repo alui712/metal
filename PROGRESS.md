@@ -16,9 +16,73 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 5C Local transcription (whisper.cpp) | ✅ Complete |
 | 6A Real Recall (transcripts, FTS + local embeddings) | ✅ Complete |
 | 6B Real Time Machine (sessions, Relive, Studio handoff) | ✅ Complete |
-| 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
+| 7 Real Story Studio (persistent stories, FFmpeg MP4 export) | ✅ Complete |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 7 — Real Story Studio ✅ (2026-10-24)
+
+Stories built from your real recordings are saved, editable, and render to a real MP4 in the worker. No new dependencies. ADR 0017.
+
+### Implemented
+- **Persistent stories:**
+  - title, clip order, trims, captions, aspect (16:9 / 9:16 / 1:1) and framing (fill/crop or fit/bars) autosave (`PUT /api/stories/:id`, validated against each recording's length) and survive reloads;
+  - undo/redo works as before;
+  - a "Saved / Saving… / Not saved" indicator;
+  - `/studio` now lists your stories (cover, clip count, length, aspect, last export status). The demo editor is at `/studio?demo=1` (and `?session=<demo id>`).
+- **Handoffs:**
+  - Time Machine "Send to Story Studio" (Phase 6B), now captioned with the moment's real transcript lines;
+  - new: **Recall → "Start a story"** makes a clip around the matched lines, captioned with what was said.
+- **Missing sources:** clips whose recording was deleted are removed on open, with a notice (migration `0009` makes `story_clips.recording_id` `SET NULL`). Clips whose file is missing or not ready are marked "Source unavailable" in the timeline and block export with the reason.
+- **Real MP4 export:** a `story-export` job in the existing worker queue does one FFmpeg pass over the original recordings.
+  - **Cuts:** frame-accurate, with each clip normalized to 30 fps, yuv420p, the output size (1920×1080 / 1080×1920 / 1080×1080, fill or fit) and 48 kHz stereo.
+  - **Sync:** silence for clips without audio, and video and audio forced to exact clip length (A/V stay in sync across cuts).
+  - **Output:** hard cuts, H.264/AAC, faststart.
+  - **Verification:** FFprobe checks the output (codecs, duration within 300 ms) before the export is marked done.
+- **Export jobs:**
+  - **States:** real queued, rendering (stage plus `-progress` percentage), done and failed states.
+  - **Duplicates:** a second export of the same story is refused while one runs (409).
+  - **Validation and errors:** sources are validated before queuing; missing files fail permanently, and FFmpeg errors retry once, then fail with the message.
+  - **Worker restarts:** jobs are reclaimed and re-rendered.
+  - **Storage and serving:** output lives only in `data/exports/<id>.mp4` (`.part` until verified), and `/api/exports/:id` streams it with Range support (`?download=1` to download).
+- **Export UI:**
+  - settings (size, framing, 30 fps, format, length, captions) and a cinematic rendering state with a progress bar;
+  - a finished-video player with Download MP4 and Replay, plus "Render again";
+  - a notice when the story changed since the last export;
+  - a rendering percentage on the Export button.
+- **Captions:** exported as an MP4 subtitle track. This FFmpeg build has no `drawtext`/`subtitles` filter, so text can't be burned in; the dialog says so.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (151 tests; 9 in `src/server/studio/`) · `npm run build` ✅
+  - **Pure tests:** the FFmpeg graph (normalization, silence, concat) and the SRT timeline.
+  - **Real-FFmpeg tests, mixed sources:** 720p30 H.264 + audio, 4:3 25 fps MPEG-4 MKV without audio, and 1080p60 + mono 44.1 kHz.
+    - **Output:** 1920×1080, 30/1, H.264/AAC, 7.5 s (±0.1).
+    - **A/V sync:** audio and video lengths are within 60 ms, and the silent clip lands at exactly 3.0–5.5 s (silencedetect, ±60 ms).
+  - **9:16 with a captions track** (1080×1920, `mov_text`).
+  - **Retry after a simulated worker crash** still produces the file.
+  - **Missing and corrupt sources:** a missing file is refused up front (409 with the clip and reason); a corrupt file fails after its retry with "Rendering failed…", no file, and no success.
+  - **Duplicate export refused.**
+  - **Saving:** save/reload of reorder, trims, aspect and framing; out-of-range trims rejected; deleted sources reported.
+- **Browser (dev server :3001, real worker), 25/25:**
+  - **Story creation:** Time Machine → Studio with 4 clips and transcript captions.
+  - **Editing:** remove, undo and redo; trim; Alt+→ reorder; 9:16 + Fit; autosave; reload keeps order, aspect and framing, and the trim is in the DB.
+  - **Rendering:** a duplicate export gets 409 while rendering, and the rendering state is shown.
+  - **Output:** FFprobe on the result shows 1080×1920 H.264/AAC at **40.50 s for a 40.5 s plan**, with video and audio both 40.500 s.
+  - **Playback and download:** the finished video plays in the browser and Replay restarts it. The download returns 200 `video/mp4` as an attachment, with byte size equal to the file. Bad or traversal ids return 404.
+  - **After the export:** an edit shows the "changed since this export" notice, and the stories list shows "Exported".
+  - **Recall handoff:** a one-clip story captioned "…enemies on the stairs".
+  - **Mobile:** no horizontal scroll at 390 px.
+- **Regression suites:** demo walkthrough 69/69 (default demo project now at `/studio?demo=1`), ingestion 27/27, OBS 10/10, Smart Clip hub 3/3, transcription 12/12, Recall 18/18, Time Machine 33/33 (its "export unavailable until Phase 7" check now expects the real Render button).
+
+### Known issues / limitations
+- **Not built:** transitions, visual presets and music (hard cuts only). Natural-language edits are still "not connected".
+- **Captions:** a soft subtitle track, not burned in. The editor preview overlays them; players must enable the track.
+- **Previews vs. exports:** the editor preview plays originals in the browser, so it can't preview FFmpeg's exact fill/fit crop for sources whose aspect differs. The export is authoritative.
+- **No delete UI:** there's no UI to delete stories or exports. Exports accumulate in `data/exports/`, and test stories from Phases 6B–7 remain in the DB.
+- **Undo history** is per page visit (not persisted); the saved state is what persists.
+- **Rendering re-encodes** every clip: reliable, but slower than copying streams.
 
 ---
 

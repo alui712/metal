@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeft,
+  CloudOff,
+  LoaderCircle,
   ArrowRight,
   Captions,
   ChevronLeft,
@@ -17,7 +20,7 @@ import {
   Undo2,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Aspect, Moment, StoryProject } from "@/lib/memory/contracts";
 import { clipDuration, historyReducer, initHistory, type EdlOp } from "@/lib/studio/edl";
 import { clipFromMoment, trimBounds } from "@/lib/studio/seed";
@@ -28,6 +31,7 @@ import { DemoBadge } from "@/components/ui/demo-badge";
 import { ClipThumb } from "./clip-thumb";
 import { ClipTimeline } from "./clip-timeline";
 import { AddMomentsDialog, ExportDialog } from "./dialogs";
+import { RealExportDialog, useStoryExports, type ExportView } from "./real-export";
 import { SequencePreview } from "./sequence-preview";
 import type { StudioLibrary } from "./types";
 
@@ -39,12 +43,15 @@ export function StudioEditor({
   library,
   candidates,
   sourceSession,
+  persist,
 }: {
   initial: StoryProject;
   library: StudioLibrary;
   candidates: Moment[];
   /** Where the story came from (link back). */
   sourceSession?: { href: string; title: string };
+  /** Real stories: autosave + render through the worker. */
+  persist?: { storyId: string; exports: ExportView[]; removedCount: number };
 }) {
   const lookup = useMemo(
     () => ({ recording: (id: string) => library.recordings[id], moment: (id: string) => library.moments[id] }),
@@ -58,6 +65,12 @@ export function StudioEditor({
   const [addOpen, setAddOpen] = useState(false);
   const [instruction, setInstruction] = useState("");
   const lastCoalesce = useRef<{ key: string; at: number } | null>(null);
+
+  const { save, flush } = useAutosave(persist?.storyId ?? null, project);
+  const story = useStoryExports(persist?.storyId ?? "", persist?.exports ?? []);
+  const latestExport = story.exports[0];
+  const issues = library.issues ?? {};
+  const issueCount = project.clips.filter((c) => issues[c.id]).length;
 
   const bounds = useMemo(() => trimBounds(lookup, [...project.clips, ...candidates.map(clipFromMoment)]), [lookup, project.clips, candidates]);
   const selected = project.clips.find((c) => c.id === selectedId) ?? null;
@@ -121,7 +134,7 @@ export function StudioEditor({
               <ArrowLeft className="size-3.5" aria-hidden /> From “{sourceSession.title}”
             </Link>
           ) : (
-            <p className="text-[13px] text-ink-faint">Starting from your top moments</p>
+            <p className="text-[13px] text-ink-faint">{persist ? "Your story" : "Starting from your top moments"}</p>
           )}
           <div className="mt-1 flex items-center gap-3">
             <label htmlFor="story-title" className="sr-only">Story title</label>
@@ -139,6 +152,21 @@ export function StudioEditor({
           ) : (
             <span className="mr-2 inline-flex h-6 items-center rounded-full border border-ok/25 bg-ok/10 px-2.5 text-[11px] font-medium text-ok">Your recordings</span>
           )}
+          {persist && (
+            <span className="mr-1 inline-flex items-center gap-1.5 text-[12px] text-ink-faint" role="status" aria-live="polite" data-save={save}>
+              {save === "saving" ? (
+                <>
+                  <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> Saving…
+                </>
+              ) : save === "error" ? (
+                <span className="flex items-center gap-1.5 text-danger">
+                  <CloudOff className="size-3.5" aria-hidden /> Not saved
+                </span>
+              ) : (
+                "Saved"
+              )}
+            </span>
+          )}
           <IconButton aria-label="Undo (⌘Z)" title="Undo (⌘Z)" onClick={() => dispatch({ type: "undo" })} disabled={!history.past.length} className="border border-line">
             <Undo2 className="size-[18px]" aria-hidden />
           </IconButton>
@@ -146,11 +174,21 @@ export function StudioEditor({
             <Redo2 className="size-[18px]" aria-hidden />
           </IconButton>
           <Button onClick={() => setExportOpen(true)} className="ml-1">
-            <Download className="size-4" aria-hidden />
-            Export
+            {story.active ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Download className="size-4" aria-hidden />}
+            {story.active ? `Rendering ${Math.round((latestExport?.progress ?? 0) * 100)}%` : "Export"}
           </Button>
         </div>
       </div>
+
+      {(issueCount > 0 || (persist?.removedCount ?? 0) > 0) && (
+        <div role="alert" className="flex items-start gap-3 rounded-2xl border border-warn/25 bg-warn/10 px-4 py-3 text-[13px] text-warn">
+          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>
+            {persist?.removedCount ? `${persist.removedCount} clip${persist.removedCount === 1 ? " was" : "s were"} removed because the source recording was deleted. ` : ""}
+            {issueCount > 0 && `${issueCount} clip${issueCount === 1 ? "’s" : "s’"} source can’t be used (${[...new Set(project.clips.map((c) => issues[c.id]).filter(Boolean))].join(" ")}). Remove ${issueCount === 1 ? "it" : "them"} before exporting.`}
+          </p>
+        </div>
+      )}
 
       {/* ── Preview + settings ──────────────────────────── */}
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -219,6 +257,21 @@ export function StudioEditor({
               </span>
               <Switch label="Show captions" checked={project.captions} onCheckedChange={(enabled) => apply({ type: "setCaptions", enabled })} />
             </div>
+            {library.source === "library" && (
+              <div className="mt-4">
+                <Segmented<"fill" | "fit">
+                  label="Framing"
+                  value={project.framing ?? "fill"}
+                  onChange={(framing) => apply({ type: "setFraming", framing })}
+                  className="w-full [&>button]:flex-1"
+                  options={[
+                    { value: "fill", label: "Fill · crop" },
+                    { value: "fit", label: "Fit · bars" },
+                  ]}
+                />
+                <p className="mt-2 text-[11.5px] text-ink-faint">How recordings that don’t match {project.aspect} are framed in the export.</p>
+              </div>
+            )}
           </section>
 
           <section className="border-t border-line pt-5" aria-live="polite">
@@ -275,7 +328,7 @@ export function StudioEditor({
                       </label>
                     );
                   })}
-                  <p className="mt-2 text-[11.5px] text-ink-faint">Up to 10 s of handles around the moment.</p>
+                  <p className="mt-2 text-[11.5px] text-ink-faint">{selected.momentId ? "Up to 10 s of handles around the moment." : "Anywhere within the recording."}</p>
                 </fieldset>
 
                 <div className="mt-5 flex items-center gap-2">
@@ -327,7 +380,20 @@ export function StudioEditor({
         )}
       </section>
 
-      <ExportDialog open={exportOpen} onOpenChange={setExportOpen} project={project} library={library} />
+      {persist ? (
+        <RealExportDialog
+          open={exportOpen}
+          onOpenChange={setExportOpen}
+          project={project}
+          storyId={persist.storyId}
+          exports={story.exports}
+          onRefresh={story.refresh}
+          flush={flush}
+          issues={Object.fromEntries(project.clips.filter((c) => issues[c.id]).map((c) => [c.id, issues[c.id]]))}
+        />
+      ) : (
+        <ExportDialog open={exportOpen} onOpenChange={setExportOpen} project={project} library={library} />
+      )}
       <AddMomentsDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -342,4 +408,60 @@ export function StudioEditor({
       />
     </div>
   );
+}
+
+type SaveState = "saved" | "saving" | "error";
+
+const saveBody = (p: StoryProject) =>
+  JSON.stringify({
+    title: p.title,
+    aspect: p.aspect,
+    framing: p.framing ?? "fill",
+    captions: p.captions,
+    clips: p.clips.map((c) => ({ recordingId: c.recordingId, suggestionId: c.momentId, inMs: c.inMs, outMs: c.outMs, caption: c.caption })),
+  });
+
+/** Saves a real story shortly after each edit, on demand (before export), and when the page is hidden. */
+function useAutosave(storyId: string | null, project: StoryProject) {
+  const [save, setSave] = useState<SaveState>("saved");
+  const saved = useRef(saveBody(project));
+  const latest = useRef(project);
+  useEffect(() => {
+    latest.current = project;
+  }, [project]);
+
+  const flush = useCallback(async (): Promise<string | null> => {
+    if (!storyId) return null;
+    const body = saveBody(latest.current);
+    if (body === saved.current) return null;
+    setSave("saving");
+    try {
+      const res = await fetch(`/api/stories/${storyId}`, { method: "PUT", headers: { "Content-Type": "application/json", "x-metal-action": "1" }, body });
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Saving failed (${res.status}).`);
+      saved.current = body;
+      setSave(saveBody(latest.current) === body ? "saved" : "saving");
+      return null;
+    } catch (err) {
+      setSave("error");
+      return err instanceof TypeError ? "Couldn’t reach the METAL server." : (err as Error).message;
+    }
+  }, [storyId]);
+
+  useEffect(() => {
+    if (!storyId || saveBody(project) === saved.current) return;
+    const t = setTimeout(() => void flush(), 600);
+    return () => clearTimeout(t);
+  }, [storyId, project, flush]);
+
+  useEffect(() => {
+    if (!storyId) return;
+    const onHide = () => {
+      const body = saveBody(latest.current);
+      if (body !== saved.current) void fetch(`/api/stories/${storyId}`, { method: "PUT", headers: { "Content-Type": "application/json", "x-metal-action": "1" }, body, keepalive: true });
+    };
+    window.addEventListener("pagehide", onHide);
+    return () => window.removeEventListener("pagehide", onHide);
+  }, [storyId]);
+
+  return { save, flush };
 }

@@ -1,17 +1,30 @@
 import { z } from "zod";
 import { getDb } from "@/server/db/client";
-import { jsonError, privileged } from "@/server/http";
+import { jsonError, privileged, sameOrigin } from "@/server/http";
+import { isRecordingId } from "@/server/media/storage";
 import { isSuggestionId } from "@/server/smartclip/actions";
+import { createStory, listStories, MAX_STORY_CLIPS } from "@/server/studio/stories";
+import { mediaUrls } from "@/server/timemachine/media-urls";
 import { isSessionId } from "@/server/timemachine/sessions";
-import { createStory, MAX_STORY_CLIPS } from "@/server/timemachine/stories";
 
-const Body = z.object({
-  sessionId: z.string().refine(isSessionId).nullable(),
-  momentIds: z.array(z.string().refine(isSuggestionId)).min(1).max(MAX_STORY_CLIPS),
-  title: z.string().max(200).optional(),
-});
+const Body = z
+  .object({
+    sessionId: z.string().refine(isSessionId).nullable(),
+    momentIds: z.array(z.string().refine(isSuggestionId)).max(MAX_STORY_CLIPS).optional(),
+    ranges: z
+      .array(z.object({ recordingId: z.string().refine(isRecordingId), inMs: z.number().finite(), outMs: z.number().finite(), caption: z.string().max(200).nullable().optional() }))
+      .max(MAX_STORY_CLIPS)
+      .optional(),
+    title: z.string().max(200).optional(),
+  })
+  .refine((b) => (b.momentIds?.length ?? 0) + (b.ranges?.length ?? 0) > 0);
 
-/** Starts a Story Studio project from real moments (ids + their own boundaries). */
+export async function GET(request: Request) {
+  if (!sameOrigin(request)) return jsonError(403, "Forbidden.");
+  return Response.json({ stories: listStories(getDb(), mediaUrls()) }, { headers: { "Cache-Control": "no-store" } });
+}
+
+/** Starts a story from real moments (Time Machine) or recording ranges (Recall). */
 export async function POST(request: Request) {
   const denied = privileged(request);
   if (denied) return denied;

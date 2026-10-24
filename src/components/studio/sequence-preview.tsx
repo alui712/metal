@@ -120,7 +120,7 @@ export function SequencePreview({
                     setFailed(null);
                   }}
                   onError={() => setFailed(rec.title)}
-                  className="absolute inset-0 size-full bg-black object-cover"
+                  className={`absolute inset-0 size-full bg-black ${project.framing === "fit" ? "object-contain" : "object-cover"}`}
                 />
               )}
               {failed && (

@@ -98,7 +98,7 @@ export function ClipTimeline({
                   onClick={() => onSelect(clip.id)}
                   onKeyDown={(e) => onKeyDown(e, clip, index)}
                   aria-pressed={isSel}
-                  aria-label={`Clip ${index + 1}: ${moment?.title ?? rec?.title}, ${seconds(clipDuration(clip))}. Alt+arrows to move, Delete to remove.`}
+                  aria-label={`Clip ${index + 1}: ${moment?.title ?? rec?.title}, ${seconds(clipDuration(clip))}${library.issues?.[clip.id] ? `. ${library.issues[clip.id]}` : ""}. Alt+arrows to move, Delete to remove.`}
                   className={cn(
                     "group flex h-full w-full flex-col overflow-hidden rounded-xl border bg-surface-3 text-left transition-colors",
                     isSel ? "border-accent shadow-[0_0_0_1px_var(--violet-500)]" : "border-line hover:border-line-strong",
@@ -110,6 +110,11 @@ export function ClipTimeline({
                       {index + 1}
                     </span>
                     <GripVertical className="absolute right-1 top-1.5 size-4 text-white/60 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden />
+                    {library.issues?.[clip.id] && (
+                      <span className="absolute inset-x-0 bottom-0 bg-danger/85 px-1.5 py-0.5 text-[10px] font-medium text-white" title={library.issues[clip.id]}>
+                        Source unavailable
+                      </span>
+                    )}
                   </span>
                   <span className="block px-2.5 py-2">
                     <span className="block truncate text-[12.5px] font-medium text-ink">{moment?.title ?? rec?.title}</span>

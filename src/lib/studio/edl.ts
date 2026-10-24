@@ -14,6 +14,7 @@ export type EdlOp =
   | { type: "setCaption"; clipId: string; caption: string | null }
   | { type: "setAspect"; aspect: Aspect }
   | { type: "setCaptions"; enabled: boolean }
+  | { type: "setFraming"; framing: "fill" | "fit" }
   | { type: "setTitle"; title: string };
 
 /** Source bounds a trim may not exceed (the clip's recording/moment range). */
@@ -74,6 +75,8 @@ export function applyOp(project: StoryProject, op: EdlOp, bounds: TrimBounds = {
       return { ...project, aspect: op.aspect };
     case "setCaptions":
       return { ...project, captions: op.enabled };
+    case "setFraming":
+      return project.framing === op.framing ? project : { ...project, framing: op.framing };
     case "setTitle":
       return { ...project, title: op.title };
   }
@@ -91,6 +94,14 @@ function mapClip(
     return fn(c);
   });
   return changed ? { ...project, clips } : project;
+}
+
+/**
+ * Comparable key of what a render depends on (mirrored by the server's export
+ * records), so the UI can tell whether an export matches the current edit.
+ */
+export function edlKey(p: { aspect: string; framing?: string; captions: boolean; clips: Array<{ recordingId: string | null; inMs: number; outMs: number; caption: string | null }> }): string {
+  return JSON.stringify([p.aspect, p.framing ?? "fill", p.captions, p.clips.map((c) => [c.recordingId, c.inMs, c.outMs, p.captions ? (c.caption?.trim() ? c.caption.slice(0, 200) : "") : ""])]);
 }
 
 export function clipDuration(c: StoryClip): number {
