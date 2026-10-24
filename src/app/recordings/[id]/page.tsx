@@ -17,7 +17,7 @@ import { getRecording } from "@/server/recordings";
 
 export const metadata: Metadata = { title: "Recording" };
 
-export default function RecordingPage({ params }: PageProps<"/recordings/[id]">) {
+export default function RecordingPage({ params, searchParams }: PageProps<"/recordings/[id]">) {
   return (
     <PageTransition>
       <PageContainer className="pb-24">
@@ -25,15 +25,17 @@ export default function RecordingPage({ params }: PageProps<"/recordings/[id]">)
           <ArrowLeft className="size-4" aria-hidden /> Library
         </Link>
         <Suspense fallback={<div className="aspect-video animate-pulse rounded-2xl bg-surface-2" />}>
-          <RecordingView params={params} />
+          <RecordingView params={params} searchParams={searchParams} />
         </Suspense>
       </PageContainer>
     </PageTransition>
   );
 }
 
-async function RecordingView({ params }: { params: PageProps<"/recordings/[id]">["params"] }) {
+async function RecordingView({ params, searchParams }: { params: PageProps<"/recordings/[id]">["params"]; searchParams: PageProps<"/recordings/[id]">["searchParams"] }) {
   const { id } = await params;
+  // ?t=<ms>: open at a moment (e.g. from Recall).
+  const t = Number((await searchParams).t);
   if (!isRecordingId(id)) notFound();
   const r = await getRecording(id);
   if (!r) notFound();
@@ -46,6 +48,7 @@ async function RecordingView({ params }: { params: PageProps<"/recordings/[id]">
         {r.videoUrl && r.durationMs ? (
           <SmartClipWorkspace
             recording={{ id: r.id, title: r.title, durationMs: r.durationMs, videoUrl: r.videoUrl, posterUrl: r.posterUrl, proxied: r.proxied }}
+            startMs={Number.isFinite(t) && t > 0 && t < r.durationMs ? Math.round(t) : undefined}
           />
         ) : (
           <Stage r={r} />

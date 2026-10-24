@@ -5,7 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { alignSegments, dtwPreset, parseVoiced, parseWhisperJson, type RawSegment } from "./transcribe";
+import { alignSegments, dtwPreset, intersect, parseVadSegments, parseVoiced, parseWhisperJson, type RawSegment } from "./transcribe";
 
 const seg = (fromMs: number, toMs: number, text: string, confidence = 0.9): RawSegment => ({ fromMs, toMs, text, confidence });
 
@@ -18,6 +18,19 @@ describe("speech alignment (pure)", () => {
     ]);
     expect(parseVoiced("", 5000)).toEqual([{ startMs: 0, endMs: 5000 }]);
     expect(parseVoiced("silence_start: 0\n", 5000)).toEqual([]);
+  });
+
+  it("parses Silero VAD speech segments (centiseconds) on the original timeline", () => {
+    const out = "Detected 3 speech segments:\nSpeech segment 0: start = 403.00, end = 445.00\nSpeech segment 1: start = 474.00, end = 621.00\nSpeech segment 2: start = 2205.00, end = 2326.00\n";
+    expect(parseVadSegments(out, 30_000)).toEqual([
+      { startMs: 3880, endMs: 6360 },
+      { startMs: 21_900, endMs: 23_410 },
+    ]);
+    expect(parseVadSegments("Detected 0 speech segments:\n", 30_000)).toEqual([]);
+    expect(intersect([{ startMs: 0, endMs: 10_000 }], [{ startMs: 3000, endMs: 4000 }, { startMs: 9000, endMs: 12_000 }])).toEqual([
+      { startMs: 3000, endMs: 4000 },
+      { startMs: 9000, endMs: 10_000 },
+    ]);
   });
 
   it("snaps whisper's drifting boundaries to the measured sound", () => {
@@ -191,7 +204,10 @@ describe.skipIf(!ready)("local transcription (real whisper.cpp)", () => {
   it("keeps timestamps accurate over constant background sound", async () => {
     const id = await importReady("noisy.mp4");
     const t = await transcribe(id);
-    expect(t.voicedMs).toBeGreaterThan(39_000); // nothing silent to align against
+    // No silence to align against: with Silero VAD only the spoken second or two counts as voiced; without it, all 40 s.
+    const { vadProvider } = await import("./providers");
+    if (vadProvider().available) expect(t.voicedMs).toBeLessThan(5000);
+    else expect(t.voicedMs).toBeGreaterThan(39_000);
     const line = t.segments.find((s) => /stairs/i.test(s.text))!;
     expect(Math.abs(line.startMs - 20_000)).toBeLessThan(600);
     expect(line.endMs).toBeLessThan(23_500);

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { RecallExperience } from "@/components/recall/recall-experience";
+import Link from "next/link";
+import { LibraryRecall } from "@/components/recall/library-recall";
 import { PageContainer, PageHeader } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
 
@@ -30,11 +31,17 @@ export default function RecallPage() {
               Find the moment, <span className="font-display font-normal italic text-accent-ink">not the file.</span>
             </>
           }
-          description="Describe what happened in your own words. Recall jumps to the exact second and shows why it matched."
+          description="Search what was said in your recordings — exact words or the gist. Recall jumps to the exact second and shows why it matched."
         />
+        <p className="-mt-4 mb-6 text-[12.5px] text-ink-faint">
+          Want to see the full concept?{" "}
+          <Link href="/recall/demo" className="font-medium text-accent-ink hover:text-white">
+            Try Recall on demo memories →
+          </Link>
+        </p>
         {/* useSearchParams is request data under Cache Components. */}
         <Suspense fallback={<RecallSkeleton />}>
-          <RecallExperience />
+          <LibraryRecall />
         </Suspense>
       </PageContainer>
     </PageTransition>

@@ -50,6 +50,13 @@
       "when": 1792823356918,
       "tag": "0006_transcripts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1792825684940,
+      "tag": "0007_transcript_flags",
+      "breakpoints": true
     }
   ]
 }

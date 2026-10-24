@@ -14,10 +14,82 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 4 Watched folders & local Medal folder connector | ✅ Complete |
 | 5 Analysis + Smart Clip (FFmpeg signals; speech/vision not set up) | ✅ Complete |
 | 5C Local transcription (whisper.cpp) | ✅ Complete |
-| 6 Real Recall & Time Machine (DB-backed repository) | ⏳ Not started |
+| 6A Real Recall (transcripts, FTS + local embeddings) | ✅ Complete |
+| 6B Time Machine integration | ⏳ Not started |
 | 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 6A — Real Recall ✅ (2026-10-24)
+
+Recall now searches your real, machine-transcribed recordings, locally. Approved downloads, both in gitignored `models/`:
+- Silero VAD `ggml-silero-v5.1.2.bin` (0.9 MB);
+- `Xenova/all-MiniLM-L6-v2`, quantized (23 MB), plus the npm package `@huggingface/transformers`.
+
+Inference is offline: remote model loading is disabled. ADR 0015.
+
+### Implemented
+- **`/recall` searches the real library. The demo is preserved at `/recall/demo`** (labeled "Demo data" and linked from Recall). The ⌘K palette now opens real search.
+- **Hybrid search** (`src/server/search/`):
+  - the existing FTS5 index, with stemmed prefix terms and filler words ignored;
+  - exact phrases (quotes force a phrase match);
+  - local semantic similarity;
+  - recording names and games.
+- **Ranking:** transparent strengths (strong, good, loosely related), with reasons such as "Exact phrase …", "Matched words: smoke, entrance", "Similar meaning (similarity 0.75)", or "2 matching lines close together".
+  - Weak matches appear only when nothing better exists, labeled "No close matches".
+  - Unrelated queries return nothing.
+- **Results:** recording, real timestamp, the matching transcript lines with highlighted words, and match sources.
+  - Clicking a result plays it in place from the line's real start. **Open recording** goes to `/recordings/:id?t=<ms>`, which opens at that moment.
+- **Filters:** transcribed recording, game (shown when any recording has one), and a date range, all kept in the URL. An honest empty state says filters may be hiding results.
+- **Labels:** "Machine transcription (whisper.cpp) — words may be wrong. A match shows what was said, not what happened on screen." The index line shows how many lines and recordings are searchable, whether meaning-matching is active, and how many lines are excluded.
+- **Flag incorrect lines:** a flag button on each transcript line. A flagged line is struck through ("Marked wrong · not searched") and removed from the search index and Smart Clip evidence. Restore re-indexes it. Migration `0007` adds `transcript_segments.flagged_at`.
+- **Transcription quality:**
+  - Silero VAD speech regions (on the original timeline, via `whisper-vad-speech-segments`) gate segments in addition to the silence map. `whisper-cli --vad` isn't used, because it breaks the DTW timestamps.
+  - Stock whisper sign-offs are dropped.
+  - Embeddings are computed after transcription; older lines get them lazily on search.
+- Smart Clip scoring is unchanged.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (127 tests; 12 new) · `npm run build` ✅ (no warnings)
+  - **Search tests (real whisper lines, real embeddings):**
+    - an exact phrase gives the right recording, segment id, and 6940 ms;
+    - quoted phrases;
+    - keywords across recordings, with highlights;
+    - paraphrases: "enemy spotted on the staircase", "we got the win", and "go left" each find the right line;
+    - "pizza recipe", "baking bread", and gibberish return nothing;
+    - ambiguous handling;
+    - flag excludes and restore re-indexes;
+    - recording, game, and date filters;
+    - grouping of nearby lines;
+    - title matches;
+    - keyword fallback without the model.
+  - **VAD:** parsing and intersection. All real-whisper transcription tests pass *with VAD on*: timings within 0.5–0.6 s, no words on the tone, silent and no-audio cases, retries.
+- **Live on :3001 (worker + dev server):** 5 real recordings re-transcribed with VAD; 8 searchable lines across 4 recordings, all embedded.
+  - "enemies on the stairs" → voice chat at 0:06.94, strong (phrase, 0.91).
+  - "smoke the entrance" → match end at 0:06.12.
+  - "gg, close game" → 0:30.16, good.
+  - "rotating" → 0:04.2.
+  - "we won" → weak only, flagged ambiguous.
+  - "where should we attack", "pizza recipe", `"left side"`, and a future date filter → nothing.
+  - A recording filter narrows results correctly.
+- **Browser (CDP):** 18/18.
+  - Phrase result with highlights; it plays from 0:06.94.
+  - The deep link opens the recording at exactly 6.94 s.
+  - Paraphrase, loose-match label, honest no-match, and both filters (URL-synced).
+  - Flag, then not searchable, then restore, then searchable again.
+  - The demo still works; no horizontal scroll at 390 px; no console errors.
+- **Regression:** 69/69 (demo Recall checks now point at `/recall/demo`), 27/27, 10/10, Smart Clip hub 3/3, transcript UI 12/12.
+
+### Known issues / limitations
+- Recall only knows what was said and what recordings are named; it can't see gameplay.
+- VAD also removed one misheard line on the voice-chat test ("I love him", which was really "finish him").
+- Both OBS replay clips contain detected human speech (VAD 5.9 s and 1.75 s), so their single lines are likely real voices, possibly misheard.
+- Re-transcribing a recording clears its flags (the lines are replaced).
+- No recordings have a game set yet, so the game filter stays hidden until one does.
+- `npm audit` reports 4 moderate advisories in `esbuild` under the dev tooling. This predates this phase and wasn't force-fixed.
+- The :3001 dev server was restarted once, with approval.
 
 ---
 

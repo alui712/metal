@@ -1,13 +1,13 @@
 "use client";
 
-import { Lock, LoaderCircle, Mic, RotateCcw, TriangleAlert } from "lucide-react";
+import { Flag, Lock, LoaderCircle, Mic, RotateCcw, TriangleAlert, Undo2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { timecode } from "@/lib/format";
 import type { Transcript } from "./use-smart-clip";
 
-const STAGE: Record<string, string> = { audio: "Preparing audio", speech: "Transcribing speech", saving: "Saving transcript" };
+const STAGE: Record<string, string> = { audio: "Preparing audio", voice: "Finding speech", speech: "Transcribing speech", saving: "Saving transcript" };
 
 /** Timestamped transcript from local whisper.cpp; click a line to play from there. */
 export function TranscriptPanel({
@@ -17,6 +17,7 @@ export function TranscriptPanel({
   busy,
   onTranscribe,
   onSeek,
+  onFlag,
 }: {
   t: Transcript | undefined;
   workerOnline: boolean;
@@ -24,9 +25,10 @@ export function TranscriptPanel({
   busy: string | null;
   onTranscribe: () => void;
   onSeek: (ms: number) => void;
+  onFlag: (segmentId: string, flagged: boolean) => void;
 }) {
   const list = useRef<HTMLOListElement>(null);
-  const active = t?.segments.findIndex((g) => nowMs >= g.startMs && nowMs < g.endMs + 300) ?? -1;
+  const active = t?.segments.findIndex((g) => !g.flagged && nowMs >= g.startMs && nowMs < g.endMs + 300) ?? -1;
   useEffect(() => {
     if (active < 0 || !list.current) return;
     const el = list.current.children[active] as HTMLElement | undefined;
@@ -89,20 +91,33 @@ export function TranscriptPanel({
         <>
           <ol ref={list} aria-label="Transcript lines" className="relative max-h-80 overflow-y-auto px-2 py-2">
             {t.segments.map((g, i) => (
-              <li key={g.id}>
+              <li key={g.id} className="group flex items-start gap-1">
                 <button
                   type="button"
                   onClick={() => onSeek(g.startMs)}
                   aria-current={i === active ? "true" : undefined}
-                  className={cn("flex w-full gap-3 rounded-lg px-3 py-1.5 text-left text-[13.5px] leading-relaxed transition-colors hover:bg-surface-3/60", i === active ? "bg-accent/10 text-ink" : "text-ink-muted")}
+                  className={cn("flex min-w-0 flex-1 gap-3 rounded-lg px-3 py-1.5 text-left text-[13.5px] leading-relaxed transition-colors hover:bg-surface-3/60", i === active ? "bg-accent/10 text-ink" : "text-ink-muted", g.flagged && "text-ink-faint")}
                 >
                   <span className="w-11 shrink-0 pt-px font-mono text-[11.5px] tabular-nums text-ink-faint">{timecode(g.startMs)}</span>
-                  <span className="min-w-0">{g.text}</span>
+                  <span className="min-w-0">
+                    <span className={cn(g.flagged && "line-through decoration-ink-faint/60")}>{g.text}</span>
+                    {g.flagged && <span className="ml-2 text-[11.5px] no-underline">Marked wrong · not searched</span>}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onFlag(g.id, !g.flagged)}
+                  disabled={busy !== null}
+                  aria-label={g.flagged ? `Restore line at ${timecode(g.startMs)}` : `Mark line at ${timecode(g.startMs)} as wrong`}
+                  title={g.flagged ? "Restore this line" : "Mark as wrong — removes it from search and Smart Clip"}
+                  className={cn("mt-1 grid size-7 shrink-0 place-items-center rounded-md text-ink-faint transition-opacity hover:bg-surface-3/60 hover:text-ink focus-visible:opacity-100", g.flagged ? "opacity-100" : "opacity-40 group-hover:opacity-100")}
+                >
+                  {g.flagged ? <Undo2 className="size-3.5" aria-hidden /> : <Flag className="size-3.5" aria-hidden />}
                 </button>
               </li>
             ))}
           </ol>
-          <p className="border-t border-line px-5 py-2.5 text-[11.5px] text-ink-faint">Machine transcription — words may be wrong, and it doesn’t identify who is speaking.</p>
+          <p className="border-t border-line px-5 py-2.5 text-[11.5px] text-ink-faint">Machine transcription — words may be wrong, and it doesn’t identify who is speaking. Use the flag to mark a wrong line.</p>
         </>
       )}
     </section>

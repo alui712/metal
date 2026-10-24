@@ -47,9 +47,16 @@ const len = (s: { startMs: number; endMs: number }) => `${Math.round((s.endMs - 
  * range from the same video METAL plays (the original, or its converted
  * copy on the same timeline). Accepted clips are cut from the original.
  */
-export function SmartClipWorkspace({ recording }: { recording: { id: string; title: string; durationMs: number; videoUrl: string; posterUrl: string | null; proxied: boolean } }) {
+export function SmartClipWorkspace({
+  recording,
+  startMs,
+}: {
+  recording: { id: string; title: string; durationMs: number; videoUrl: string; posterUrl: string | null; proxied: boolean };
+  /** Open at this moment (e.g. a Recall result's real timestamp). */
+  startMs?: number;
+}) {
   const video = useRef<HTMLVideoElement>(null);
-  const { state, loadError, analyze, transcribe, act } = useSmartClip(recording.id);
+  const { state, loadError, analyze, transcribe, act, flagLine } = useSmartClip(recording.id);
   const [nowMs, setNowMs] = useState(0);
   const [preview, setPreview] = useState<{ id: string; endMs: number } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -73,12 +80,20 @@ export function SmartClipWorkspace({ recording }: { recording: { id: string; tit
       });
     };
     const onPause = () => setPreview((p) => (p && v.currentTime * 1000 < p.endMs - 300 ? null : p));
+    if (startMs !== undefined) {
+      const at = () => {
+        v.currentTime = startMs / 1000;
+      };
+      if (v.readyState >= 1) at();
+      else v.addEventListener("loadedmetadata", at, { once: true });
+    }
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("pause", onPause);
     return () => {
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("pause", onPause);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial position only
   }, []);
 
   function seek(ms: number, play = false) {
@@ -227,6 +242,7 @@ export function SmartClipWorkspace({ recording }: { recording: { id: string; tit
         nowMs={nowMs}
         busy={busy}
         onTranscribe={() => run("transcribe", transcribe)}
+        onFlag={(id, flagged) => run(`flag:${id}`, () => flagLine(id, flagged))}
         onSeek={(ms) => seek(ms, true)}
       />
       {recording.proxied && a?.status === "done" && open.length > 0 && (

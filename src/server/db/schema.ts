@@ -237,6 +237,8 @@ export const transcriptSegments = sqliteTable(
     text: text("text").notNull(),
     speaker: text("speaker"),
     confidence: real("confidence"),
+    /** Set when the user marks the line as wrong: kept for reference, excluded from search and Smart Clip. */
+    flaggedAt: integer("flagged_at"),
   },
   (t) => [index("transcript_recording_idx").on(t.recordingId, t.startMs)],
 );

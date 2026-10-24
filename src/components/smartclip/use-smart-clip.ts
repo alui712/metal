@@ -48,7 +48,7 @@ export type Transcript = {
   language: string | null;
   voicedMs: number | null;
   setup: { available: boolean; reason: string | null };
-  segments: Array<{ id: string; startMs: number; endMs: number; text: string }>;
+  segments: Array<{ id: string; startMs: number; endMs: number; text: string; flagged: boolean }>;
 };
 export type SmartClipState = { workerOnline: boolean; analysis: Analysis; suggestions: Suggestion[]; transcript: Transcript };
 
@@ -109,6 +109,7 @@ export function useSmartClip(recordingId: string) {
     loadError,
     analyze: () => send(`/api/recordings/${recordingId}/analysis`, "POST"),
     transcribe: () => send(`/api/recordings/${recordingId}/transcript`, "POST"),
+    flagLine: (segmentId: string, flagged: boolean) => send(`/api/transcript/${segmentId}`, "PATCH", { flagged }),
     act: (id: string, body: { action: "accept" | "dismiss" | "restore" | "retry" } | { action: "adjust"; startMs: number; endMs: number }) => send(`/api/clips/${id}`, "PATCH", body),
   };
 }

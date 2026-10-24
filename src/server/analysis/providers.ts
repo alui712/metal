@@ -10,13 +10,13 @@ export type ProviderStatus = { available: true; name: string } | { available: fa
 let whisperCache: { at: number; ok: boolean; bin: string } | null = null;
 
 /** GGML model files start with the magic "lmgg" (0x67676d6c, little-endian). */
-function isGgmlModel(file: string): boolean {
+export function isGgmlModel(file: string, minBytes = 1024 * 1024): boolean {
   try {
     const fd = fs.openSync(/*turbopackIgnore: true*/ file, "r");
     const head = Buffer.alloc(4);
     fs.readSync(fd, head, 0, 4, 0);
     fs.closeSync(fd);
-    return head.toString("latin1") === "lmgg" && fs.statSync(/*turbopackIgnore: true*/ file).size > 1024 * 1024;
+    return head.toString("latin1") === "lmgg" && fs.statSync(/*turbopackIgnore: true*/ file).size > minBytes;
   } catch {
     return false;
   }
@@ -44,4 +44,23 @@ export function visionProvider(): ProviderStatus {
   if (!config.anthropicApiKey) return { available: false, reason: "Scene descriptions aren’t set up (no AI provider key configured)." };
   // A key alone doesn't enable it: sending frames out needs the analysis step and user consent, which aren't built yet.
   return { available: false, reason: "Scene descriptions aren’t enabled in this version yet." };
+}
+
+let vadCache: { at: number; ok: boolean; bin: string } | null = null;
+
+/** Silero voice-activity detection via whisper.cpp's whisper-vad-speech-segments. */
+export function vadProvider(): ProviderStatus {
+  if (!vadCache || vadCache.bin !== config.whisperVadPath || Date.now() - vadCache.at > 30_000) {
+    let ok = false;
+    try {
+      execFileSync(config.whisperVadPath, ["--help"], { stdio: "ignore", timeout: 5000 });
+      ok = true;
+    } catch {
+      ok = false;
+    }
+    vadCache = { at: Date.now(), ok, bin: config.whisperVadPath };
+  }
+  if (!vadCache.ok) return { available: false, reason: "whisper-vad-speech-segments isn’t installed." };
+  if (!isGgmlModel(config.whisperVadModelPath, 100 * 1024)) return { available: false, reason: "No Silero VAD model in models/." };
+  return { available: true, name: "Silero VAD" };
 }

@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import type { JobContext } from "../../worker/handlers";
 import { config } from "../config";
 import type { Db } from "../db/client";
@@ -10,15 +10,16 @@ import { newId } from "../ids";
 import { PermanentJobError } from "../jobs/errors";
 import { enqueueJob } from "../jobs/queue";
 import { managedPath } from "../media/storage";
+import { ensureEmbeddings } from "../search/recall";
 import { ffmpegLog, streamOffsets } from "./analyze";
-import { speechProvider } from "./providers";
+import { speechProvider, vadProvider } from "./providers";
 
 // Local speech transcription with whisper.cpp (whisper-cli). Audio never
 // leaves this computer. Whisper's own timestamps drift across silence and it
 // can "hear" words in silent audio, so segments are aligned to — and only
 // kept where — FFmpeg measured actual sound.
 
-export const TRANSCRIBE_VERSION = "whisper-cli-1";
+export const TRANSCRIBE_VERSION = "whisper-cli-2";
 
 export type Interval = { startMs: number; endMs: number };
 export type RawSegment = { fromMs: number; toMs: number; text: string; confidence: number | null };
@@ -46,6 +47,27 @@ export function parseVoiced(stderr: string, durationMs: number): Interval[] {
   if (at < durationMs) voiced.push({ startMs: at, endMs: durationMs });
   return voiced.filter((v) => v.endMs - v.startMs >= 50);
 }
+
+/**
+ * Speech regions from `whisper-vad-speech-segments` stdout
+ * ("Speech segment 0: start = 403.00, end = 445.00", centiseconds), padded
+ * slightly and merged. Times are on the original audio timeline.
+ */
+export function parseVadSegments(stdout: string, durationMs: number, padMs = 150): Interval[] {
+  const raw = [...stdout.matchAll(/Speech segment \d+: start = ([\d.]+), end = ([\d.]+)/g)]
+    .map((m) => ({ startMs: Math.max(0, Math.round(Number(m[1]) * 10) - padMs), endMs: Math.min(durationMs, Math.round(Number(m[2]) * 10) + padMs) }))
+    .sort((a, b) => a.startMs - b.startMs);
+  const out: Interval[] = [];
+  for (const r of raw) {
+    const last = out.at(-1);
+    if (last && r.startMs <= last.endMs) last.endMs = Math.max(last.endMs, r.endMs);
+    else out.push({ ...r });
+  }
+  return out;
+}
+
+export const intersect = (a: Interval[], b: Interval[]): Interval[] =>
+  a.flatMap((x) => b.map((y) => ({ startMs: Math.max(x.startMs, y.startMs), endMs: Math.min(x.endMs, y.endMs) })).filter((i) => i.endMs > i.startMs));
 
 /**
  * Segments from whisper-cli `-ojf` JSON. Special tokens are excluded. With
@@ -81,6 +103,9 @@ export const dtwPreset = (modelFile: string) => {
   return DTW_PRESETS.has(name) ? name : null;
 };
 
+/** Sign-offs Whisper is known to produce from silence or music (YouTube captions in its training data). */
+const STOCK_HALLUCINATION = /^(thanks?( you)? (so much )?for watching|please (like and )?subscribe|subtitles by|transcribed by)/i;
+
 export const SPEECH_RULES = {
   /** A segment needs this much measured sound under it, or it's treated as hallucinated. */
   minVoicedMs: 150,
@@ -101,7 +126,7 @@ export const SPEECH_RULES = {
 export function alignSegments(raw: RawSegment[], voiced: Interval[]): Segment[] {
   const out: Segment[] = [];
   for (const s of raw) {
-    if (!s.text || /^[[(].*[\])]$/.test(s.text) || /^[\s.,!?♪-]*$/.test(s.text)) continue;
+    if (!s.text || /^[[(].*[\])]$/.test(s.text) || /^[\s.,!?♪-]*$/.test(s.text) || STOCK_HALLUCINATION.test(s.text)) continue;
     if (s.confidence !== null && s.confidence < SPEECH_RULES.minConfidence) continue;
     const pieces = voiced
       .map((v) => ({ startMs: Math.max(v.startMs, s.fromMs), endMs: Math.min(v.endMs, s.toMs) }))
@@ -126,6 +151,15 @@ export function alignSegments(raw: RawSegment[], voiced: Interval[]): Segment[] 
 }
 
 const languageFor = (modelFile: string) => (/\.en\.bin$/.test(modelFile) ? "en" : "auto");
+
+function vadRun(args: string[], { signal, timeoutMs }: { signal?: AbortSignal; timeoutMs: number }): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(config.whisperVadPath, args, { signal, timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 }, (err, stdout) => {
+      if (err) reject(new Error(`Voice detection failed: ${err.message.slice(0, 200)}`));
+      else resolve(String(stdout));
+    });
+  });
+}
 
 function whisper(args: string[], { signal, timeoutMs }: { signal?: AbortSignal; timeoutMs: number }): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -167,13 +201,22 @@ export async function transcribeRecording({ db, job, progress, signal }: JobCont
     const offsets = await streamOffsets(file, signal);
     let segments: Segment[] = [];
     let voicedMs = 0;
+    let vad = false;
     let language: string | null = null;
     if (offsets.hasAudio) {
       const log = await ffmpegLog(
         ["-hide_banner", "-nostdin", "-loglevel", "info", "-y", "-i", file, "-map", "0:a:0", "-vn", "-af", "silencedetect=noise=-45dB:d=0.5", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", wav],
         { signal, timeoutMs },
       );
-      const voiced = parseVoiced(log, durationMs);
+      let voiced = parseVoiced(log, durationMs);
+      // Voice activity (Silero), when set up: only human speech counts, not music or effects.
+      if (voiced.length && vadProvider().available) {
+        progress({ stage: "voice", progress: 0.2 });
+        setT({ stage: "voice" });
+        const out = await vadRun(["-vm", config.whisperVadModelPath, "-f", wav, "-np"], { signal, timeoutMs });
+        voiced = intersect(voiced, parseVadSegments(out, durationMs));
+        vad = true;
+      }
       voicedMs = voiced.reduce((a, v) => a + v.endMs - v.startMs, 0);
       // Nothing but silence: don't ask a model to find words in it.
       if (voicedMs >= 300) {
@@ -208,7 +251,7 @@ export async function transcribeRecording({ db, job, progress, signal }: JobCont
           model,
           promptVersion: TRANSCRIBE_VERSION,
           inputRefsJson: JSON.stringify([{ recordingId: id, audioOffsetMs: offsets.audioOffsetMs }]),
-          outputJson: JSON.stringify({ language, segments: segments.length, voicedMs }),
+          outputJson: JSON.stringify({ language, segments: segments.length, voicedMs, vad: vad ? "silero-v5.1.2" : null }),
           jobId: job.id,
         })
         .run();
@@ -219,6 +262,12 @@ export async function transcribeRecording({ db, job, progress, signal }: JobCont
       }
       setT({ status: "done", stage: null, error: null, hasAudio: offsets.hasAudio, segmentCount: segments.length, voicedMs, language, aiOutputId: aiId, finishedAt: Date.now() });
     })();
+    // Search vectors (local model). Optional: Recall falls back to keywords and backfills later.
+    try {
+      await ensureEmbeddings(db);
+    } catch (err) {
+      console.error(`[transcribe ${job.id}] embeddings skipped:`, err instanceof Error ? err.message : err);
+    }
   } catch (err) {
     const permanent = err instanceof PermanentJobError;
     const final = permanent || job.attempts >= job.maxAttempts;
@@ -259,16 +308,19 @@ export type TranscriptView = {
   voicedMs: number | null;
   /** Whether transcription can run now, and if not, why. */
   setup: { available: boolean; reason: string | null };
-  segments: Array<{ id: string; startMs: number; endMs: number; text: string }>;
+  /** `flagged`: the user marked the line wrong (excluded from search and Smart Clip). */
+  segments: Array<{ id: string; startMs: number; endMs: number; text: string; flagged: boolean }>;
 };
 
-export function readSegments(db: Db, recordingId: string) {
+/** A recording's transcript lines; lines the user flagged as wrong are excluded unless asked for. */
+export function readSegments(db: Db, recordingId: string, { includeFlagged = false } = {}) {
   return db
-    .select({ id: transcriptSegments.id, startMs: transcriptSegments.startMs, endMs: transcriptSegments.endMs, text: transcriptSegments.text })
+    .select({ id: transcriptSegments.id, startMs: transcriptSegments.startMs, endMs: transcriptSegments.endMs, text: transcriptSegments.text, flagged: sql<boolean>`${transcriptSegments.flaggedAt} is not null` })
     .from(transcriptSegments)
-    .where(eq(transcriptSegments.recordingId, recordingId))
+    .where(includeFlagged ? eq(transcriptSegments.recordingId, recordingId) : and(eq(transcriptSegments.recordingId, recordingId), isNull(transcriptSegments.flaggedAt)))
     .orderBy(asc(transcriptSegments.startMs))
-    .all();
+    .all()
+    .map((s) => ({ ...s, flagged: Boolean(s.flagged) }));
 }
 
 export function transcriptView(db: Db, recordingId: string): TranscriptView {
@@ -284,6 +336,6 @@ export function transcriptView(db: Db, recordingId: string): TranscriptView {
     language: t?.language ?? null,
     voicedMs: t?.voicedMs ?? null,
     setup: p.available ? { available: true, reason: null } : { available: false, reason: p.reason },
-    segments: t?.status === "done" ? readSegments(db, recordingId) : [],
+    segments: t?.status === "done" ? readSegments(db, recordingId, { includeFlagged: true }) : [],
   };
 }

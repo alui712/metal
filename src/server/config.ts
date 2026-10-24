@@ -25,6 +25,18 @@ export const config = {
     const candidates = ["models/ggml-base.en.bin", "data/models/ggml-base.en.bin"].map(resolveFromRoot);
     return candidates.find((p) => fs.existsSync(/*turbopackIgnore: true*/ p)) ?? candidates[0];
   },
+  get whisperVadPath(): string {
+    return process.env.WHISPER_VAD_PATH ?? "whisper-vad-speech-segments";
+  },
+  /** Silero VAD (GGML) for whisper.cpp; optional. */
+  get whisperVadModelPath(): string {
+    return resolveFromRoot(process.env.WHISPER_VAD_MODEL_PATH ?? "models/ggml-silero-v5.1.2.bin");
+  },
+  /** Local sentence-embedding model directory (transformers.js layout); optional. */
+  get embedModelDir(): string {
+    return resolveFromRoot(process.env.EMBED_MODEL_DIR ?? "models");
+  },
+  embedModelId: process.env.EMBED_MODEL_ID ?? "Xenova/all-MiniLM-L6-v2",
   get anthropicApiKey(): string | undefined {
     return process.env.ANTHROPIC_API_KEY || undefined;
   },
