@@ -3,8 +3,10 @@ import { Readable } from "node:stream";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { renderExports, storyProjects } from "@/server/db/schema";
+import { jsonError, privileged, sameOrigin } from "@/server/http";
 import { parseRange } from "@/server/media/range";
 import { exportFile, isExportId } from "@/server/studio/render";
+import { deleteExport, isStoryId } from "@/server/studio/stories";
 
 // Serves a finished story export by id. The path is derived from the id inside
 // the exports directory; nothing from the client names a file.
@@ -12,6 +14,7 @@ import { exportFile, isExportId } from "@/server/studio/render";
 const notFound = () => Response.json({ error: "Not found" }, { status: 404 });
 
 export async function GET(request: Request, ctx: RouteContext<"/api/exports/[id]">) {
+  if (!sameOrigin(request)) return jsonError(403, "Forbidden.");
   const { id } = await ctx.params;
   if (!isExportId(id)) return notFound();
   const row = getDb()
@@ -51,6 +54,17 @@ export async function GET(request: Request, ctx: RouteContext<"/api/exports/[id]
   const stream = fs.createReadStream(file, { start, end });
   request.signal.addEventListener("abort", () => stream.destroy());
   return new Response(Readable.toWeb(stream) as ReadableStream, { status: range ? 206 : 200, headers });
+}
+
+export async function DELETE(request: Request, ctx: RouteContext<"/api/exports/[id]">) {
+  const denied = privileged(request);
+  if (denied) return denied;
+  const { id } = await ctx.params;
+  if (!isExportId(id)) return notFound();
+  const body = (await request.json().catch(() => null)) as { projectId?: unknown } | null;
+  if (!body || typeof body.projectId !== "string" || !isStoryId(body.projectId)) return jsonError(400, "Invalid export.");
+  const res = deleteExport(getDb(), id, body.projectId);
+  return "error" in res ? jsonError(res.status, res.error) : new Response(null, { status: 204 });
 }
 
 export { GET as HEAD };

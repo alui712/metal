@@ -1,33 +1,96 @@
 "use client";
 
 import { motion, useReducedMotion } from "motion/react";
-import { Clapperboard, Film, LoaderCircle, Play } from "lucide-react";
+import { Clapperboard, Copy, Ellipsis, Film, LoaderCircle, Pencil, Play, Search, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { buttonClass } from "@/components/ui/button";
+import { useCallback, useEffect, useState } from "react";
+import { Button, buttonClass } from "@/components/ui/button";
 import { EASE_OUT } from "@/components/ui/motion";
 import { timecode } from "@/lib/format";
+import { Modal } from "./dialogs";
 import type { ExportView } from "./real-export";
 
-type Story = { id: string; title: string; aspect: string; clipCount: number; durationMs: number; updatedAt: number; coverUrl: string | null; lastExport: ExportView | null };
+type Story = { id: string; title: string; aspect: string; clipCount: number; durationMs: number; createdAt: number; updatedAt: number; coverUrl: string | null; lastExport: ExportView | null };
 
-const updatedFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+const dateFmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+const HEADERS = { "Content-Type": "application/json", "x-metal-action": "1" };
 
 /** Saved stories on your recordings; new ones start in Time Machine or Recall. */
 export function StoriesHome() {
   const reduce = useReducedMotion();
   const [stories, setStories] = useState<Story[] | null>(null);
-  const [error, setError] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [notice, setNotice] = useState<{ kind: "ok" | "error"; text: string } | null>(null);
+  const [action, setAction] = useState<{ kind: "rename" | "delete"; story: Story } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [title, setTitle] = useState("");
+  const load = useCallback(async () => {
+    setLoadError(false);
+    const res = await fetch("/api/stories", { cache: "no-store" }).catch(() => null);
+    if (!res?.ok) {
+      setLoadError(true);
+      return;
+    }
+    setStories(((await res.json()) as { stories: Story[] }).stories);
+  }, []);
   useEffect(() => {
     let alive = true;
     fetch("/api/stories", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((j: { stories: Story[] }) => alive && setStories(j.stories))
-      .catch(() => alive && setError(true));
+      .catch(() => alive && setLoadError(true));
     return () => {
       alive = false;
     };
   }, []);
+
+  function openRename(story: Story) {
+    setTitle(story.title);
+    setAction({ kind: "rename", story });
+  }
+
+  async function rename() {
+    if (!action || action.kind !== "rename") return;
+    setPending(true);
+    const res = await fetch(`/api/stories/${action.story.id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify({ title }) }).catch(() => null);
+    if (res?.ok) {
+      setAction(null);
+      setNotice({ kind: "ok", text: "Story renamed." });
+      await load();
+    } else {
+      const body = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : {};
+      setNotice({ kind: "error", text: body.error ?? "Couldn’t rename the story." });
+    }
+    setPending(false);
+  }
+
+  async function duplicate(story: Story) {
+    setPending(true);
+    const res = await fetch(`/api/stories/${story.id}/duplicate`, { method: "POST", headers: HEADERS }).catch(() => null);
+    if (res?.ok) {
+      setNotice({ kind: "ok", text: `Duplicated “${story.title}”.` });
+      await load();
+    } else {
+      const body = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : {};
+      setNotice({ kind: "error", text: body.error ?? "Couldn’t duplicate the story." });
+    }
+    setPending(false);
+  }
+
+  async function remove() {
+    if (!action || action.kind !== "delete") return;
+    setPending(true);
+    const res = await fetch(`/api/stories/${action.story.id}`, { method: "DELETE", headers: HEADERS }).catch(() => null);
+    if (res?.ok) {
+      setAction(null);
+      setNotice({ kind: "ok", text: "Story and its exports deleted. Original recordings were kept." });
+      await load();
+    } else {
+      const body = res ? ((await res.json().catch(() => ({}))) as { error?: string }) : {};
+      setNotice({ kind: "error", text: body.error ?? "Couldn’t delete the story." });
+    }
+    setPending(false);
+  }
 
   return (
     <div>
@@ -48,8 +111,16 @@ export function StoriesHome() {
         </div>
       </div>
 
-      {error ? (
-        <p role="alert" className="mt-10 text-[14px] text-danger">Couldn’t load your stories.</p>
+      {notice && (
+        <p role={notice.kind === "error" ? "alert" : "status"} className={`mt-6 rounded-xl border px-4 py-3 text-[13px] ${notice.kind === "error" ? "border-danger/25 bg-danger/10 text-danger" : "border-ok/25 bg-ok/10 text-ok"}`}>
+          {notice.text}
+        </p>
+      )}
+
+      {loadError ? (
+        <div role="alert" className="mt-10 flex flex-wrap items-center gap-3 text-[14px] text-danger">
+          Couldn’t load your stories. <Button size="sm" variant="secondary" onClick={load}>Try again</Button>
+        </div>
       ) : !stories ? (
         <div aria-busy="true" aria-label="Loading stories" className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {[0, 1, 2].map((i) => (
@@ -61,14 +132,19 @@ export function StoriesHome() {
           <Film className="mx-auto size-7 text-accent-ink" strokeWidth={1.5} aria-hidden />
           <p className="mt-4 text-[16px] font-medium text-ink">No stories yet</p>
           <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
-            Open a session in Time Machine, select moments, and choose “Send to Story Studio” — or start one from a Recall result.
+            Turn your best moments into a story. Select moments from a session, or begin with a line you found in Recall.
           </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Link href="/sessions" className={buttonClass("primary", "md")}><Clapperboard className="size-4" aria-hidden /> Browse sessions</Link>
+            <Link href="/recall" className={buttonClass("secondary", "md")}><Search className="size-4" aria-hidden /> Search Recall</Link>
+          </div>
         </div>
       ) : (
         <ul className="mt-10 grid gap-5 sm:grid-cols-2 xl:grid-cols-3" aria-label="Stories">
           {stories.map((s, i) => (
             <motion.li key={s.id} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={reduce ? { duration: 0.2, y: { duration: 0 } } : { duration: 0.45, delay: Math.min(i, 6) * 0.05, ease: EASE_OUT }}>
-              <Link href={`/studio?story=${s.id}`} className="group block overflow-hidden rounded-3xl border border-line bg-surface-2 transition-[border-color,transform] duration-500 ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-accent/40">
+              <article className="group relative overflow-hidden rounded-3xl border border-line bg-surface-2 transition-[border-color,transform] duration-500 ease-[var(--ease-out)] hover:-translate-y-0.5 hover:border-accent/40 focus-within:border-accent/50">
+                <Link href={`/studio?story=${s.id}`} className="block focus-visible:outline-none" aria-label={`Open ${s.title}`}>
                 <span className="relative block aspect-video overflow-hidden bg-surface-3">
                   {s.coverUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element -- local poster
@@ -94,16 +170,45 @@ export function StoriesHome() {
                   </span>
                 </span>
                 <span className="block p-4">
-                  <span className="block truncate text-[15.5px] font-medium text-ink">{s.title}</span>
-                  <span className="mt-0.5 block text-[12.5px] text-ink-faint">
-                    {s.clipCount} clip{s.clipCount === 1 ? "" : "s"} · {timecode(s.durationMs)} · {s.aspect} · edited {updatedFmt.format(s.updatedAt)}
+                  <span className="block truncate pr-10 text-[15.5px] font-medium text-ink">{s.title}</span>
+                  <span className="mt-1 block text-[12.5px] text-ink-faint">
+                    {s.clipCount} clip{s.clipCount === 1 ? "" : "s"} · {timecode(s.durationMs)} · {s.aspect}
+                  </span>
+                  <span className="mt-1 block text-[11.5px] text-ink-faint">
+                    Created {dateFmt.format(s.createdAt)} · Edited {dateFmt.format(s.updatedAt)}
                   </span>
                 </span>
-              </Link>
+                </Link>
+                <details className="absolute bottom-3.5 right-3 z-10">
+                  <summary className="grid size-9 cursor-pointer list-none place-items-center rounded-lg text-ink-muted hover:bg-surface-3 hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent" aria-label={`Actions for ${s.title}`}>
+                    <Ellipsis className="size-5" aria-hidden />
+                  </summary>
+                  <div className="absolute bottom-10 right-0 w-40 overflow-hidden rounded-xl border border-line-strong bg-surface p-1 shadow-xl">
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-ink hover:bg-surface-3" onClick={() => openRename(s)}><Pencil className="size-3.5" aria-hidden /> Rename</button>
+                    <button disabled={pending} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-ink hover:bg-surface-3 disabled:opacity-50" onClick={() => duplicate(s)}><Copy className="size-3.5" aria-hidden /> Duplicate</button>
+                    <button className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px] text-danger hover:bg-danger/10" onClick={() => setAction({ kind: "delete", story: s })}><Trash2 className="size-3.5" aria-hidden /> Delete</button>
+                  </div>
+                </details>
+              </article>
             </motion.li>
           ))}
         </ul>
       )}
+
+      <Modal open={action?.kind === "rename"} onOpenChange={(open) => !open && setAction(null)} title="Rename story">
+        <form className="p-6" onSubmit={(event) => { event.preventDefault(); void rename(); }}>
+          <label htmlFor="rename-story" className="text-[13px] font-medium text-ink">Story name</label>
+          <input id="rename-story" autoFocus maxLength={80} value={title} onChange={(event) => setTitle(event.target.value)} className="mt-2 w-full rounded-xl border border-line bg-surface-2 px-3 py-2.5 text-[14px] text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/20" />
+          <div className="mt-6 flex justify-end gap-2"><Button type="button" variant="ghost" onClick={() => setAction(null)}>Cancel</Button><Button type="submit" disabled={pending}>{pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />}Save name</Button></div>
+        </form>
+      </Modal>
+
+      <Modal open={action?.kind === "delete"} onOpenChange={(open) => !open && setAction(null)} title="Delete story?">
+        <div className="p-6">
+          <p className="text-[14px] leading-relaxed text-ink-muted">This permanently deletes <strong className="text-ink">{action?.story.title}</strong> and its exported videos. Original gameplay recordings and source clips are never removed.</p>
+          <div className="mt-6 flex justify-end gap-2"><Button variant="ghost" onClick={() => setAction(null)}>Cancel</Button><Button variant="secondary" className="border-danger/30 text-danger hover:bg-danger/10" autoFocus disabled={pending} onClick={() => void remove()}>{pending && <LoaderCircle className="size-4 animate-spin" aria-hidden />}Delete story</Button></div>
+        </div>
+      </Modal>
     </div>
   );
 }

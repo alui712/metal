@@ -141,6 +141,7 @@ export function StudioEditor({
             <input
               id="story-title"
               value={project.title}
+              maxLength={80}
               onChange={(e) => apply({ type: "setTitle", title: e.target.value }, "title")}
               className="w-full min-w-0 rounded-lg bg-transparent text-[clamp(1.5rem,3vw,2.25rem)] font-semibold tracking-[-0.03em] text-ink outline-none transition-colors hover:bg-surface-2 focus-visible:bg-surface-2 sm:-ml-2 sm:px-2"
             />
