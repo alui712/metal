@@ -44,6 +44,8 @@ export async function receiveUpload(
     origin?: "upload" | "obs-replay" | "obs-recording" | "folder" | "clip";
     /** Real path of a local source file (server-only). */
     sourcePath?: string;
+    /** What `lastModified` is: a file's modified date (default), OBS's capture time, or a clip's parent time. */
+    recordedAtSource?: "file-date" | "capture" | "parent";
   },
 ): Promise<UploadResult> {
   const ext = path.extname(input.filename).slice(1).toLowerCase();
@@ -117,6 +119,7 @@ export async function receiveUpload(
             sizeBytes: size,
             contentHash,
             recordedAt: lm && lm > Date.UTC(2000, 0, 1) && lm < Date.now() + 86_400_000 ? lm : null,
+            recordedAtSource: lm && lm > Date.UTC(2000, 0, 1) && lm < Date.now() + 86_400_000 ? (input.recordedAtSource ?? "file-date") : null,
             status: "imported",
             origin: input.origin ?? "upload",
             sourcePath: input.sourcePath ?? null,

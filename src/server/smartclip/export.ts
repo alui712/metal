@@ -45,12 +45,14 @@ export async function exportClip({ db, job, progress, signal }: JobContext): Pro
     progress({ stage: "cutting", progress: 0.2 });
     await runFfmpeg(clipArgs(input, tmp, s.startMs, s.endMs), { signal, timeoutMs: Math.max(120_000, (s.endMs - s.startMs) * 10) });
     progress({ stage: "importing", progress: 0.8 });
-    const recordedAt = (parent.recordedAt ?? parent.importedAt) + s.startMs;
+    // Only a known parent time gives the clip a time; import time isn't one.
+    const recordedAt = parent.recordedAt !== null ? parent.recordedAt + s.startMs : null;
     const res = await receiveUpload(db, {
       body: Readable.toWeb(fs.createReadStream(tmp)) as ReadableStream<Uint8Array>,
       filename: `${parent.title} – clip ${clockLabel(s.startMs).replace(/:/g, "-")}.mp4`,
       lastModified: recordedAt,
       origin: "clip",
+      recordedAtSource: "parent",
     });
     db.update(recordings).set({ parentRecordingId: parent.id, parentStartMs: s.startMs }).where(eq(recordings.id, res.id)).run();
     setS({ saveStatus: "saved", savedRecordingId: res.id, saveError: null });

@@ -6,7 +6,7 @@ import { Check, Download, FileVideo, Plus, X } from "lucide-react";
 import type { Moment, StoryProject } from "@/lib/memory/contracts";
 import { totalDuration } from "@/lib/studio/edl";
 import { duration, seconds, timecode } from "@/lib/format";
-import { SceneArt } from "@/components/media/scene-art";
+import { ClipThumb } from "./clip-thumb";
 import { KindTag } from "@/components/memory/kind";
 import { Button } from "@/components/ui/button";
 import { EASE_OUT } from "@/components/ui/motion";
@@ -78,7 +78,7 @@ export function ExportDialog({
       aspect: project.aspect,
       output: { width: size.w, height: size.h, container: "mp4", video: "h264", audio: "aac" },
       captions: project.captions,
-      source: "demo",
+      source: library.source,
       clips: project.clips.map((c) => ({
         recordingId: c.recordingId,
         recordingTitle: library.recordings[c.recordingId]?.title,
@@ -106,7 +106,7 @@ export function ExportDialog({
             ["Length", `${duration(totalDuration(project))} (${seconds(totalDuration(project))})`],
             ["Clips", String(project.clips.length)],
             ["Captions", project.captions ? "Burned in" : "Off"],
-            ["Source", "Demo fixtures"],
+            ["Source", library.source === "demo" ? "Demo fixtures" : "Your recordings"],
           ].map(([k, v]) => (
             <div key={k} className="bg-surface-2 px-4 py-3">
               <dt className="text-ink-faint">{k}</dt>
@@ -120,8 +120,9 @@ export function ExportDialog({
             <FileVideo className="size-4" aria-hidden /> MP4 rendering isn’t available yet
           </p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-ink-muted">
-            Exports are rendered locally with FFmpeg from your real recordings. That pipeline arrives in a later phase,
-            and demo clips have no video to render — so METAL won’t pretend to export one.
+            {library.source === "demo"
+              ? "Exports are rendered locally with FFmpeg from your real recordings. That pipeline arrives in a later phase, and demo clips have no video to render — so METAL won’t pretend to export one."
+              : "These clips are your real recordings, and the edit list below already has their exact ids and time ranges. Rendering them to one MP4 with FFmpeg arrives in Phase 7 — until then, preview plays the edit from the originals."}
           </p>
         </div>
 
@@ -166,13 +167,13 @@ export function AddMomentsDialog({
           return (
             <li key={m.id} className="flex items-center gap-4 px-6 py-3">
               <span className="relative aspect-video w-24 shrink-0 overflow-hidden rounded-lg ring-1 ring-line">
-                <SceneArt art={{ ...rec.art, seed: rec.art.seed + m.startMs / 1000 }} />
+                <ClipThumb rec={rec} moment={m} atMs={m.startMs} />
               </span>
               <span className="min-w-0 flex-1">
-                <KindTag kind={m.kind} />
+                {library.source === "demo" && <KindTag kind={m.kind} />}
                 <span className="block truncate text-[14px] font-medium text-ink">{m.title}</span>
                 <span className="block truncate text-[12px] text-ink-faint">
-                  {library.gameNames[rec.gameId]} · {rec.title} · {timecode(m.startMs)} · {seconds(m.endMs - m.startMs)}
+                  {library.gameNames[rec.gameId] ? `${library.gameNames[rec.gameId]} · ` : ""}{rec.title} · {timecode(m.startMs)} · {seconds(m.endMs - m.startMs)}
                 </span>
               </span>
               <Button variant={added ? "ghost" : "secondary"} size="sm" disabled={added} onClick={() => onAdd(m)}>

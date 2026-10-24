@@ -3,6 +3,7 @@ import path from "node:path";
 import { eq } from "drizzle-orm";
 import type { JobContext } from "../../worker/handlers";
 import { recordings } from "../db/schema";
+import { resolveRecordedAt } from "./recorded-time";
 import { PermanentJobError } from "../jobs/errors";
 import { posterArgs, proxyArgs, runFfmpeg } from "./ffmpeg";
 import { needsProxy, probeFile } from "./probe";
@@ -38,7 +39,10 @@ export async function ingestRecording({ db, job, progress, signal }: JobContext)
       container: info.container,
       videoCodec: info.videoCodec,
       audioCodec: info.audioCodec,
-      recordedAt: info.createdAt ?? rec.recordedAt ?? rec.importedAt,
+      ...(() => {
+        const t = resolveRecordedAt({ filename: rec.originalFilename, durationMs: info.durationMs, metadataMs: info.createdAt, current: { at: rec.recordedAt, source: rec.recordedAtSource } });
+        return { recordedAt: t.at, recordedAtSource: t.source };
+      })(),
     });
 
     progress({ stage: "thumbnail", progress: 0.15 });

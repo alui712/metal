@@ -15,10 +15,83 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 5 Analysis + Smart Clip (FFmpeg signals; speech/vision not set up) | ✅ Complete |
 | 5C Local transcription (whisper.cpp) | ✅ Complete |
 | 6A Real Recall (transcripts, FTS + local embeddings) | ✅ Complete |
-| 6B Time Machine integration | ⏳ Not started |
+| 6B Real Time Machine (sessions, Relive, Studio handoff) | ✅ Complete |
 | 7 Story Studio export (FFmpeg, natural-language edits) | ⏳ Not started |
 | 8 Polish & 3-minute demo | ⏳ Not started |
 | Stretch: Wrapped, Multi-POV · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 6B — Real Time Machine ✅ (2026-10-24)
+
+Time Machine now runs on your real recordings and Smart Clip moments. No new dependencies or downloads. ADR 0016.
+
+### Implemented
+- **Honest recording times.**
+  - Each recording records where its time came from: file name, metadata, OBS capture, file date (labeled approximate), parent clip, or manual.
+  - Import time is no longer used as a recording time anywhere. Migration `0008` clears upload times equal to the import time and backfills sources. A backup was taken first: `data/metal.pre-0008.db`.
+  - OBS/recorder file-name timestamps are applied to existing rows (e.g. `Replay 2026-10-22 21-04-11.mkv` → 21:03:xx, after subtracting the duration).
+- **Automatic sessions:**
+  - grouped by recording time, a configurable gap (15 min – 4 h, default 45), and game changes;
+  - idempotent with stable ids, and only writes on change;
+  - clip outputs are excluded, so moments never duplicate.
+- **Manual grouping persists:**
+  - rename, move a recording (to a session, a new session, or out), split here, merge into, and add undated recordings from the "Not in a session" tray;
+  - edits lock the session against regrouping; "Return to automatic grouping" undoes that.
+- **`/sessions`:** a "time river" of nights grouped by month, with a cover keyframe, time range, counts (recordings, footage, moments, transcript lines, favorites), and "Approximate times" / "Edited" labels.
+  - Filters by game (when tagged) and date range; there is a gap setting.
+  - The demo moved to `/sessions/demo`, linked from the page.
+- **`/sessions/:id`:**
+  - a cinematic hero and a to-scale wall-clock rail (recording posters, with moments as violet ticks; favorites glow);
+  - chronological moment cards with keyframe, wall-clock time ("≈" when approximate, "Time unknown" when unknown), confidence, evidence chips, a transcript excerpt labeled "machine transcript", select, and favorite;
+  - a thumbnail opens `/recordings/:id?t=<ms>` at the exact moment;
+  - honest states for sessions with no analysis or no known times.
+- **Relive This Night** (`/sessions/:id/relive[?moments=…]`):
+  - plays the real videos in order, one `<video>` seeked to each moment's range, with curtain fades;
+  - Space pauses/resumes, ←/→ moves between moments, segment buttons jump, and Esc exits;
+  - shows the current event (wall-clock time, recording, timestamp, evidence, transcript) and the position (n / N, a per-moment progress bar);
+  - unplayable videos are skipped and counted, and the autoplay-blocked state is explained;
+  - reduced motion swaps the fades for instant cuts.
+- **Story Studio handoff:**
+  - "Send N to Story Studio" stores a story with real recording ids, suggestion ids, and exact in/out, in chronological order;
+  - `/studio?story=` opens it in the existing EDL editor (trim bounds come from the real recordings);
+  - real thumbnails, and a live preview playing the originals ("not rendered");
+  - "Your recordings" replaces the demo badge, and export says MP4 export arrives in Phase 7.
+- New APIs (all privileged writes; reads are same-origin):
+  - `GET/PATCH /api/sessions`, `GET/PATCH /api/sessions/:id`;
+  - `POST /api/stories`, `GET /api/stories/:id`;
+  - `PATCH /api/clips/:id` now also takes `favorite`/`unfavorite`.
+
+### Verified
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ (144 tests; 17 new) · `npm run build` ✅
+  - **Time parsing:** OBS, compact, and replay names; invalid dates rejected; no invented times.
+  - **Clustering:** gap and game splits.
+  - **Factual titles.**
+  - **Multiple sessions and single-recording sessions;** undated recordings stay out; clip outputs are excluded.
+  - **Re-sync is stable.**
+  - **The gap setting regroups.**
+  - **Manual move, rename, split, and merge** persist through regrouping; reset works.
+  - **An undated-only session** gets no time or title.
+  - **Moments** are chronological, without duplicates or dismissed ones, with favorites.
+  - **Studio handoff** keeps the order and exact boundaries, and refuses empty, dismissed, or unknown moments.
+  - **Relive** play order, pause/resume, skip, jump, unplayable skip, and exit.
+- **Browser (dev server :3001, real data), 33/33:**
+  - The list shows 4–5 real sessions. Date filter and empty state work, and the gap goes 15 → 45 and back.
+  - In the tray, an undated analyzed clip goes to a new session and a second is added. The session shows "Recording times unknown" and 4 real moments.
+  - A rename persists after reload, and so does a favorite.
+  - A thumbnail opens the recording at 23.70 s (t=23700).
+  - Relive plays moment 1 from `/api/media/…`, pause holds, resume, → goes to 2/4, ← goes to 1/4, a jump goes to 4/4 under reduced motion, and Esc returns to the session.
+  - The Studio handoff opens `/studio?story=sty_…` with "Your recordings" and the real video preview. Export says Phase 7.
+  - There's no horizontal scroll at 390 px on the list, session, or Relive. The demo `/sessions/demo` and `/sessions/ses_sector7` still work.
+  - Cleanup reset the test session and favorite.
+- **Regression suites:** demo walkthrough 69/69 (Time Machine demo now at `/sessions/demo`), ingestion 27/27, OBS 10/10, Smart Clip hub 3/3, transcription 12/12, Recall 18/18.
+
+### Known issues / limitations
+- Folder files with only a file date (mtime) are grouped approximately and labeled that way. Times can be wrong if files were copied.
+- There's no UI yet to type in a recording time (`manual` is reserved); undated recordings can only be placed into sessions.
+- Sessions have no summaries: there's no grounded text model, so only factual counts are shown. Real sessions currently have few moments, because only the Smart Clip test uploads (undated) have been analyzed. Analyze the OBS recordings to fill their timelines.
+- Studio edits on a Time Machine story aren't saved yet, and the browser test left five test story projects in the DB. MP4 rendering is Phase 7.
+- Relive preloads only the current video. Jumping between recordings shows a short black curtain while the next one loads.
 
 ---
 

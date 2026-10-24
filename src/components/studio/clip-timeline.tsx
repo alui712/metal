@@ -7,7 +7,7 @@ import type { StoryClip } from "@/lib/memory/contracts";
 import { clipDuration } from "@/lib/studio/edl";
 import { seconds } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { SceneArt } from "@/components/media/scene-art";
+import { ClipThumb } from "./clip-thumb";
 import type { StudioLibrary } from "./types";
 
 const PX_PER_SEC = 9;
@@ -105,7 +105,7 @@ export function ClipTimeline({
                   )}
                 >
                   <span className="relative block h-16 w-full overflow-hidden">
-                    {rec && <SceneArt art={{ ...rec.art, seed: rec.art.seed + (moment?.startMs ?? clip.inMs) / 1000 }} />}
+                    {rec && <ClipThumb rec={rec} moment={moment} atMs={moment?.startMs ?? clip.inMs} />}
                     <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded bg-black/60 font-mono text-[10px] text-white">
                       {index + 1}
                     </span>

@@ -53,7 +53,14 @@ export const recordings = sqliteTable(
     /** For saved Smart Clips: the recording it was cut from, and where (ms). */
     parentRecordingId: text("parent_recording_id").references((): AnySQLiteColumn => recordings.id, { onDelete: "set null" }),
     parentStartMs: integer("parent_start_ms"),
+    /** When it was recorded (epoch ms). Never the import time: null when unknown. */
     recordedAt: integer("recorded_at"),
+    /**
+     * Where `recordedAt` came from: a timestamp in the file name, container
+     * metadata, OBS capture, the file's modified date (may be when it was
+     * copied), the parent recording (clips), or the user.
+     */
+    recordedAtSource: text("recorded_at_source", { enum: ["filename", "metadata", "capture", "file-date", "parent", "manual"] }),
     importedAt: createdAt(),
     status: text("status", {
       enum: ["imported", "processing", "ready", "analyzed", "failed"],
@@ -64,6 +71,8 @@ export const recordings = sqliteTable(
     sessionId: text("session_id").references((): AnySQLiteColumn => sessions.id, {
       onDelete: "set null",
     }),
+    /** The user placed this recording (in a session, or out of all sessions): automatic grouping leaves it alone. */
+    sessionLocked: integer("session_locked", { mode: "boolean" }).notNull().default(false),
   },
   (t) => [
     index("recordings_session_idx").on(t.sessionId),
@@ -395,6 +404,8 @@ export const clipSuggestions = sqliteTable(
     saveJobId: text("save_job_id"),
     savedRecordingId: text("saved_recording_id").references(() => recordings.id, { onDelete: "set null" }),
     analysisVersion: text("analysis_version").notNull(),
+    /** Marked as a favorite (Time Machine → Relive / Story Studio). */
+    favoriteAt: integer("favorite_at"),
     createdAt: createdAt(),
     decidedAt: integer("decided_at"),
   },
@@ -427,7 +438,10 @@ export const chunks = sqliteTable(
 
 export const sessions = sqliteTable("sessions", {
   id: text("id").primaryKey(),
+  /** User-chosen title; null means a factual title is derived from the date. */
   title: text("title"),
+  /** Edited by the user: automatic regrouping keeps its recordings and title. */
+  locked: integer("locked", { mode: "boolean" }).notNull().default(false),
   summary: text("summary"),
   game: text("game"),
   startedAt: integer("started_at").notNull(),
@@ -466,6 +480,8 @@ export const storyClips = sqliteTable(
     momentId: text("moment_id").references(() => moments.id, {
       onDelete: "set null",
     }),
+    /** The Smart Clip moment it came from (Time Machine handoff). */
+    suggestionId: text("suggestion_id").references(() => clipSuggestions.id, { onDelete: "set null" }),
     inMs: integer("in_ms").notNull(),
     outMs: integer("out_ms").notNull(),
     caption: text("caption"),
@@ -504,4 +520,10 @@ export const renderExports = sqliteTable("exports", {
   jobId: text("job_id").references(() => jobs.id, { onDelete: "set null" }),
   ffmpegCmd: text("ffmpeg_cmd"),
   createdAt: createdAt(),
+});
+
+/** Small persisted preferences (e.g. Time Machine's session gap). */
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
 });

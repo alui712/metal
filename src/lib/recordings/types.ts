@@ -19,7 +19,10 @@ export type LibraryRecording = {
   format: string | null;
   videoCodec: string | null;
   audioCodec: string | null;
+  /** Recording time, or the import time when unknown (see `recordedAtSource`). */
   recordedAt: number;
+  /** null: the recording time is unknown and `recordedAt` is the import time. */
+  recordedAtSource: "filename" | "metadata" | "capture" | "file-date" | "parent" | "manual" | null;
   importedAt: number;
   posterUrl: string | null;
   videoUrl: string | null;

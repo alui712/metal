@@ -37,6 +37,7 @@ export type Suggestion = {
   savedRecordingId: string | null;
   savedReady: boolean;
   thumbUrl: string | null;
+  favorite: boolean;
 };
 export type Transcript = {
   status: "none" | "queued" | "running" | "done" | "failed";

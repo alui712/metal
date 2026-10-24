@@ -77,6 +77,8 @@ export type Moment = {
   /** Peak loudness 0–1, if an audio spike was detected. */
   audioPeak: number | null;
   tags: string[];
+  /** Real keyframe for library moments (demo moments use procedural art). */
+  thumbUrl?: string;
 };
 
 export type Session = {

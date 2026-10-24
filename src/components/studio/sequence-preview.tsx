@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Pause, Play, RotateCcw } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { StoryProject } from "@/lib/memory/contracts";
 import { locate, totalDuration } from "@/lib/studio/edl";
 import { timecode } from "@/lib/format";
@@ -36,6 +36,23 @@ export function SequencePreview({
   const rec = clip ? library.recordings[clip.recordingId] : undefined;
   const moment = clip?.momentId ? library.moments[clip.momentId] : undefined;
   const ended = total > 0 && clock.timeMs >= total;
+  const src = rec?.media.kind === "video" ? rec.media.src : null;
+  const video = useRef<HTMLVideoElement>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+
+  // Real clips: the <video> follows the edit's clock (exact source time = clip in + offset).
+  const expected = clip ? (clip.inMs + (at?.offsetMs ?? 0)) / 1000 : 0;
+  useEffect(() => {
+    const v = video.current;
+    if (!v || !src) return;
+    if (v.getAttribute("src") !== src) {
+      v.setAttribute("src", src);
+      v.load();
+    }
+    if (v.readyState >= 1 && Math.abs(v.currentTime - expected) > 0.35) v.currentTime = expected;
+    if (clock.playing && v.paused) void v.play().catch(() => {});
+    if (!clock.playing && !v.paused) v.pause();
+  }, [src, expected, clock.playing]);
 
   const seekMs = seekTo?.ms;
   const nonce = seekTo?.nonce;
@@ -80,16 +97,37 @@ export function SequencePreview({
                   exit={{ opacity: 0 }}
                   transition={{ duration: reduce ? 0.1 : 0.35 }}
                 >
-                  <div
-                    className="absolute inset-0"
-                    style={{
-                      transform: reduce ? undefined : `scale(${1.03 + ((at?.offsetMs ?? 0) / Math.max(1, clip.outMs - clip.inMs)) * 0.06})`,
-                    }}
-                  >
-                    <SceneArt art={{ ...rec.art, seed: rec.art.seed + (moment?.startMs ?? clip.inMs) / 1000 }} />
-                  </div>
+                  {src ? null : (
+                    <div
+                      className="absolute inset-0"
+                      style={{
+                        transform: reduce ? undefined : `scale(${1.03 + ((at?.offsetMs ?? 0) / Math.max(1, clip.outMs - clip.inMs)) * 0.06})`,
+                      }}
+                    >
+                      <SceneArt art={{ ...rec.art, seed: rec.art.seed + (moment?.startMs ?? clip.inMs) / 1000 }} />
+                    </div>
+                  )}
                 </motion.div>
               </AnimatePresence>
+              {src && (
+                <video
+                  ref={video}
+                  playsInline
+                  preload="auto"
+                  aria-label={`${rec.title} at ${timecode(clip.inMs + (at?.offsetMs ?? 0))}`}
+                  onLoadedMetadata={(e) => {
+                    e.currentTarget.currentTime = expected;
+                    setFailed(null);
+                  }}
+                  onError={() => setFailed(rec.title)}
+                  className="absolute inset-0 size-full bg-black object-cover"
+                />
+              )}
+              {failed && (
+                <p className="absolute inset-0 grid place-items-center bg-black/80 p-6 text-center text-[13px] text-ink-muted">
+                  “{failed}” can’t be played — its video may be missing from the library.
+                </p>
+              )}
               {project.captions && clip.caption && (
                 <p className="absolute inset-x-[6%] bottom-[9%] text-balance text-center text-[clamp(13px,2.2vw,22px)] font-semibold leading-tight text-white [text-shadow:0_2px_14px_rgb(0_0_0/0.95)]">
                   {clip.caption}
@@ -102,7 +140,13 @@ export function SequencePreview({
             </div>
           )}
         </motion.div>
-        <DemoBadge label="Simulated preview · stills" className="absolute right-3 top-3 bg-black/50" />
+        {library.source === "demo" ? (
+          <DemoBadge label="Simulated preview · stills" className="absolute right-3 top-3 bg-black/50" />
+        ) : (
+          <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">
+            Live preview from your originals · not rendered
+          </span>
+        )}
         {moment && (
           <p className="absolute left-3 top-3 max-w-[50%] truncate rounded-full bg-black/50 px-3 py-1 text-[12px] text-white/80 backdrop-blur">
             {moment.title}

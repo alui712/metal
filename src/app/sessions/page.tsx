@@ -1,36 +1,46 @@
 import type { Metadata } from "next";
-import { SessionExplorer } from "@/components/sessions/session-explorer";
-import { DemoBadge } from "@/components/ui/demo-badge";
+import Link from "next/link";
+import { connection } from "next/server";
+import { Suspense } from "react";
+import { SessionsOverview } from "@/components/timemachine/sessions-overview";
 import { PageContainer, PageHeader } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
-import { getMemoryRepository } from "@/lib/memory/repository";
+import { getDb } from "@/server/db/client";
+import { mediaUrls } from "@/server/timemachine/media-urls";
+import { timeMachineOverview } from "@/server/timemachine/sessions";
 
 export const metadata: Metadata = { title: "Time Machine" };
 
 export default function SessionsPage() {
-  const repo = getMemoryRepository();
-  const sessions = repo.sessions().map((s) => ({
-    ...s,
-    momentCount: repo.momentsForSession(s.id).length,
-    recordingCount: s.recordingIds.length,
-  }));
-
   return (
     <PageTransition>
-      <PageContainer>
+      <PageContainer className="pb-24">
         <PageHeader
           eyebrow="Time Machine"
-          badge={<DemoBadge />}
           title={
             <>
               Every night you played,{" "}
               <span className="font-display font-normal italic text-accent-ink">in order.</span>
             </>
           }
-          description="Recordings grouped into sessions. Pick a night to see how it unfolded — minute by minute, from every perspective."
+          description={
+            <>
+              Your recordings, grouped by when they were actually recorded. Open a night to walk through its moments or relive them.{" "}
+              <Link href="/sessions/demo" className="font-medium text-accent-ink hover:text-white">
+                See the demo sessions →
+              </Link>
+            </>
+          }
         />
-        <SessionExplorer sessions={sessions} games={repo.games()} />
+        <Suspense fallback={<div className="mt-10 h-72 animate-pulse rounded-3xl bg-surface-2/60" />}>
+          <Overview />
+        </Suspense>
       </PageContainer>
     </PageTransition>
   );
+}
+
+async function Overview() {
+  await connection();
+  return <SessionsOverview data={timeMachineOverview(getDb(), mediaUrls())} />;
 }

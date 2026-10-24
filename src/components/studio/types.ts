@@ -1,7 +1,9 @@
-import type { Moment, Recording } from "@/lib/memory/contracts";
+import type { DataSource, Moment, Recording } from "@/lib/memory/contracts";
 
 /** Lookup data the editor needs alongside the EDL. */
 export type StudioLibrary = {
+  /** "library": real recordings (video previews); "demo": fixtures (labeled, stills). */
+  source: DataSource;
   recordings: Record<string, Recording>;
   moments: Record<string, Moment>;
   gameNames: Record<string, string>;

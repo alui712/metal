@@ -47,6 +47,7 @@ function toView(r: Row, job: typeof jobs.$inferSelect | undefined): LibraryRecor
     videoCodec: r.videoCodec,
     audioCodec: r.audioCodec,
     recordedAt: r.recordedAt ?? r.importedAt,
+    recordedAtSource: r.recordedAt === null ? null : r.recordedAtSource,
     importedAt: r.importedAt,
     posterUrl: r.posterPath && exists(r.posterPath) ? `/api/media/${r.id}/poster` : null,
     videoUrl: ready && !mediaMissing ? `/api/media/${r.id}/video` : null,

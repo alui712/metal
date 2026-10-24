@@ -40,7 +40,7 @@ export function RecordingTile({ recording: r, className }: { recording: LibraryR
       </div>
       <p className="mt-3 truncate text-[14px] font-medium text-ink">{r.title}</p>
       <p className="mt-0.5 truncate text-[12.5px] text-ink-faint">
-        {formatLocalDateTime(r.recordedAt)}
+        {r.recordedAtSource ? formatLocalDateTime(r.recordedAt) : `Imported ${formatLocalDateTime(r.importedAt)}`}
         {r.height ? ` · ${r.height}p` : ""}
         {r.format ? ` · ${r.format}` : ""}
       </p>

@@ -34,6 +34,7 @@ export type SuggestionView = {
   savedRecordingId: string | null;
   savedReady: boolean;
   thumbUrl: string | null;
+  favorite: boolean;
 };
 
 export type AnalysisView = {
@@ -98,6 +99,7 @@ export function listSuggestions(db: Db, recordingId: string): SuggestionView[] {
       savedRecordingId: savedRec ? r.savedRecordingId : null,
       savedReady: savedRec?.status === "ready" || savedRec?.status === "analyzed",
       thumbUrl: near ? `/api/frames/${near.id}` : null,
+      favorite: r.favoriteAt !== null,
     };
   });
 }
@@ -141,7 +143,7 @@ export function analysisView(db: Db, recordingId: string): AnalysisView {
   };
 }
 
-export type ClipAction = { action: "accept" | "dismiss" | "restore" | "retry" } | { action: "adjust"; startMs: number; endMs: number };
+export type ClipAction = { action: "accept" | "dismiss" | "restore" | "retry" | "favorite" | "unfavorite" } | { action: "adjust"; startMs: number; endMs: number };
 
 /** Applies a user decision. Returns an error message, or null on success. */
 export function applyClipAction(db: Db, id: string, a: ClipAction): string | null {
@@ -157,9 +159,16 @@ export function applyClipAction(db: Db, id: string, a: ClipAction): string | nul
       set({ status: "accepted", decidedAt: Date.now(), saveStatus: "saving", saveError: null, saveJobId: job.id });
       return null;
     }
+    case "favorite":
+      if (s.status === "dismissed") return "Restore this moment before marking it as a favorite.";
+      if (!s.favoriteAt) set({ favoriteAt: Date.now() });
+      return null;
+    case "unfavorite":
+      set({ favoriteAt: null });
+      return null;
     case "dismiss":
       if (locked) return "This clip is already saved. Remove it from the Library instead.";
-      set({ status: "dismissed", decidedAt: Date.now() });
+      set({ status: "dismissed", decidedAt: Date.now(), favoriteAt: null });
       return null;
     case "restore":
       if (locked) return null;

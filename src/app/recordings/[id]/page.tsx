@@ -54,7 +54,11 @@ async function RecordingView({ params, searchParams }: { params: PageProps<"/rec
           <Stage r={r} />
         )}
         <h1 className="mt-6 text-[clamp(1.75rem,3.2vw,2.5rem)] font-semibold leading-tight tracking-[-0.03em] text-ink">{r.title}</h1>
-        <p className="mt-2 text-[14px] text-ink-faint">Recorded {formatLocalDateTime(r.recordedAt)}</p>
+        <p className="mt-2 text-[14px] text-ink-faint">
+          {r.recordedAtSource
+            ? `Recorded ${r.recordedAtSource === "file-date" ? "around " : ""}${formatLocalDateTime(r.recordedAt)}${r.recordedAtSource === "file-date" ? " (from the file’s date)" : ""}`
+            : "Recording time unknown"}
+        </p>
 
         {r.parentRecordingId && (
           <p className="mt-3 text-[13px] text-ink-muted">

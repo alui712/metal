@@ -21,18 +21,16 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { Aspect, Moment, StoryProject } from "@/lib/memory/contracts";
 import { clipDuration, historyReducer, initHistory, type EdlOp } from "@/lib/studio/edl";
 import { clipFromMoment, trimBounds } from "@/lib/studio/seed";
-import { getMemoryRepository } from "@/lib/memory/repository";
 import { seconds, timecode } from "@/lib/format";
-import { SceneArt } from "@/components/media/scene-art";
 import { Button, IconButton } from "@/components/ui/button";
 import { Segmented, Switch } from "@/components/ui/controls";
 import { DemoBadge } from "@/components/ui/demo-badge";
+import { ClipThumb } from "./clip-thumb";
 import { ClipTimeline } from "./clip-timeline";
 import { AddMomentsDialog, ExportDialog } from "./dialogs";
 import { SequencePreview } from "./sequence-preview";
 import type { StudioLibrary } from "./types";
 
-const repo = getMemoryRepository();
 
 const INSTRUCTION_IDEAS = ["Make it 30 seconds", "Start with the funniest moment", "Vertical for sharing"];
 
@@ -40,11 +38,18 @@ export function StudioEditor({
   initial,
   library,
   candidates,
+  sourceSession,
 }: {
   initial: StoryProject;
   library: StudioLibrary;
   candidates: Moment[];
+  /** Where the story came from (link back). */
+  sourceSession?: { href: string; title: string };
 }) {
+  const lookup = useMemo(
+    () => ({ recording: (id: string) => library.recordings[id], moment: (id: string) => library.moments[id] }),
+    [library],
+  );
   const [history, dispatch] = useReducer(historyReducer, initial, initHistory);
   const project = history.present;
   const [selectedId, setSelectedId] = useState<string | null>(project.clips[0]?.id ?? null);
@@ -54,10 +59,9 @@ export function StudioEditor({
   const [instruction, setInstruction] = useState("");
   const lastCoalesce = useRef<{ key: string; at: number } | null>(null);
 
-  const bounds = useMemo(() => trimBounds(repo, [...project.clips, ...candidates.map(clipFromMoment)]), [project.clips, candidates]);
+  const bounds = useMemo(() => trimBounds(lookup, [...project.clips, ...candidates.map(clipFromMoment)]), [lookup, project.clips, candidates]);
   const selected = project.clips.find((c) => c.id === selectedId) ?? null;
   const selectedIndex = selected ? project.clips.indexOf(selected) : -1;
-  const sourceSession = project.sourceSessionId ? repo.session(project.sourceSessionId) : undefined;
 
   /** Apply an edit. Rapid edits with the same `coalesceKey` merge into one undo step. */
   function apply(op: EdlOp, coalesceKey?: string) {
@@ -110,7 +114,7 @@ export function StudioEditor({
         <div className="min-w-0">
           {sourceSession ? (
             <Link
-              href={`/sessions/${sourceSession.id}`}
+              href={sourceSession.href}
               transitionTypes={["nav-back"]}
               className="inline-flex items-center gap-1.5 text-[13px] text-ink-faint transition-colors hover:text-ink"
             >
@@ -130,7 +134,11 @@ export function StudioEditor({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <DemoBadge className="mr-2" />
+          {library.source === "demo" ? (
+            <DemoBadge className="mr-2" />
+          ) : (
+            <span className="mr-2 inline-flex h-6 items-center rounded-full border border-ok/25 bg-ok/10 px-2.5 text-[11px] font-medium text-ok">Your recordings</span>
+          )}
           <IconButton aria-label="Undo (⌘Z)" title="Undo (⌘Z)" onClick={() => dispatch({ type: "undo" })} disabled={!history.past.length} className="border border-line">
             <Undo2 className="size-[18px]" aria-hidden />
           </IconButton>
@@ -219,7 +227,7 @@ export function StudioEditor({
               <div className="mt-3">
                 <div className="flex items-center gap-3">
                   <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-line">
-                    <SceneArt art={{ ...selRec.art, seed: selRec.art.seed + (selMoment?.startMs ?? selected.inMs) / 1000 }} />
+                    <ClipThumb rec={selRec} moment={selMoment} atMs={selMoment?.startMs ?? selected.inMs} />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[14px] font-medium text-ink">{selMoment?.title ?? selRec.title}</span>

@@ -66,6 +66,8 @@ export async function importLocalFile(
     body: Readable.toWeb(fs.createReadStream(input.real, { flags: "r" })) as ReadableStream<Uint8Array>,
     filename: path.basename(input.real),
     lastModified: input.stat.mtimeMs,
+    // OBS writes the file while recording, so its modified time is the capture time.
+    recordedAtSource: input.origin === "folder" ? "file-date" : "capture",
     origin: input.origin,
     sourcePath: input.real,
   });

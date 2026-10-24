@@ -13,6 +13,11 @@ import { Reveal } from "@/components/ui/motion";
 import { PageTransition } from "@/components/ui/page-transition";
 import { duration, formatLongDate, formatTime, plural } from "@/lib/format";
 import { getMemoryRepository } from "@/lib/memory/repository";
+import { SessionView } from "@/components/timemachine/session-view";
+import { getDb } from "@/server/db/client";
+import { mediaUrls } from "@/server/timemachine/media-urls";
+import { isSessionId, sessionDetail } from "@/server/timemachine/sessions";
+import { connection } from "next/server";
 
 const repo = getMemoryRepository();
 
@@ -37,7 +42,7 @@ export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
 async function Session({ params }: { params: PageProps<"/sessions/[id]">["params"] }) {
   const { id } = await params;
   const session = repo.session(id);
-  if (!session) notFound();
+  if (!session) return <RealSession id={id} />;
 
   const game = repo.game(session.gameId);
   const recordings = session.recordingIds.map((rid) => repo.recording(rid)!);
@@ -121,6 +126,19 @@ async function Session({ params }: { params: PageProps<"/sessions/[id]">["params
           </Suspense>
         </div>
       </article>
+    </PageTransition>
+  );
+}
+
+/** A session from your own recordings (ids that aren't demo fixtures). */
+async function RealSession({ id }: { id: string }) {
+  await connection();
+  if (!isSessionId(id)) notFound();
+  const data = sessionDetail(getDb(), id, mediaUrls());
+  if (!data) notFound();
+  return (
+    <PageTransition>
+      <SessionView key={`${data.summary.id}:${data.summary.title}`} data={data} />
     </PageTransition>
   );
 }

@@ -19,3 +19,4 @@ Short records of decisions that shape METAL. Add a new numbered file when a deci
 | [0013](0013-ffmpeg-analysis-and-smart-clip.md) | Local FFmpeg analysis (loudness, scene changes, keyframes) and transparent rule-based Smart Clip | Accepted |
 | [0014](0014-local-transcription.md) | Local whisper.cpp transcription: DTW timing, silence alignment, anti-hallucination rules, search-ready storage | Accepted |
 | [0015](0015-real-recall.md) | Real Recall: FTS5 + local MiniLM embeddings over transcripts, Silero VAD, flaggable lines | Accepted |
+| [0016](0016-real-time-machine.md) | Real Time Machine: evidence-backed recording times, lockable automatic sessions, Relive player, Studio handoff | Accepted |

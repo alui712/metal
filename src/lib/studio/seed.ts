@@ -44,7 +44,13 @@ export function seedProject(repo: MemoryRepository, sessionId: string | null): S
   };
 }
 
-export function trimBounds(repo: MemoryRepository, clips: StoryClip[]): TrimBounds {
+/** What trimming needs to know about sources (the demo repository satisfies it; so does the real library). */
+export type SourceLookup = {
+  recording(id: string): { durationMs: number } | undefined;
+  moment(id: string): { startMs: number; endMs: number } | undefined;
+};
+
+export function trimBounds(repo: SourceLookup, clips: StoryClip[]): TrimBounds {
   return Object.fromEntries(
     clips.map((c) => {
       const rec = repo.recording(c.recordingId);
