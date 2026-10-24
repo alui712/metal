@@ -20,8 +20,43 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 8A Final UI/UX polish | ✅ Complete |
 | 8B Multi-POV Sync | ✅ Complete |
 | Story Studio management | ✅ Complete |
-| 3-minute demo | ⏳ Not started |
+| 8C Demo readiness | ✅ Complete |
+| Demo video / trailer | ⏳ Not started |
 | Stretch: Wrapped · Desktop packaging (Electron) | ⏳ Not started |
+
+---
+
+## Phase 8C — Demo readiness ✅ (2026-10-24)
+
+The 3-minute demo journey was audited end to end on real footage at 1920×1080. **No app blockers were found, so no app code changed.** Full report, demo script, footage checklist and fallbacks: [`docs/demo/README.md`](docs/demo/README.md).
+
+### Done
+- **Real footage prepared** through the app's own actions:
+  - **Find moments** and **Transcribe speech** ran on the four real OBS gameplay captures. That gave 5 measured suggestions; no speech was detected in any of them.
+  - One Smart Clip was saved from `2026-10-24 12-47-11`.
+- **Footage classified:**
+  - **Real gameplay:** 4 captures, all Roblox Studio playtests.
+  - **Real but not gameplay:** 3 desktop or editor captures.
+  - **Test fixtures:** everything else, now listed in the demo doc.
+- **`npm run demo:check`** (`scripts/demo-check/`): drives headless, muted Chrome through Capture → Smart Clip → Recall → Time Machine/Relive → Multi-POV → Story Studio → MP4 export.
+  - It checks media with ffprobe and saves screenshots to `data/demo-check/`.
+  - Recording and session IDs can be overridden with environment variables.
+
+### Verified
+- **`npm run demo:check`: 20/20 PASS, no browser errors.**
+  - **Smart Clip:** the saved clip is exactly its source range, 14.40 s.
+  - **Recall:** exact phrase and paraphrase hits play at the spoken timestamp.
+  - **Time Machine:** Relive plays the real night.
+  - **Multi-POV:** a switch keeps the moment (20 000 → 20 000 ms).
+  - **Story Studio:** the real night export is 1920×1080 H.264/AAC, 25.80 s vs 25.8 s planned, rendered in about 4.5 s.
+  - **Layout:** the viewer and Studio fit at 1920×1080.
+- `npm run typecheck` ✅ · `npm run lint` ✅ · `npm test` ✅ · `npm run build` ✅
+
+### Known gaps (footage, not code)
+- **Recall:** no real gameplay contains speech, so it is demonstrated on the scripted test recordings.
+- **Multi-POV:** no second real POV exists, so it is demonstrated on the labelled samples.
+- **Screen content:** the real captures are full-display. They show Roblox Studio panels and, around 02-42-27 0:07, a desktop browser with chat text. Re-record with Game Capture, or check every frame before showing it.
+- **Data added by testing:** one Smart Clip and several stories and exports from the check runs. Nothing was deleted.
 
 ---
 

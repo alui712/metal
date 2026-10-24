@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Runtime data (media, DB, the demo check's browser profile).
+    "data/**",
+    "models/**",
   ]),
 ]);
 
