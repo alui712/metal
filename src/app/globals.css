@@ -1,26 +1,113 @@
 @import "tailwindcss";
 
+/*
+ * METAL design tokens.
+ * Graphite surfaces, one electric-violet accent, restrained glass.
+ * The app is dark-only by design: video is the hero and dark surfaces
+ * keep it the brightest thing on screen.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  --graphite-950: #070709;
+  --graphite-900: #0c0c0f;
+  --graphite-850: #111115;
+  --graphite-800: #17171c;
+  --graphite-700: #212128;
+  --graphite-600: #2c2c35;
+
+  --ink: #f4f4f7;
+  --ink-muted: #a3a3b0;
+  --ink-faint: #6b6b78;
+
+  --violet-300: #c4b1ff;
+  --violet-400: #a685ff;
+  --violet-500: #8b5cff;
+  --violet-600: #7340f5;
+
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #f87171;
+
+  --line: rgb(255 255 255 / 0.07);
+  --line-strong: rgb(255 255 255 / 0.12);
+  --glass: rgb(23 23 28 / 0.62);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--graphite-950);
+  --color-surface: var(--graphite-900);
+  --color-surface-2: var(--graphite-850);
+  --color-surface-3: var(--graphite-800);
+  --color-surface-4: var(--graphite-700);
+  --color-surface-5: var(--graphite-600);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-faint: var(--ink-faint);
+  --color-accent: var(--violet-500);
+  --color-accent-strong: var(--violet-600);
+  --color-accent-soft: var(--violet-400);
+  --color-accent-ink: var(--violet-300);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-glass: var(--glass);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-display: var(--font-display-serif), ui-serif, Georgia, serif;
+
+  --ease-out: var(--ease-out);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--graphite-950);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--graphite-950);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgb(139 92 255 / 0.4);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--violet-400);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Faint film grain + violet bloom behind content. */
+.metal-backdrop {
+  background:
+    radial-gradient(60rem 36rem at 70% -10%, rgb(139 92 255 / 0.14), transparent 60%),
+    radial-gradient(40rem 30rem at -10% 110%, rgb(115 64 245 / 0.08), transparent 60%),
+    var(--graphite-950);
+}
+
+.glass {
+  background: var(--glass);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
