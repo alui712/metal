@@ -160,14 +160,14 @@ body:has([data-immersive]:not([style*="display: none"])) .tour-dock {
    (100% → 105%). The drift starts while a shot fades in and keeps running while it fades out;
    with reduced motion there is none (gated here, not in JS, so the server render can't keep it). */
 .intro-shot {
-  transition: opacity 900ms var(--ease-out);
+  transition: opacity 720ms var(--ease-out);
 }
 .intro-drift {
   transform-origin: 50% 40%;
 }
 @media (prefers-reduced-motion: no-preference) {
   .intro-shot[data-live] .intro-drift {
-    animation: intro-drift 9s linear both;
+    animation: intro-drift 4.5s linear both;
   }
 }
 .intro-film[data-paused] .intro-drift {

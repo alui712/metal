@@ -20,7 +20,7 @@ export type IntroVideo = { src: string; poster: string | null };
 type Phase = "playing" | "done";
 const SHOT_MS = 1850;
 /** After the intro, each approved shot holds this long before the next crossfades in. */
-const AMBIENT_MS = 6500;
+const AMBIENT_MS = 3500;
 const MAX_VIDEO_MS = 7000;
 const SEEN_KEY = "metal.showcase.intro";
 

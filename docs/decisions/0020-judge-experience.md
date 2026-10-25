@@ -50,8 +50,8 @@ First-time viewers (judges) need to understand METAL in about ten seconds and re
     - an approved silent montage at `public/showcase/intro.mp4` (+ `intro.jpg` poster), gitignored and supplied by the video workspace;
     - otherwise the first three approved recordings' posters.
     - A failed video falls back to the posters.
-  - **Continuous reel:** after the intro (or a montage, which fades into it), the same reel keeps cycling through every approved recording's poster, in the approved order, about 6.5 s each, wrapping last → first.
-    - One shot at a time, each crossfading over the previous one (900 ms, never through black). Only the current, previous and next posters are in the DOM, and no video decodes in the background.
+  - **Continuous reel:** after the intro (or a montage, which fades into it), the same reel keeps cycling through every approved recording's poster, in the approved order, about 3.5 s each, wrapping last → first.
+    - One shot at a time, each crossfading over the previous one (720 ms, never through black). Only the current, previous and next posters are in the DOM, and no video decodes in the background.
     - Framing is one 16:9 presentation: every shot gets the same slow drift from 100% to 105%. Near 16:9 the shot fills the stage; at other aspect ratios (phones, ultrawide) the whole frame is shown over a blurred fill of itself, instead of a hard crop or an upscale.
     - Lighting: a dark left gradient for the headline, a dark top edge that hides game HUDs (player names), and a soft vignette.
     - Pauses (clock and drift) when the tab is hidden or the reel is mostly off screen. With reduced motion it holds one still frame.
