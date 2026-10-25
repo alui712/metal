@@ -37,10 +37,11 @@ Visual Recall lets Recall find moments by what was **on screen**, including in s
    - model id
 
    `recording_visual_index` records status, version, interval, frame count and timings. Re-indexing writes into a temp folder and swaps it in, replacing only that recording's rows. The original video is only ever read.
-4. **Search.** Recall embeds the query with the CLIP text tower, after stripping request phrasing ("Find when I was holding a sniper" → "holding a sniper"). It then scores every indexed frame by cosine similarity.
-   - **≥ 0.30 → "Looks similar · approximate".**
-   - **0.27–0.30 → "Low confidence · approximate"**, shown only when nothing reaches 0.30, and at most 3 moments.
-   - **< 0.27 → not shown.**
+4. **Search.** Recall strips request phrasing ("Find when I was holding a sniper" → "holding a sniper"), then embeds the description through four fixed caption-style prompts ("a screenshot of …", "a video game screenshot of …", "a first-person view of …", "a video game scene showing …") and averages them (CLIP prompt ensembling, see "Short queries" below). It scores every indexed frame by cosine similarity.
+   - **≥ 0.33 → "Looks similar · approximate".**
+   - **< 0.33 → not shown.** There is no low-confidence band: on the tuning set it only added false matches. Event-worded queries are still capped to at most 3 "Low confidence · approximate" moments.
+   - Until 2026-10-25 the raw query was embedded on its own, with floors 0.30 / 0.27.
+   - When Scenes finds nothing for a one- or two-word query, Recall suggests adding a visual detail ("jungle cliff" instead of "jungle").
    - Within a recording, only frames within 0.012 of its best frame count. Frames ≤ 4.5 s apart form one moment spanning ±half a sampling interval. Playback starts 1 s before the first matching frame.
 5. **Combining with transcripts.** Visual and transcript searches run together.
    - A visual moment that overlaps a spoken moment adds its frames and a small boost to it.
@@ -197,5 +198,47 @@ Thresholds for every variant were tuned only on the feasibility TUNE set, using 
 - **Similar-looking games get confused.** Dark horror games all look alike to CLIP, and an absent "dark forest horror" scene returns confident-looking matches. The UI says "approximate", but a dark, atmospheric query can still be wrong at the "Looks similar" tier.
 - **Center crop.** CLIP sees the middle 16:9 → 1:1 crop, so HUD edges (minimap, ammo, kill feed) are mostly cut off.
 - **Short scenes.** Anything under ~2 s may land between samples unless a hard cut was detected.
+- **Single words.** One-word scene queries ("jungle") still usually find nothing. This is deliberate; see "Short queries".
 - **Validation size.** These are small-sample numbers: 22 short clips and 22 labelled queries. Re-run `scripts/visual-eval/validate.ts` on more footage before tightening claims.
 - **No event recognition.** Valorant or other event recognition was intentionally not started.
+
+## Short queries (2026-10-25)
+
+**Problem.** With Scenes on, "jungle" found nothing on PEAK, although "climbing a green jungle mountain" did.
+- **Not the cause:** index completeness (all 6 approved recordings were indexed, 117 frames) and request filtering (`describeScene("jungle")` = "jungle"). Judge-mode Recall is scoped to the approved speech recording by design, so PEAK never appears there.
+- **Cause: CLIP's raw cosine depends on how long the query is.** On the same PEAK frames, a bare word scores about 0.03–0.06 lower than a sentence: "jungle" 0.251 and "green jungle" 0.254, against the 0.27 floor. The long query reached 0.285.
+
+**Fix: prompt ensembling plus re-calibrated floors.**
+- Every query goes through four caption-style prompts (`SCENE_PROMPTS`), averaged in one text-model call. That puts short and long queries on the same scale.
+- The floors were tuned **only** on the existing tuning queries, with the same rule as before:
+  - tuning set: the 12 present and 10 absent queries from `validate.ts`, plus the 10 feasibility TUNE negatives;
+  - rule: no result at all for unrelated queries, no more confident look-alike matches than before, then maximise correct top-1.
+- The tuning picked 0.33 for both tiers.
+- Script: `scripts/visual-eval/short-queries.mts`. Data: the 21 labelled recordings, 307 frames.
+
+| Set | Before (raw, 0.30 / 0.27) | After (ensemble, 0.33) |
+|---|---|---|
+| Tuning, present (12) | top-1 10 · any 11 · confident & correct 5 | top-1 10 · any 10 · confident & correct 10 |
+| Tuning, unrelated (16) | 1 confident FP, 1 low FP | none |
+| Tuning, look-alike (4) | 1 confident FP, 2 low FP | 1 confident FP |
+| **Held-out A**, new short queries, present (18) | top-1 6 · any 10 · confident & correct 0 | top-1 7 · any 8 · confident & correct 7 |
+| **Held-out A**, short, absent (15) | 1 low FP (lava) | none (underwater, snow, beach … all none) |
+| **Held-out B**, quality-pass queries, present (23) | top-1 12 · any 20 · confident & correct 8 | top-1 12 · any 16 · confident & correct 12 |
+| **Held-out B**, unrelated (11) | 2 confident FP (incl. "an underwater level with a submarine"), 1 low FP | 1 confident FP (sniper scope) |
+| **Held-out B**, look-alike (5) | 1 confident FP, 2 low FP | 1 confident FP |
+
+**Read it as a precision gain.**
+- False matches drop on every absent set. The old "underwater" match on PEAK fog is gone.
+- Correct answers are now mostly at the "Looks similar" tier instead of "Low confidence".
+- The cost is fewer weak-but-right answers: "any result" goes 20 → 16 on held-out B.
+
+**What still doesn't work: single words.**
+- With the ensemble, "jungle" peaks at 0.3265 on PEAK. The unrelated tuning query "a farming game with crops and animals" peaks at 0.3252 on the same frames, and "underwater" at 0.3226.
+- Any floor that admits "jungle" also admits those, so one-word queries stay unanswered.
+- Recall now tells the user to add a detail. Two-word scene descriptions do clear the floor: "jungle cliff" 0.352, "jungle mountain" 0.342, "rocky cliff" 0.345, "a mossy rock wall" 0.346.
+
+**Measured and rejected:**
+- **Contrast against a bank of 40 generic scene words:** the fog frames really are "underwater" to CLIP (+0.024 over the best alternative), and the bank penalises true synonyms.
+- **Hubness normalisation (CSLS / QB-Norm style):** "jungle" fell below "underwater", and long-set AUC dropped from 0.99 to 0.83–0.97.
+- **Library-relative gap and z-score:** "snow" (Roblox) stands out more than "jungle".
+- **A low band that admits "jungle":** it would have to sit between 0.3226 and 0.3265, which means tuning on the held-out queries themselves.

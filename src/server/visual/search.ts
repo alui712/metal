@@ -3,7 +3,7 @@ import type { Db } from "../db/client";
 import { recordings, recordingVisualIndex, visualFrames } from "../db/schema";
 import type { RecallFilters, RecallHit, RecallSearch } from "../search/recall";
 import { dot, fromBlob } from "../search/embed";
-import { embedText, visualModelStatus } from "./clip";
+import { embedTexts, visualModelStatus } from "./clip";
 
 // Visual Recall over indexed frames (ADR 0022): CLIP text↔image cosine
 // similarity. A match means "this frame looks like the description" — it
@@ -13,13 +13,19 @@ import { embedText, visualModelStatus } from "./clip";
 
 export const VISUAL_RULES = {
   /**
-   * CLIP ViT-B/16 cosine floors, calibrated on 581 frames from 21 real
-   * gaming recordings (docs/visual-recall.md). Unrelated descriptions
-   * peaked at 0.258; true scenes usually reach ≥ 0.30.
+   * Cosine floors for prompt-ensembled queries (SCENE_PROMPTS), calibrated on
+   * the existing tuning queries over 21 real recordings and checked on two
+   * held-out sets (docs/visual-recall.md, "Short queries"). Unrelated tuning
+   * queries peak at 0.325, so a floor low enough for one-word queries
+   * ("jungle" 0.327) would also return them.
    */
-  likelyMin: 0.3,
-  /** Shown only when nothing reaches `likelyMin`, and labelled low confidence. */
-  possibleMin: 0.27,
+  likelyMin: 0.33,
+  /**
+   * Shown only when nothing reaches `likelyMin`, and labelled low confidence.
+   * Equal to `likelyMin`: on the tuning set any lower band added only false
+   * matches. Event queries are still capped to low confidence.
+   */
+  possibleMin: 0.33,
   maxLowConfidence: 3,
   /**
    * Within a recording, only frames this close to its best frame count —
@@ -115,7 +121,7 @@ export function groupVisual(scored: Array<{ row: Row; sim: number }>, durations:
           `Looks similar to the description (CLIP similarity ${best.toFixed(2)})`,
           `${group.length} matching frame${group.length === 1 ? "" : "s"} sampled every ${(interval / 1000).toFixed(interval % 1000 ? 1 : 0)} s`,
         ],
-        // Same 0–1 scale Recall sorts on: 0.30 → 0.5, 0.35 → 0.75.
+        // Same 0–1 scale Recall sorts on: likelyMin → 0.5, +0.05 → 0.75.
         score: r3(Math.max(0, Math.min(1, 0.5 + (best - R.likelyMin) * 5))),
         strength: confidence === "likely" ? "good" : "weak",
         visual: { confidence, similarity: r3(best), frames: top.map((t) => ({ frameId: t.row.id, tMs: t.row.tMs, similarity: r3(t.sim) })), model: group[0].row.model, intervalMs: interval },
@@ -150,6 +156,23 @@ export function describeScene(raw: string): string {
   return q.trim() || raw.trim();
 }
 
+/**
+ * CLIP scores a bare word ("jungle") about 0.06 lower than a sentence about
+ * the same frames, so short queries fell under the floors. Averaging a few
+ * fixed caption-style prompts (CLIP's prompt ensembling) puts every query on
+ * the same scale; the floors in VISUAL_RULES are calibrated for this.
+ */
+export const SCENE_PROMPTS = ["a screenshot of {}", "a video game screenshot of {}", "a first-person view of {}", "a video game scene showing {}"];
+
+/** Unit-length mean of the query's prompt embeddings. */
+export async function embedScene(q: string): Promise<Float32Array> {
+  const vs = await embedTexts(SCENE_PROMPTS.map((p) => p.replace("{}", q)));
+  const sum = new Float32Array(vs[0].length);
+  for (const v of vs) v.forEach((x, i) => (sum[i] += x));
+  const n = Math.hypot(...sum) || 1;
+  return sum.map((x) => x / n);
+}
+
 export async function searchVisual(db: Db, rawQuery: string, filters: RecallFilters = {}): Promise<VisualSearch> {
   const q = describeScene(rawQuery).slice(0, 200);
   const s = visualModelStatus();
@@ -161,7 +184,7 @@ export async function searchVisual(db: Db, rawQuery: string, filters: RecallFilt
   if (!rows.length) return { hits: [], status: { available: true, reason: null, ...stats } };
   let qv: Float32Array;
   try {
-    qv = await embedText(q);
+    qv = await embedScene(q);
   } catch {
     return { hits: [], status: { available: false, reason: "Visual search model failed to load.", ...stats } };
   }

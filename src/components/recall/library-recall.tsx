@@ -309,7 +309,11 @@ export function LibraryRecall() {
               : visual
                 ? `Nothing said, named, or shown in the ${data.visual.recordings} visually indexed recording${data.visual.recordings === 1 ? "" : "s"} is close enough. METAL doesn’t show weak guesses as matches.`
                 : "Nothing said or named matches. Turn on Scenes to also search what was on screen."}
-            {hasFilters ? " Your filters may be hiding results." : " Try other words, or describe the scene differently."}
+            {hasFilters
+              ? " Your filters may be hiding results."
+              : visual && data.visual.frames && data.query.trim().split(/\s+/).length <= 2
+                ? " One or two words match scenes loosely. Add a visual detail, like “jungle cliff” instead of “jungle”."
+                : " Try other words, or describe the scene differently."}
           </p>
         </div>
       )}

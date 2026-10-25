@@ -79,7 +79,13 @@ export async function embedImageFile(file: string): Promise<Float32Array> {
 
 /** Unit-length text embedding in the same space as the images. */
 export async function embedText(query: string): Promise<Float32Array> {
+  return (await embedTexts([query]))[0];
+}
+
+/** Unit-length text embeddings for several strings in one model call. */
+export async function embedTexts(texts: string[]): Promise<Float32Array[]> {
   const { tokenizer, model } = await textModel();
-  const { text_embeds } = await model(tokenizer([query], { padding: true, truncation: true }));
-  return unit(Float32Array.from(text_embeds.data));
+  const { text_embeds } = await model(tokenizer(texts, { padding: true, truncation: true }));
+  const data = Float32Array.from(text_embeds.data);
+  return texts.map((_, i) => unit(data.slice(i * CLIP_DIMS, (i + 1) * CLIP_DIMS)));
 }

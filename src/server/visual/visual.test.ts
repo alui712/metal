@@ -9,7 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RecallSearch } from "../search/recall";
 import { visualModelStatus } from "./clip";
 import { parseShowinfo, samplingFilter, samplingInterval } from "./indexer";
-import { capForEvents, describeScene, groupVisual, isEventQuery, mergeRecall, VISUAL_RULES } from "./search";
+import { capForEvents, describeScene, groupVisual, isEventQuery, mergeRecall, SCENE_PROMPTS, VISUAL_RULES } from "./search";
 
 describe("frame sampling (pure)", () => {
   it("reads exact frame times from showinfo, shifted to file time", () => {
@@ -36,28 +36,41 @@ const B = "rec_bbbbbbbbbbbbbbbb";
 
 describe("visual grouping and confidence (pure)", () => {
   it("groups nearby matching frames into one approximate moment around real frame times", () => {
+    const L = VISUAL_RULES.likelyMin;
     const hits = groupVisual(
       [
-        { row: row(A, 10_000), sim: 0.325 },
-        { row: row(A, 12_000), sim: 0.33 },
+        { row: row(A, 10_000), sim: L + 0.025 },
+        { row: row(A, 12_000), sim: L + 0.03 },
         { row: row(A, 14_000), sim: 0.2 }, // below the floor: not evidence
-        { row: row(A, 24_000), sim: 0.305 }, // above the floor but far below this recording's peak
-        { row: row(A, 40_000), sim: 0.322 },
+        { row: row(A, 24_000), sim: L + 0.005 }, // above the floor but far below this recording's peak
+        { row: row(A, 40_000), sim: L + 0.022 },
       ],
       new Map([[A, 60_000]]),
     );
     expect(hits).toHaveLength(2);
     expect(hits[0]).toMatchObject({ recordingId: A, startMs: 9000, endMs: 13_000, seekMs: 9000, strength: "good", sources: ["visual"], lines: [] });
-    expect(hits[0].visual).toMatchObject({ confidence: "likely", similarity: 0.33 });
+    expect(hits[0].visual).toMatchObject({ confidence: "likely", similarity: Math.round((L + 0.03) * 1000) / 1000 });
     expect(hits[0].visual.frames.map((f) => f.tMs)).toEqual([12_000, 10_000]);
   });
   it("shows only a few low-confidence moments, and only when nothing is likely", () => {
-    const low = [0, 10, 20, 30, 40].map((s) => ({ row: row(B, s * 1000), sim: VISUAL_RULES.possibleMin + 0.01 }));
-    const lowHits = groupVisual(low, new Map());
-    expect(lowHits).toHaveLength(VISUAL_RULES.maxLowConfidence);
-    expect(lowHits.every((h) => h.visual.confidence === "low" && h.strength === "weak")).toBe(true);
-    const mixed = groupVisual([...low, { row: row(A, 5000), sim: 0.32 }], new Map());
-    expect(mixed.map((h) => h.recordingId)).toEqual([A]);
+    // The calibrated rules have no low band (possibleMin = likelyMin); test the mechanism with one.
+    const saved = VISUAL_RULES.possibleMin;
+    VISUAL_RULES.possibleMin = VISUAL_RULES.likelyMin - 0.03;
+    try {
+      const low = [0, 10, 20, 30, 40].map((s) => ({ row: row(B, s * 1000), sim: VISUAL_RULES.possibleMin + 0.01 }));
+      const lowHits = groupVisual(low, new Map());
+      expect(lowHits).toHaveLength(VISUAL_RULES.maxLowConfidence);
+      expect(lowHits.every((h) => h.visual.confidence === "low" && h.strength === "weak")).toBe(true);
+      const mixed = groupVisual([...low, { row: row(A, 5000), sim: VISUAL_RULES.likelyMin + 0.02 }], new Map());
+      expect(mixed.map((h) => h.recordingId)).toEqual([A]);
+    } finally {
+      VISUAL_RULES.possibleMin = saved;
+    }
+  });
+  it("puts every query through the same caption-style prompts", () => {
+    expect(SCENE_PROMPTS.length).toBeGreaterThan(1);
+    expect(SCENE_PROMPTS.every((p) => p.includes("{}"))).toBe(true);
+    expect(VISUAL_RULES.possibleMin).toBeLessThanOrEqual(VISUAL_RULES.likelyMin);
   });
   it("turns search requests into scene descriptions", () => {
     expect(describeScene("Find when I was holding a sniper")).toBe("holding a sniper");
@@ -69,12 +82,12 @@ describe("visual grouping and confidence (pure)", () => {
   it("never lets event queries look confident", () => {
     for (const q of ["an ace", "when I got a kill", "my teammate died", "a 4k", "the clutch round", "when we won the round", "a headshot"]) expect(isEventQuery(q)).toBe(true);
     for (const q of ["a dark hallway", "a pink knife skin", "a face in the window", "a cozy kitchen", "a snowy mountain"]) expect(isEventQuery(q)).toBe(false);
-    const hits = capForEvents(groupVisual([0, 10, 20, 30, 40].map((s) => ({ row: row(A, s * 1000), sim: 0.33 })), new Map()));
+    const hits = capForEvents(groupVisual([0, 10, 20, 30, 40].map((s) => ({ row: row(A, s * 1000), sim: VISUAL_RULES.likelyMin + 0.01 })), new Map()));
     expect(hits).toHaveLength(VISUAL_RULES.maxLowConfidence);
     expect(hits.every((h) => h.visual.confidence === "low" && h.strength === "weak" && h.reasons.at(-1)!.includes("can’t recognise game events"))).toBe(true);
   });
   it("returns nothing when no frame reaches the floor (unrelated query)", () => {
-    expect(groupVisual([{ row: row(A, 0), sim: 0.258 }, { row: row(B, 0), sim: 0.21 }], new Map())).toEqual([]);
+    expect(groupVisual([{ row: row(A, 0), sim: VISUAL_RULES.possibleMin - 0.005 }, { row: row(B, 0), sim: 0.21 }], new Map())).toEqual([]);
   });
 });
 
@@ -86,7 +99,7 @@ describe("combining with transcript Recall (pure)", () => {
     results: [{ recordingId: A, startMs: 11_000, endMs: 13_000, seekMs: 11_000, lines: [{ segmentId: "seg_x", startMs: 11_000, endMs: 13_000, text: "there", matched: [] }], sources: ["semantic"], reasons: ["Similar meaning"], score: 0.5, strength: "good" }],
   };
   it("adds visual evidence to an overlapping spoken moment, and keeps others separate", () => {
-    const visual = groupVisual([{ row: row(A, 12_000), sim: 0.32 }, { row: row(B, 3000), sim: 0.31 }], new Map());
+    const visual = groupVisual([{ row: row(A, 12_000), sim: VISUAL_RULES.likelyMin + 0.02 }, { row: row(B, 3000), sim: VISUAL_RULES.likelyMin + 0.01 }], new Map());
     const m = mergeRecall(text, visual);
     expect(m.results).toHaveLength(2);
     expect(m.results[0]).toMatchObject({ recordingId: A, sources: ["semantic", "visual"], score: 0.55 });
@@ -94,7 +107,7 @@ describe("combining with transcript Recall (pure)", () => {
     expect(m.results[1]).toMatchObject({ recordingId: B, sources: ["visual"] });
   });
   it("marks a visual-only, low-confidence answer as ambiguous", () => {
-    const visual = groupVisual([{ row: row(B, 3000), sim: 0.28 }], new Map());
+    const visual = capForEvents(groupVisual([{ row: row(B, 3000), sim: VISUAL_RULES.likelyMin + 0.01 }], new Map()));
     const m = mergeRecall({ ...text, results: [] }, visual);
     expect(m.ambiguous).toBe(true);
     expect(m.results[0].visual?.confidence).toBe("low");
@@ -180,7 +193,11 @@ describe.skipIf(!visualModelStatus().available)("visual index job (FFmpeg + loca
   }, 120_000);
 
   it("finds the red section at its real time, and cuts a playable clip range", async () => {
-    const r = await m.search.searchVisual(m.db, "a plain solid red screen");
+    // The floors are calibrated on gameplay; a flat synthetic frame scores just under them (≈0.32).
+    // This checks sampling and timing, so it uses a lower floor.
+    const saved = { ...m.search.VISUAL_RULES };
+    Object.assign(m.search.VISUAL_RULES, { likelyMin: 0.3, possibleMin: 0.3 });
+    const r = await m.search.searchVisual(m.db, "a plain solid red screen").finally(() => Object.assign(m.search.VISUAL_RULES, saved));
     expect(r.status.available).toBe(true);
     const top = r.hits[0];
     expect(top.recordingId).toBe(id);

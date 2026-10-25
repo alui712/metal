@@ -21,10 +21,11 @@ Recall (ADR 0015) only finds what was said. Most real gameplay has no speech, so
 - **Search** (`src/server/visual/search.ts`):
   - The query is rewritten from request phrasing to a scene description.
   - Frames are scored by brute-force cosine similarity, which is fine at this scale: ~6–25 ms for hundreds of frames.
+  - The description is embedded through four fixed caption-style prompts (`SCENE_PROMPTS`) and averaged, so short and long queries share one scale. This was added 2026-10-25, after "jungle" missed PEAK (see "Short queries" in `docs/visual-recall.md`).
   - Rules live in `VISUAL_RULES`:
-    - ≥ 0.30 → "Looks similar · approximate" (strength `good`)
-    - 0.27–0.30 → "Low confidence · approximate" (`weak`), at most 3 moments, only when nothing is likely
-    - below 0.27 → nothing
+    - ≥ 0.33 → "Looks similar · approximate" (strength `good`)
+    - below 0.33 → nothing. The earlier 0.27–0.30 "Low confidence" band was dropped, because on the tuning set it only added false matches.
+    - Event queries are still capped at 3 low-confidence moments.
   - Within a recording, only frames within 0.012 of its peak count, so a long, vaguely similar stretch can't swallow the real scene.
   - Moments span ±half an interval around their frames; playback starts 1 s before the first frame.
 - **Event guard** (added after the quality pass): queries about kills, deaths, aces, multi-kills, clutches, wins or headshots never get more than 3 low-confidence visual moments. Each says visual search can't recognise events. Measured: "an ace" had matched the on-screen ACE banner at "Looks similar".
