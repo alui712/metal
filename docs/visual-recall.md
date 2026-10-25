@@ -1,6 +1,6 @@
 # Visual Recall — setup and accuracy findings
 
-Visual Recall lets Recall find moments by what was **on screen**, including in silent recordings. It is opt-in per recording, runs entirely on this computer, and labels every visual match as **approximate**. Design: [ADR 0022](decisions/0022-visual-recall.md).
+Visual Recall lets Recall find moments by what was **on screen**, including in silent recordings. It is opt-in twice: per recording (**Index visuals**) and per search (the Recall **Scenes · experimental** toggle, `?visual=1`; off by default, and CLIP doesn't run when it's off). It runs entirely on this computer and labels every visual match as **approximate**. Design: [ADR 0022](decisions/0022-visual-recall.md).
 
 ## Model setup
 

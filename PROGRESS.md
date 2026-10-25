@@ -29,6 +29,25 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Integration candidate: experimental CLIP scene search in Recall ✅ (2026-10-25)
+
+- **Branch `feat/integration-visual-recall`:** this is `feat/integration` (`ac6f1e0`) plus the CLIP Visual Recall from `feat/visual-recall` (`e08f41f` and `c02d647`). It contains no Qwen code, no `vlm-eval` scripts and no HALT lock. Not merged.
+- **Migration:**
+  - Visual Recall is now `0012_visual_index`, generated after `0011_split_clips` with a newer `when`.
+  - It uses `IF NOT EXISTS`, so a database that ran the old `0011_visual_index` keeps its index.
+  - `src/server/db/migrations.test.ts` covers fresh, `0010`, `0011` split and legacy-visual databases, checks that re-opening is a no-op, and checks that journal `when` values strictly increase.
+  - On disposable copies of the production database (the production file was opened read-only, and its MD5 is unchanged), every table's row count was preserved. A copy migrated by the visual-recall branch kept its visual rows.
+- **Recall:**
+  - One search box. It searches speech and recording names by default; **Scenes · experimental** (`?visual=1`) adds approximate CLIP matches, with frame thumbnails, timestamps and *Open recording*.
+  - The copy says it can't confirm jumps, kills or aces.
+  - Judge mode keeps scene hits inside the prepared recording. The judge lock refuses indexing approved recordings (423).
+  - The ADR was renumbered to 0022.
+- **Verified** (isolated data copy, `127.0.0.1:3108` plus its worker):
+  - typecheck, lint, 241/241 tests, production build;
+  - 13 approved gameplay recordings indexed through the API in 15 s (192 frames from 376 s of video), and one more (`phas 2`) through the **Index visuals** button;
+  - `scripts/demo-check/recall-visual.mjs` (23 browser checks): **22 pass**. The 1 failure is a known limitation: "a player swimming underwater" returns two "Looks similar" PEAK frames, because foggy green slopes look underwater to CLIP;
+  - a fresh split-screen export (`peak pov + peak pov 2`): 6.48 s at 1920×1080, H.264 + AAC + caption track, both POVs in the frame.
+
 ## Final integration preview ✅ (2026-10-25)
 
 - **Branch `feat/integration`:** the split-screen checkpoint (`a73e4fd`, which already has the judge UI and Memory Dive 2.0, the studio-management PR via `main`, and feature-ux code `670f004`), plus `4c05362`, the feature-ux submission docs (merge, no conflicts). Not merged into `main`.
