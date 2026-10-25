@@ -25,3 +25,4 @@ Short records of decisions that shape METAL. Add a new numbered file when a deci
 | [0019](0019-multi-pov-sync.md) | Multi-POV Sync: evidence-only discovery (clocks, game, shared-audio spectral flux), offset groups with suggested vs confirmed sync, one shared playback clock | Accepted |
 | [0020](0020-judge-experience.md) | Judge Experience: immersive `/showcase`, sessionStorage guided tour across real content, read-only spotlight with honest fallbacks | Accepted |
 | [0021](0021-split-screen-export.md) | Multi-POV split-screen: side-by-side clips keep both recordings and a frozen aligned in-point; hstack/vstack in the one-pass export; no mid-clip filter reinit | Accepted |
+| [0022](0022-visual-recall.md) | Visual Recall: opt-in local CLIP frame index (2 s + hard cuts, exact pts), approximate confidence-tiered scene matches merged into Recall behind a per-search Scenes toggle | Accepted |

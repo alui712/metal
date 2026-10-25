@@ -8,6 +8,7 @@ import { matchPovs } from "../server/pov/povs";
 import { exportClip } from "../server/smartclip/export";
 import { importFolderFile } from "../server/sources/import";
 import { renderStory } from "../server/studio/render";
+import { indexRecordingVisuals } from "../server/visual/indexer";
 
 export type JobContext = {
   db: Db;
@@ -29,4 +30,5 @@ export const handlers: Record<string, JobHandler> = {
   transcribe: transcribeRecording,
   "story-export": renderStory,
   "pov-match": matchPovs,
+  "visual-index": indexRecordingVisuals,
 };

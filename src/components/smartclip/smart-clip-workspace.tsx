@@ -29,6 +29,7 @@ import { StepStrip } from "@/components/ui/how-it-works";
 import { cn } from "@/lib/cn";
 import { timecode } from "@/lib/format";
 import { TranscriptPanel } from "./transcript-panel";
+import { VisualIndexPanel } from "./visual-index-panel";
 import { useSmartClip, type Analysis, type SmartClipState, type Suggestion } from "./use-smart-clip";
 
 const STAGE: Record<string, string> = {
@@ -265,6 +266,7 @@ export function SmartClipWorkspace({
         onFlag={(id, flagged) => run(`flag:${id}`, () => flagLine(id, flagged))}
         onSeek={(ms) => seek(ms, true)}
       />
+      <VisualIndexPanel recordingId={recording.id} workerOnline={state?.workerOnline ?? true} />
       {recording.proxied && a?.status === "done" && open.length > 0 && (
         <p className="mt-3 text-[12px] text-ink-faint">Previews play METAL’s converted copy, which keeps the original’s timing. Saved clips are cut from the original file.</p>
       )}

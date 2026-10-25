@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Clapperboard, ExternalLink, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
+import { CircleAlert, Clapperboard, ExternalLink, Eye, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,8 @@ import { formatDate, timecode } from "@/lib/format";
 import { recallFetch } from "@/lib/recall/fetch";
 import { Highlight } from "./highlight";
 
-// Client types mirror src/server/search/recall.ts + /api/recall (no paths).
+// Client types mirror src/server/search/recall.ts, src/server/visual/search.ts + /api/recall (no paths).
+type Visual = { confidence: "likely" | "low"; similarity: number; frames: Array<{ frameId: string; tMs: number; similarity: number }>; model: string; intervalMs: number };
 type Line = { segmentId: string; startMs: number; endMs: number; text: string; matched: string[] };
 type Hit = {
   recordingId: string;
@@ -18,10 +19,11 @@ type Hit = {
   endMs: number;
   seekMs: number;
   lines: Line[];
-  sources: Array<"phrase" | "keyword" | "semantic" | "title">;
+  sources: Array<"phrase" | "keyword" | "semantic" | "title" | "visual">;
   reasons: string[];
   score: number;
   strength: "strong" | "good" | "weak";
+  visual?: Visual;
   recording: { id: string; title: string; game: string | null; recordedAt: number; durationMs: number | null; posterUrl: string | null; videoUrl: string | null };
 };
 type Response = {
@@ -30,6 +32,7 @@ type Response = {
   ambiguous: boolean;
   semantic: { available: boolean; reason: string | null };
   index: { segments: number; recordings: number; embedded: number; flagged: number };
+  visual: { available: boolean; reason: string | null; frames: number; recordings: number; eventQuery: boolean };
   facets: { games: string[]; recordings: Array<{ id: string; title: string }> };
 };
 
@@ -39,7 +42,14 @@ const STRENGTH = {
   good: { label: "Good match", cls: "border-accent/40 bg-accent/10 text-accent-ink" },
   weak: { label: "Loosely related", cls: "border-line-strong text-ink-muted" },
 };
-const SOURCE = { phrase: { label: "Exact phrase", icon: Type }, keyword: { label: "Words", icon: Search }, semantic: { label: "Meaning", icon: Sparkles }, title: { label: "Recording name", icon: Type } };
+// Visual-only moments are approximate by nature, so they get their own wording.
+const VISUAL_STRENGTH = {
+  likely: { label: "Looks similar · approximate", cls: "border-accent/40 bg-accent/10 text-accent-ink" },
+  low: { label: "Low confidence · approximate", cls: "border-warn/30 bg-warn/10 text-warn" },
+};
+const badge = (h: Hit) => (h.visual && !h.lines.length ? VISUAL_STRENGTH[h.visual.confidence] : STRENGTH[h.strength]);
+const SOURCE = { phrase: { label: "Exact phrase", icon: Type }, keyword: { label: "Words", icon: Search }, semantic: { label: "Meaning", icon: Sparkles }, title: { label: "Recording name", icon: Type }, visual: { label: "Looks like", icon: Eye } };
+const frameUrl = (id: string) => `/api/visual-frames/${id}`;
 const keyOf = (h: Hit) => `${h.recordingId}:${h.startMs}:${h.sources.join()}`;
 
 /** Recall over the real library: transcripts (keywords + local semantic search) and recording names. */
@@ -51,10 +61,12 @@ export function LibraryRecall() {
   const filterKey = FILTERS.map((f) => params.get(f) ?? "").join("|");
   // Guided demo (?judge=1): the server limits the search to the prepared recording.
   const judge = params.get("judge") === "1";
+  // Experimental scene search is opt-in per search (?visual=1); off, Recall searches speech and names only.
+  const visual = params.get("visual") === "1";
   const [draft, setDraft] = useState(q);
   const [lastQ, setLastQ] = useState(q);
   const [attempt, setAttempt] = useState(0);
-  const key = `${q}|${filterKey}|${judge}|${attempt}`;
+  const key = `${q}|${filterKey}|${judge}|${visual}|${attempt}`;
   // Only the response for the current query (and retry) is ever shown; `last`
   // keeps the index stats and filter options steady while a new search loads.
   const [fetched, setFetched] = useState<{ key: string; data: Response | null; error: string | null; last: Response | null } | null>(null);
@@ -77,6 +89,7 @@ export function LibraryRecall() {
     const sp = new URLSearchParams({ q });
     for (const f of FILTERS) if (params.get(f)) sp.set(f, params.get(f)!);
     if (judge) sp.set("judge", "1");
+    if (visual) sp.set("visual", "1");
     recallFetch<Response>(`/api/recall?${sp}`, ctrl.signal).then(
       (d) => setFetched((f) => ({ key, data: d, error: null, last: d ?? f?.last ?? null })),
       (e: unknown) => !ctrl.signal.aborted && setFetched((f) => ({ key, data: null, error: e instanceof Error ? e.message : String(e), last: f?.last ?? null })),
@@ -99,15 +112,15 @@ export function LibraryRecall() {
   const results = q.trim() && data ? data.results : [];
   const current = results.find((h) => keyOf(h) === selected) ?? results[0] ?? null;
   const hasFilters = FILTERS.some((f) => params.get(f));
-  // Nothing transcribed yet: filters have nothing to narrow, and "try other words" would mislead.
-  const emptyIndex = known !== null && known.index.segments === 0;
+  // Nothing transcribed or visually indexed yet: filters have nothing to narrow, and "try other words" would mislead.
+  const emptyIndex = known !== null && known.index.segments === 0 && known.visual.frames === 0;
 
   /** Loads a hit into the player at its exact second; plays it when asked. */
-  const cue = useCallback((h: Hit, autoplay: boolean) => {
+  const cue = useCallback((h: Hit, autoplay: boolean, atMs = h.seekMs) => {
     const v = video.current;
     if (!v || !h.recording.videoUrl) return;
     const go = () => {
-      v.currentTime = h.seekMs / 1000;
+      v.currentTime = atMs / 1000;
       if (autoplay) void v.play().catch(() => {});
     };
     if (v.getAttribute("src") !== h.recording.videoUrl) {
@@ -145,7 +158,7 @@ export function LibraryRecall() {
             id="recall-q"
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="What was said? — “enemies on the stairs”"
+            placeholder="What was said or seen? — “a dark hallway with a monster”"
             autoComplete="off"
             autoFocus={!q}
             className="h-12 min-w-0 flex-1 bg-transparent text-[17px] text-ink outline-none placeholder:text-ink-faint"
@@ -161,6 +174,25 @@ export function LibraryRecall() {
         </div>
       </form>
 
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[12.5px]">
+        <button
+          type="button"
+          aria-pressed={visual}
+          onClick={() => nav({ visual: visual ? null : "1" })}
+          className={cn(
+            "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 font-medium transition-colors",
+            visual ? "border-accent/50 bg-accent/15 text-accent-ink" : "border-line-strong text-ink-muted hover:text-ink",
+          )}
+        >
+          <Eye className="size-3.5" aria-hidden /> Scenes · experimental {visual ? "on" : "off"}
+        </button>
+        <span className="text-ink-faint">
+          {visual
+            ? "Also matching what frames look like. Approximate — it can’t confirm actions like jumps, kills or aces."
+            : "Searching what was said and recording names. Turn on Scenes to also match what frames look like."}
+        </span>
+      </div>
+
       {judge && (
         <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[12.5px] text-accent-ink">
           Prepared demo: searching {known?.facets.recordings[0]?.title ? `“${known.facets.recordings[0].title}”` : "the approved recording"} only.
@@ -173,7 +205,7 @@ export function LibraryRecall() {
         <label className="flex min-w-0 flex-col gap-1 text-ink-faint">
           Recording
           <select value={params.get("recording") ?? ""} onChange={(e) => nav({ recording: e.target.value || null })} className="h-9 max-w-[16rem] rounded-lg border border-line bg-surface-2 px-2 text-ink">
-            <option value="">All transcribed</option>
+            <option value="">All searchable</option>
             {known?.facets.recordings.map((r) => (
               <option key={r.id} value={r.id}>{r.title}</option>
             ))}
@@ -211,6 +243,14 @@ export function LibraryRecall() {
           Searching {known.index.segments} machine-transcribed line{known.index.segments === 1 ? "" : "s"} from {known.index.recordings} recording{known.index.recordings === 1 ? "" : "s"}, on this computer.
           {known.semantic.available ? " Matches by words and by meaning." : ` Keyword matching only — ${known.semantic.reason}`}
           {known.index.flagged > 0 && ` ${known.index.flagged} line${known.index.flagged === 1 ? "" : "s"} you marked wrong ${known.index.flagged === 1 ? "is" : "are"} excluded.`}
+          <span className="inline-flex items-center gap-1.5">
+            <Eye className="size-3.5" aria-hidden />
+            {!known.visual.available
+              ? `Scene search unavailable — ${known.visual.reason}`
+              : !known.visual.frames
+                ? "Scene search (experimental): no recordings are visually indexed yet — open one and choose Index visuals."
+                : `Scene search (experimental): ${known.visual.frames} frames from ${known.visual.recordings} visually indexed recording${known.visual.recordings === 1 ? "" : "s"}${visual ? ", approximate matches." : " — off. Turn on Scenes to include them."}`}
+          </span>
         </p>
       )}
       {q.trim() && loading && (
@@ -228,13 +268,14 @@ export function LibraryRecall() {
         </div>
       )}
 
-      {!q.trim() && known && known.index.segments > 0 && !judge && (
-        <ul aria-label="Search tips" className="mt-6 grid gap-2 text-[12.5px] leading-relaxed text-ink-muted sm:grid-cols-3">
+      {!q.trim() && known && !emptyIndex && !judge && (
+        <ul aria-label="Search tips" className="mt-6 grid gap-2 text-[12.5px] leading-relaxed text-ink-muted sm:grid-cols-2 lg:grid-cols-4">
           {[
             ["Exact words", "Type a phrase someone said, like “behind you”."],
             known.semantic.available
               ? ["Or the gist", "Approximate wording works too — describe what was said in your own words."]
               : ["Use their words", "Matching by meaning isn’t set up, so search for words that were actually said."],
+            ["Describe a scene", "With Scenes on, “a dark hallway with a monster” finds frames that look alike. Approximate; not actions."],
             ["Opens at the second", "Each result plays from the real timestamp in the recording."],
           ].map(([title, body]) => (
             <li key={title} className="rounded-xl border border-line bg-surface-2/50 px-3.5 py-2.5">
@@ -248,11 +289,11 @@ export function LibraryRecall() {
       {emptyIndex && (!q.trim() || (data && results.length === 0)) && (
         <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center" role={q.trim() ? "status" : undefined}>
           <Mic className="mx-auto size-6 text-accent-ink" strokeWidth={1.5} aria-hidden />
-          <p className="mt-3 text-[15px] font-medium text-ink">{q.trim() ? "There’s no transcribed speech to search yet" : "Nothing to search yet"}</p>
-          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">Recall searches what was said in your recordings, so a recording needs a transcript first.</p>
+          <p className="mt-3 text-[15px] font-medium text-ink">{q.trim() ? "There’s nothing indexed to search yet" : "Nothing to search yet"}</p>
+          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">Recall searches what was said in your recordings, and optionally what scenes looked like, so a recording needs a transcript or a visual index first.</p>
           <ol className="mx-auto mt-4 max-w-sm space-y-1 text-left text-[13px] text-ink-muted">
             <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">1</span>Open a recording in your Library.</li>
-            <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">2</span>Choose <span className="text-ink">Transcribe speech</span> under the player.</li>
+            <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">2</span>Choose <span className="text-ink">Transcribe speech</span> under the player, or <span className="text-ink">Index visuals</span> (experimental).</li>
             <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">3</span>Come back here and search — results open at the exact second.</li>
           </ol>
           <Link href="/library" className={buttonClass("secondary", "sm", "mt-5")}>Go to Library</Link>
@@ -263,8 +304,12 @@ export function LibraryRecall() {
         <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center" role="status">
           <p className="text-[15px] font-medium text-ink">No moments match “{data.query}”</p>
           <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
-            Recall only finds things that were said (and recording names) — it can’t see what happened on screen.
-            {hasFilters ? " Your filters may be hiding results." : " Try other words, or describe what someone said."}
+            {!data.visual.frames
+              ? "Recall found nothing said or named like this, and no recordings are visually indexed, so it can’t search what was on screen."
+              : visual
+                ? `Nothing said, named, or shown in the ${data.visual.recordings} visually indexed recording${data.visual.recordings === 1 ? "" : "s"} is close enough. METAL doesn’t show weak guesses as matches.`
+                : "Nothing said or named matches. Turn on Scenes to also search what was on screen."}
+            {hasFilters ? " Your filters may be hiding results." : " Try other words, or describe the scene differently."}
           </p>
         </div>
       )}
@@ -280,6 +325,11 @@ export function LibraryRecall() {
                 <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden /> No close matches. These are only loosely related — check before relying on them.
               </p>
             )}
+            {data!.visual.eventQuery && results.some((h) => h.visual) && (
+              <p className="mb-3 flex items-start gap-2 rounded-xl border border-warn/25 bg-warn/10 px-3 py-2 text-[12.5px] text-warn">
+                <CircleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden /> METAL can’t recognise kills, deaths, aces or round results in video. Visual matches below only look similar to your words.
+              </p>
+            )}
             <ol aria-label="Results" className="space-y-2">
               {results.map((h) => {
                 const active = current && keyOf(current) === keyOf(h);
@@ -293,9 +343,17 @@ export function LibraryRecall() {
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="min-w-0 truncate text-[14px] font-medium text-ink">{h.recording.title}</span>
-                        <span className="font-mono text-[12px] tabular-nums text-accent-ink">{h.lines.length ? timecode(h.seekMs) : "whole recording"}</span>
-                        <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium", STRENGTH[h.strength].cls)}>{STRENGTH[h.strength].label}</span>
+                        <span className="font-mono text-[12px] tabular-nums text-accent-ink">{h.lines.length || h.visual ? timecode(h.seekMs) : "whole recording"}</span>
+                        <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium", badge(h).cls)}>{badge(h).label}</span>
                       </div>
+                      {h.visual && (
+                        <div className="mt-2.5 flex gap-1.5">
+                          {h.visual.frames.map((f) => (
+                            // eslint-disable-next-line @next/next/no-img-element -- local evidence frame, served by id
+                            <img key={f.frameId} src={frameUrl(f.frameId)} alt={`Frame at ${timecode(f.tMs)}`} loading="lazy" className="h-14 w-auto rounded-md border border-line object-cover" />
+                          ))}
+                        </div>
+                      )}
                       {h.lines.map((l) => (
                         <p key={l.segmentId} className="mt-2 text-[13.5px] leading-relaxed text-ink-muted">
                           <span className="mr-2 font-mono text-[11.5px] text-ink-faint">{timecode(l.startMs)}</span>“<Highlight text={l.text} terms={l.matched} />”
@@ -346,6 +404,22 @@ export function LibraryRecall() {
                     )}
                   </div>
                 </div>
+                {current.visual && (
+                  <div className="mt-3">
+                    <p className="text-[12px] text-ink-faint">Matching frames — click to play from that moment</p>
+                    <div className="mt-1.5 flex flex-wrap gap-2">
+                      {current.visual.frames.map((f) => (
+                        <button key={f.frameId} type="button" onClick={() => cue(current, true, Math.max(0, f.tMs - 500))} className="group text-left">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- local evidence frame, served by id */}
+                          <img src={frameUrl(f.frameId)} alt={`Frame at ${timecode(f.tMs)}`} className="h-20 w-auto rounded-lg border border-line object-cover group-hover:border-accent/60" />
+                          <span className="mt-0.5 block font-mono text-[11px] tabular-nums text-ink-faint">
+                            {timecode(f.tMs)} · {f.similarity.toFixed(2)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {current.lines.length > 0 && (
                   <blockquote className="mt-3 border-l-2 border-accent/60 pl-3.5">
                     {current.lines.map((l) => (
@@ -356,9 +430,16 @@ export function LibraryRecall() {
                     ))}
                   </blockquote>
                 )}
-                <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
-                  Machine transcription (whisper.cpp) — words may be wrong. A match shows what was said, not what happened on screen.
-                </p>
+                {current.lines.length > 0 && (
+                  <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
+                    Machine transcription (whisper.cpp) — words may be wrong. A match shows what was said, not what happened on screen.
+                  </p>
+                )}
+                {current.visual && (
+                  <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
+                    Approximate visual match ({current.visual.model}, frames every {(current.visual.intervalMs / 1000).toFixed(1)} s, so the moment is within about ±{(current.visual.intervalMs / 2000).toFixed(1)} s). It means these frames look like your description — it doesn’t confirm actions, kills, or events.
+                  </p>
+                )}
               </div>
             )}
           </div>

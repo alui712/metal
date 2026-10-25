@@ -31,7 +31,7 @@ export default function RecallPage() {
               Find the moment, <span className="font-display font-normal italic text-accent-ink">not the file.</span>
             </>
           }
-          description="Search what was said in your recordings — exact words or the gist. Recall jumps to the exact second and shows why it matched."
+          description="Search what was said in your recordings — or describe what was on screen. Recall jumps to the moment and shows why it matched."
         />
         <p className="-mt-4 mb-6 text-[12.5px] text-ink-faint">
           Want to see the full concept?{" "}

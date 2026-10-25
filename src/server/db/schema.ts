@@ -598,3 +598,48 @@ export const povMatches = sqliteTable(
   },
   (t) => [primaryKey({ columns: [t.recordingId, t.candidateId] })],
 );
+
+/**
+ * Visual Recall (ADR 0022): timestamped frames sampled from a recording and
+ * their local CLIP image embeddings. Each row is its own evidence: the frame
+ * file (relative to data/media), its source time, and the model that embedded it.
+ */
+export const visualFrames = sqliteTable(
+  "visual_frames",
+  {
+    id: text("id").primaryKey(),
+    recordingId: text("recording_id")
+      .notNull()
+      .references(() => recordings.id, { onDelete: "cascade" }),
+    /** Frame time from FFmpeg's showinfo, relative to the start of the file. */
+    tMs: integer("t_ms").notNull(),
+    path: text("path").notNull(),
+    isSceneChange: integer("is_scene_change", { mode: "boolean" }).notNull().default(false),
+    model: text("model").notNull(),
+    /** Unit-length float32 image embedding. */
+    embedding: blob("embedding", { mode: "buffer" }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("visual_frames_recording_t_idx").on(t.recordingId, t.tMs)],
+);
+
+/** Visual index run per recording (one row; replaced on re-index). Opt-in only. */
+export const recordingVisualIndex = sqliteTable("recording_visual_index", {
+  recordingId: text("recording_id")
+    .primaryKey()
+    .references(() => recordings.id, { onDelete: "cascade" }),
+  status: text("status", { enum: ["queued", "running", "done", "failed"] }).notNull(),
+  stage: text("stage"),
+  error: text("error"),
+  jobId: text("job_id"),
+  /** Index version + model id; a recording indexed with the current pair isn't re-indexed. */
+  version: text("version").notNull(),
+  model: text("model").notNull(),
+  intervalMs: integer("interval_ms"),
+  frameCount: integer("frame_count"),
+  /** Wall time spent extracting and embedding, for honest speed reporting. */
+  extractMs: integer("extract_ms"),
+  embedMs: integer("embed_ms"),
+  requestedAt: integer("requested_at").notNull(),
+  finishedAt: integer("finished_at"),
+});

@@ -85,6 +85,13 @@
       "when": 1792910133391,
       "tag": "0011_split_clips",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792913353825,
+      "tag": "0012_visual_index",
+      "breakpoints": true
     }
   ]
 }

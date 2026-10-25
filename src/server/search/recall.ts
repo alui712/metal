@@ -1,6 +1,7 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { chunks, recordings, transcriptSegments } from "../db/schema";
+import type { VisualMatch } from "../visual/search";
 import { dot, embed, embedderStatus, fromBlob, toBlob } from "./embed";
 
 // Recall over real recordings: transcript lines (FTS5 keywords + local
@@ -37,7 +38,7 @@ export function stem(w: string): string {
 }
 
 export type RecallFilters = { recordingId?: string; game?: string; fromMs?: number; toMs?: number };
-export type MatchSource = "phrase" | "keyword" | "semantic" | "title";
+export type MatchSource = "phrase" | "keyword" | "semantic" | "title" | "visual";
 export type RecallLine = { segmentId: string; startMs: number; endMs: number; text: string; matched: string[] };
 export type RecallHit = {
   recordingId: string;
@@ -50,6 +51,8 @@ export type RecallHit = {
   reasons: string[];
   score: number;
   strength: "strong" | "good" | "weak";
+  /** Present when CLIP frames matched (approximate; see src/server/visual/search.ts). */
+  visual?: VisualMatch;
 };
 export type RecallSearch = {
   query: string;

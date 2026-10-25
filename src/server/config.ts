@@ -37,6 +37,8 @@ export const config = {
     return resolveFromRoot(process.env.EMBED_MODEL_DIR ?? "models");
   },
   embedModelId: process.env.EMBED_MODEL_ID ?? "Xenova/all-MiniLM-L6-v2",
+  /** Local CLIP image-text model for Visual Recall (same models/ layout); optional. */
+  visualModelId: process.env.VISUAL_MODEL_ID ?? "Xenova/clip-vit-base-patch16",
   get anthropicApiKey(): string | undefined {
     return process.env.ANTHROPIC_API_KEY || undefined;
   },

@@ -1,12 +1,13 @@
 import { isNotNull } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
-import { recordings, transcriptSegments } from "@/server/db/schema";
+import { recordings, transcriptSegments, visualFrames } from "@/server/db/schema";
 import { jsonError, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
 import { readRecordings } from "@/server/recordings";
 import { ensureEmbeddings, recallIndexStats, searchRecall, type RecallFilters } from "@/server/search/recall";
 import { isJudge, judgeRecallScope } from "@/lib/judge/scope";
 import { judgeScope } from "@/server/judge/demo";
+import { mergeRecall, searchVisual } from "@/server/visual/search";
 
 const day = (v: string | null, end = false) => {
   if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
@@ -17,8 +18,9 @@ const day = (v: string | null, end = false) => {
 };
 
 /**
- * Recall over the real library: transcript lines and recording names.
- * Local only (FTS5 + on-device embeddings); no paths in the response.
+ * Recall over the real library: transcript lines, recording names, and
+ * (when indexed) what frames look like. Local only (FTS5 + on-device
+ * embeddings + on-device CLIP); no paths in the response.
  */
 export async function GET(request: Request) {
   if (!sameOrigin(request)) return jsonError(403, "Forbidden.");
@@ -44,9 +46,13 @@ export async function GET(request: Request) {
   const label = new Map(judge?.demo.recordings.map((r) => [r.id, r.label]) ?? []);
   // Lines transcribed before embeddings existed get vectors on first search.
   await ensureEmbeddings(db).catch(() => 0);
-  const search = await searchRecall(db, q, filters);
+  // Experimental scene search runs only when asked (?visual=1); an empty query still reports its index status.
+  const wantVisual = url.searchParams.get("visual") === "1";
+  const [text, visual] = await Promise.all([searchRecall(db, q, filters), searchVisual(db, wantVisual ? q : "", filters)]);
+  const search = mergeRecall(text, visual.hits);
   const recs = new Map(readRecordings([...new Set(search.results.map((r) => r.recordingId))]).map((r) => [r.id, r]));
   const transcribed = new Set(db.selectDistinct({ id: transcriptSegments.recordingId }).from(transcriptSegments).all().map((r) => r.id));
+  for (const r of db.selectDistinct({ id: visualFrames.recordingId }).from(visualFrames).all()) transcribed.add(r.id);
   const gameOf = new Map(db.select({ id: recordings.id, game: recordings.game }).from(recordings).where(isNotNull(recordings.game)).all().map((g) => [g.id, g.game]));
   const games = db.selectDistinct({ game: recordings.game }).from(recordings).where(isNotNull(recordings.game)).all().flatMap((g) => (g.game ? [g.game] : []));
   return Response.json(
@@ -58,6 +64,7 @@ export async function GET(request: Request) {
         return r ? [{ ...h, recording: { id: r.id, title: label.get(r.id) ?? r.title, game: gameOf.get(r.id) ?? null, recordedAt: r.recordedAt ?? r.importedAt, durationMs: r.durationMs, posterUrl: r.posterUrl, videoUrl: r.videoUrl, origin: r.origin } }] : [];
       }),
       index: recallIndexStats(db),
+      visual: visual.status,
       facets: judge
         ? { games: [], recordings: readRecordings([filters.recordingId!]).map((r) => ({ id: r.id, title: label.get(r.id) ?? r.title })) }
         : {
