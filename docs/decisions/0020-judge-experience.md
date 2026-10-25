@@ -48,8 +48,13 @@ First-time viewers (judges) need to understand METAL in about ten seconds and re
   - **Reduced motion:** never autoplays.
   - **Source:**
     - an approved silent montage at `public/showcase/intro.mp4` (+ `intro.jpg` poster), gitignored and supplied by the video workspace;
-    - otherwise the first three approved recordings' posters with a gentle push-in.
+    - otherwise the first three approved recordings' posters.
     - A failed video falls back to the posters.
+  - **Continuous reel:** after the intro (or a montage, which fades into it), the same reel keeps cycling through every approved recording's poster, in the approved order, about 6.5 s each, wrapping last → first.
+    - One shot at a time, each crossfading over the previous one (900 ms, never through black). Only the current, previous and next posters are in the DOM, and no video decodes in the background.
+    - Framing is one 16:9 presentation: every shot gets the same slow drift from 100% to 105%. Near 16:9 the shot fills the stage; at other aspect ratios (phones, ultrawide) the whole frame is shown over a blurred fill of itself, instead of a hard crop or an upscale.
+    - Lighting: a dark left gradient for the headline, a dark top edge that hides game HUDs (player names), and a soft vignette.
+    - Pauses (clock and drift) when the tab is hidden or the reel is mostly off screen. With reduced motion it holds one still frame.
   - **Montage asset requirements:**
     - H.264 MP4, 1920×1080 (or 1600×900), 24 or 30 fps, 5–6 s, no audio track, `+faststart`, at most ~4 MB;
     - footage from the approved recordings only;
@@ -58,8 +63,13 @@ First-time viewers (judges) need to understand METAL in about ten seconds and re
     - poster: first frame as JPEG, 1920×1080, at most ~250 KB.
     - Files dropped into `public/` after a build need `npm run build` again.
 - **Transitions:**
-  - Leaving the showcase for the app (`portal` transition type on Enter METAL and Start guided demo) pushes the stage in and dissolves it while the app settles (≈600 ms). The sidebar fades in.
-  - A showcase memory card morphs into its recording's player (shared `recordingArtName`).
+  - **Enter METAL** (`portal` transition type): the showcase lifts away and the app settles (≈400 ms). The sidebar fades in.
+  - **Memory Dive** (`dive` type, on Start guided demo; ≈600–700 ms including the route render):
+    - On click, `data-dive` on `<html>` starts fading the copy (`[data-dive-copy]`) right away, while navigation starts. Nothing waits on it.
+    - The reel on screen gets its own view-transition name (`memory-frame`) and pushes forward (scale 1.1, slight brightening) into a violet-lit backdrop, while the real Recall page settles in beneath.
+    - The tour dock stays hidden until the destination renders, then fades in.
+    - Without view-transition support it is a plain navigation. Reduced motion navigates with no transition at all. Back returns to an intact showcase.
+  - **Memory cards** dive the same way: the clicked card is the frame that pushes forward into its recording. A shared-element morph was tried, but it didn't fire across this navigation in the browser, so it was replaced.
 
 ## Consequences
 - The tour depends on route paths (`onStep`). Renaming a feature route means updating `tourSteps`.

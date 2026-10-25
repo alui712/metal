@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { ArrowRight, ChevronLeft, Compass, House, Minimize2, X } from "lucide-react";
 import { buttonClass } from "@/components/ui/button";
@@ -16,6 +16,12 @@ import { endTour, setTourStep, useTour } from "./tour-store";
 export function TourDock() {
   const tour = useTour();
   const pathname = usePathname();
+  // A Memory Dive (showcase → first stop) ends once the destination renders; the dock then fades in.
+  useEffect(() => {
+    if (pathname === "/showcase") return;
+    document.documentElement.removeAttribute("data-dive");
+    document.querySelector("[data-dive-target]")?.removeAttribute("data-dive-target");
+  }, [pathname]);
   const search = useSearchParams();
   const router = useRouter();
   const reduce = useReducedMotion();

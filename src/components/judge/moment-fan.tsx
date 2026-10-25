@@ -1,15 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, ViewTransition } from "react";
+import { useRef, useState } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Play } from "lucide-react";
 import { EASE_OUT } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
-import { recordingArtName } from "@/lib/recordings/types";
 
 // Fanned stack of real gameplay frames. Hover or focus plays the footage
 // behind the card, muted, from `startMs`; nothing autoplays with sound.
+// Opening one is a Memory Dive into that card rather than the hero frame.
 
 export type FanCard = {
   id: string;
@@ -76,31 +76,36 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
     >
       <Link
         href={c.href}
+        transitionTypes={["dive"]}
+        onClick={(e) => {
+          // Card dive: this card is the frame that pushes forward into the recording (see globals.css).
+          if (reduce) return;
+          document.documentElement.setAttribute("data-dive", "");
+          e.currentTarget.setAttribute("data-dive-target", "");
+        }}
         aria-label={c.label}
         onMouseEnter={start}
         onMouseLeave={stop}
         onFocus={start}
         onBlur={stop}
-        className="group block overflow-hidden rounded-2xl border border-white/10 bg-surface-2 shadow-[0_40px_90px_-30px_rgb(0_0_0/0.95)] ring-accent/60 transition-[box-shadow,border-color] duration-300 hover:border-accent/50 hover:ring-2 focus-visible:ring-2"
+        className="group block overflow-hidden rounded-2xl border border-white/10 bg-surface-2 shadow-[0_40px_90px_-30px_rgb(0_0_0/0.95)] ring-accent/60 transition-[box-shadow,border-color] duration-300 hover:border-accent/50 hover:shadow-[0_40px_90px_-30px_rgb(0_0_0/0.95),0_18px_60px_-24px_var(--violet-500)] hover:ring-2 focus-visible:border-accent/50 focus-visible:shadow-[0_40px_90px_-30px_rgb(0_0_0/0.95),0_18px_60px_-24px_var(--violet-500)] focus-visible:ring-2"
       >
-        <ViewTransition name={fan ? recordingArtName(c.id) : undefined} share="morph" default="none">
-          <span className="relative block aspect-video overflow-hidden bg-surface-3">
-            {/* eslint-disable-next-line @next/next/no-img-element -- local keyframe */}
-            <img src={c.imageUrl} alt="" className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-[1.04] group-focus-visible:scale-[1.04]" />
-            {c.videoUrl && (
-              <video
-                ref={video}
-                src={c.videoUrl}
-                muted
-                playsInline
-                preload="none"
-                aria-hidden
-                className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", playing ? "opacity-100" : "opacity-0")}
-              />
-            )}
-            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          </span>
-        </ViewTransition>
+        <span className="relative block aspect-video overflow-hidden bg-surface-3">
+          {/* eslint-disable-next-line @next/next/no-img-element -- local keyframe */}
+          <img src={c.imageUrl} alt="" className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-[1.04] group-focus-visible:scale-[1.04]" />
+          {c.videoUrl && (
+            <video
+              ref={video}
+              src={c.videoUrl}
+              muted
+              playsInline
+              preload="none"
+              aria-hidden
+              className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", playing ? "opacity-100" : "opacity-0")}
+            />
+          )}
+          <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        </span>
         <span className="flex items-center justify-between gap-3 border-t border-white/8 px-4 py-3">
           <span className="min-w-0">
             <span className="block truncate text-[14.5px] font-semibold text-ink">{c.title}</span>

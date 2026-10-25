@@ -24,14 +24,14 @@ export const metadata: Metadata = {
 export default function ShowcasePage() {
   return (
     // Leaving for the app ("portal" navigations) pushes the camera into the stage; see globals.css.
-    <ViewTransition exit={{ portal: "portal-out", default: "none" }} default="none">
+    <ViewTransition exit={{ portal: "portal-out", dive: "dive-out", default: "none" }} default="none">
       <div data-immersive className="showcase-stage grain relative isolate min-h-dvh overflow-hidden">
         <div aria-hidden className="showcase-grid pointer-events-none absolute inset-0 -z-10" />
         <Suspense fallback={null}>
           <Film />
         </Suspense>
 
-        <header className="mx-auto flex max-w-[110rem] items-center justify-end gap-3 px-5 pt-5 sm:px-10 sm:pt-8 xl:px-16">
+        <header data-dive-copy className="mx-auto flex max-w-[110rem] items-center justify-end gap-3 px-5 pt-5 sm:px-10 sm:pt-8 xl:px-16">
           <Suspense fallback={null}>
             <FilmControls />
           </Suspense>
@@ -48,7 +48,7 @@ export default function ShowcasePage() {
           </Link>
         </header>
 
-        <section className="mx-auto grid max-w-[110rem] grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pb-10 pt-10 sm:px-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 lg:pt-14 xl:px-16">
+        <section data-dive-copy className="mx-auto grid max-w-[110rem] grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pb-10 pt-10 sm:px-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 lg:pt-14 xl:px-16">
           <div>
             <ShowcaseHero />
             <Reveal delay={0.55}>
@@ -72,13 +72,13 @@ export default function ShowcasePage() {
           </div>
 
           <IntroGate>
-            <Suspense fallback={<div className="hidden aspect-[1.08] w-full animate-pulse rounded-3xl bg-surface-2/40 lg:block" />}>
+            <Suspense fallback={<div className="h-[18.75rem] w-full animate-pulse rounded-3xl bg-surface-2/40 sm:h-[20.75rem] lg:mb-7 lg:aspect-[1.08] lg:h-auto" />}>
               <Featured />
             </Suspense>
           </IntroGate>
         </section>
 
-        <section aria-labelledby="ways-heading" className="mx-auto max-w-[110rem] px-5 pb-16 sm:px-10 xl:px-16">
+        <section data-dive-copy aria-labelledby="ways-heading" className="mx-auto max-w-[110rem] px-5 pb-16 sm:px-10 xl:px-16">
           <Reveal delay={1.1}>
             <h2 id="ways-heading" className="mb-5 text-[13px] font-medium uppercase tracking-[0.2em] text-ink-faint">
               Four ways back to a moment
@@ -93,11 +93,11 @@ export default function ShowcasePage() {
   );
 }
 
-/** Up to three approved recordings for the still film (the montage's fallback). */
+/** Every approved recording's poster, in the approved order: the reel (and the montage's fallback). */
 async function introShots() {
   await connection();
   const { night, reels } = spotlight();
-  return reels.slice(0, 3).map((r) => ({ id: r.recordingId, imageUrl: r.posterUrl, caption: r.title ?? night?.title ?? "approved recording" }));
+  return reels.map((r) => ({ id: r.recordingId, imageUrl: r.posterUrl, caption: r.title ?? night?.title ?? "approved recording" }));
 }
 
 /**
@@ -112,7 +112,7 @@ function introVideo(): IntroVideo | null {
 
 async function Film() {
   const shots = await introShots();
-  return <IntroFilm shots={shots} video={introVideo()} />;
+  return <IntroFilm shots={shots} video={introVideo()} introCount={Math.min(3, shots.length)} />;
 }
 
 async function FilmControls() {
@@ -122,7 +122,7 @@ async function FilmControls() {
 
 async function StartTour() {
   await connection();
-  return <StartTourButton targets={tourTargets(spotlight())} />;
+  return <StartTourButton targets={tourTargets(spotlight())} dive />;
 }
 
 async function Featured() {

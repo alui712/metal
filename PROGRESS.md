@@ -27,6 +27,18 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Final cinematic polish ✅ (2026-10-24)
+
+- **Continuous reel:**
+  - after the intro, the showcase background keeps cycling all six approved recordings (crossfades only, wraps last → first);
+  - one 16:9 framing with a 100–105% drift; a blurred fill for non-16:9 viewports;
+  - a dark HUD edge, a left gradient and a vignette;
+  - pauses when hidden or off screen.
+- **Headline:** both lines rise word by word out of masks, line two a beat later, then one light sweep across the violet line. No layout shift; reduced motion uses a fade.
+- **Memory Dive** on Start guided demo: copy drifts off at once, the gameplay frame pushes forward into violet light, and Recall settles in, followed by the dock. Memory cards dive into their recording the same way (this replaces a morph that never fired). Enter METAL is a faster (~400 ms) lift-and-settle.
+- **Layout:** card fallbacks reserve their real height (CLS 0.000 at 1920 and 390, was 0.006/0.036).
+- **Verified:** 21 browser checks: headline, intro, framing, 44 s loop with wrap, hidden tab, card dive, Memory Dive timing and destination, Back, Enter METAL, keyboard, reduced motion, 390. Plus the regression journeys.
+
 ## Judge Experience — Memory Portal polish ✅ (2026-10-24)
 
 - **Showcase intro film:**
