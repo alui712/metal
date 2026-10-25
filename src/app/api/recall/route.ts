@@ -1,4 +1,4 @@
-import { isNotNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/server/db/client";
 import { recordings, transcriptSegments, visualFrames } from "@/server/db/schema";
 import { jsonError, sameOrigin } from "@/server/http";
@@ -65,6 +65,15 @@ export async function GET(request: Request) {
       }),
       index: recallIndexStats(db),
       visual: visual.status,
+      // What this search covered: the whole library, or (guided demo) only the approved recording, with its own counts.
+      scope: judge
+        ? {
+            kind: "demo" as const,
+            recording: { id: filters.recordingId!, title: label.get(filters.recordingId!) ?? readRecordings([filters.recordingId!])[0]?.title ?? "the approved recording" },
+            lines: db.select({ n: sql<number>`count(*)` }).from(transcriptSegments).where(and(eq(transcriptSegments.recordingId, filters.recordingId!), isNull(transcriptSegments.flaggedAt))).get()?.n ?? 0,
+            frames: db.select({ n: sql<number>`count(*)` }).from(visualFrames).where(eq(visualFrames.recordingId, filters.recordingId!)).get()?.n ?? 0,
+          }
+        : { kind: "library" as const },
       facets: judge
         ? { games: [], recordings: readRecordings([filters.recordingId!]).map((r) => ({ id: r.id, title: label.get(r.id) ?? r.title })) }
         : {

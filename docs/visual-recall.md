@@ -41,7 +41,8 @@ Visual Recall lets Recall find moments by what was **on screen**, including in s
    - **≥ 0.33 → "Looks similar · approximate".**
    - **< 0.33 → not shown.** There is no low-confidence band: on the tuning set it only added false matches. Event-worded queries are still capped to at most 3 "Low confidence · approximate" moments.
    - Until 2026-10-25 the raw query was embedded on its own, with floors 0.30 / 0.27.
-   - When Scenes finds nothing for a one- or two-word query, Recall suggests adding a visual detail ("jungle cliff" instead of "jungle").
+   - When Scenes finds nothing, Recall says so and suggests describing what's on screen ("jungle cliff" or "a dark hallway with a monster", not a single word). These are labelled as phrasing tips, not guaranteed matches.
+   - **Scope is always shown.** Normal Recall says "Whole library". The guided demo (`?judge=1`) searches only its approved recording, and the API's `scope` field carries that recording's own line and frame counts. The banner, the index line and the no-match message all say so, and link to "search your whole library" (which leaves the demo). The demo's server-side permissions are unchanged: other recordings, a missing recording, or filters still return 400.
    - Within a recording, only frames within 0.012 of its best frame count. Frames ≤ 4.5 s apart form one moment spanning ±half a sampling interval. Playback starts 1 s before the first matching frame.
 5. **Combining with transcripts.** Visual and transcript searches run together.
    - A visual moment that overlaps a spoken moment adds its frames and a small boost to it.

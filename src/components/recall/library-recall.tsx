@@ -34,6 +34,7 @@ type Response = {
   index: { segments: number; recordings: number; embedded: number; flagged: number };
   visual: { available: boolean; reason: string | null; frames: number; recordings: number; eventQuery: boolean };
   facets: { games: string[]; recordings: Array<{ id: string; title: string }> };
+  scope: { kind: "library" } | { kind: "demo"; recording: { id: string; title: string }; lines: number; frames: number };
 };
 
 const FILTERS = ["recording", "game", "from", "to"] as const;
@@ -114,6 +115,9 @@ export function LibraryRecall() {
   const hasFilters = FILTERS.some((f) => params.get(f));
   // Nothing transcribed or visually indexed yet: filters have nothing to narrow, and "try other words" would mislead.
   const emptyIndex = known !== null && known.index.segments === 0 && known.visual.frames === 0;
+  // Guided demo: what the server actually searched (one approved recording), with that recording's own counts.
+  const demo = known?.scope?.kind === "demo" ? known.scope : null;
+  const libraryHref = `/recall${q || visual ? `?${new URLSearchParams({ ...(q ? { q } : {}), ...(visual ? { visual: "1" } : {}) })}` : ""}`;
 
   /** Loads a hit into the player at its exact second; plays it when asked. */
   const cue = useCallback((h: Hit, autoplay: boolean, atMs = h.seekMs) => {
@@ -194,12 +198,14 @@ export function LibraryRecall() {
       </div>
 
       {judge && (
-        <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[12.5px] text-accent-ink">
-          Prepared demo: searching {known?.facets.recordings[0]?.title ? `“${known.facets.recordings[0].title}”` : "the approved recording"} only.
-          <Link href={q ? `/recall?q=${encodeURIComponent(q)}` : "/recall"} className="font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
+        <div role="note" aria-label="Search scope" className="mt-4 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[12.5px] text-accent-ink">
+          <p>
+            <span className="font-medium">Prepared demo · one recording.</span> Searching only {demo ? `“${demo.recording.title}”` : "the approved recording"}. The rest of your library isn’t searched here, so moments and scenes from other recordings won’t appear.
+          </p>
+          <Link href={libraryHref} className="mt-1 inline-block font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
             Leave the demo: search your whole library
           </Link>
-        </p>
+        </div>
       )}
       <div className={cn("mt-4 flex flex-wrap items-end gap-3 text-[12.5px]", (judge || (emptyIndex && !hasFilters)) && "hidden")} aria-label="Filters">
         <label className="flex min-w-0 flex-col gap-1 text-ink-faint">
@@ -237,8 +243,23 @@ export function LibraryRecall() {
         )}
       </div>
 
-      {known && (
+      {known && demo && (
         <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-faint">
+          <Mic className="size-3.5" aria-hidden />
+          Searching {demo.lines} machine-transcribed line{demo.lines === 1 ? "" : "s"} from this one recording, on this computer.
+          <span className="inline-flex items-center gap-1.5">
+            <Eye className="size-3.5" aria-hidden />
+            {!known.visual.available
+              ? `Scene search unavailable — ${known.visual.reason}`
+              : !demo.frames
+                ? "Scene search (experimental): this recording isn’t visually indexed."
+                : `Scene search (experimental): ${demo.frames} frames from this recording${visual ? ", approximate matches." : " — off. Turn on Scenes to include them."}`}
+          </span>
+        </p>
+      )}
+      {known && !demo && (
+        <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-ink-faint">
+          <span className="font-medium text-ink-muted">Whole library.</span>
           <Mic className="size-3.5" aria-hidden />
           Searching {known.index.segments} machine-transcribed line{known.index.segments === 1 ? "" : "s"} from {known.index.recordings} recording{known.index.recordings === 1 ? "" : "s"}, on this computer.
           {known.semantic.available ? " Matches by words and by meaning." : ` Keyword matching only — ${known.semantic.reason}`}
@@ -302,19 +323,32 @@ export function LibraryRecall() {
 
       {q.trim() && data && results.length === 0 && !emptyIndex && (
         <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center" role="status">
-          <p className="text-[15px] font-medium text-ink">No moments match “{data.query}”</p>
-          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
-            {!data.visual.frames
-              ? "Recall found nothing said or named like this, and no recordings are visually indexed, so it can’t search what was on screen."
-              : visual
-                ? `Nothing said, named, or shown in the ${data.visual.recordings} visually indexed recording${data.visual.recordings === 1 ? "" : "s"} is close enough. METAL doesn’t show weak guesses as matches.`
-                : "Nothing said or named matches. Turn on Scenes to also search what was on screen."}
-            {hasFilters
-              ? " Your filters may be hiding results."
-              : visual && data.visual.frames && data.query.trim().split(/\s+/).length <= 2
-                ? " One or two words match scenes loosely. Add a visual detail, like “jungle cliff” instead of “jungle”."
-                : " Try other words, or describe the scene differently."}
-          </p>
+          <p className="text-[15px] font-medium text-ink">{visual ? `No similar scene or line found for “${data.query}”` : `No moments match “${data.query}”`}</p>
+          {demo ? (
+            <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
+              The prepared demo searches only “{demo.recording.title}”{visual && demo.frames ? ` (its ${demo.lines} lines and ${demo.frames} indexed frames)` : ""}. Other recordings in your library aren’t included here.{" "}
+              <Link href={libraryHref} className="font-medium text-accent-ink underline-offset-2 hover:underline">
+                Search your whole library for “{data.query}”
+              </Link>
+            </p>
+          ) : (
+            <>
+              <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
+                {!data.visual.frames
+                  ? "Recall found nothing said or named like this, and no recordings are visually indexed, so it can’t search what was on screen."
+                  : visual
+                    ? `Nothing said, named, or shown in the ${data.visual.recordings} visually indexed recording${data.visual.recordings === 1 ? "" : "s"} is close enough. METAL doesn’t show weak guesses as matches.`
+                    : "Nothing said or named matches. Turn on Scenes to also search what was on screen."}
+                {hasFilters ? " Your filters may be hiding results." : visual && data.visual.frames ? "" : " Try other words, or describe the scene differently."}
+              </p>
+              {visual && data.visual.frames > 0 && !hasFilters && (
+                <p className="mx-auto mt-3 max-w-md text-[13px] text-ink-muted">
+                  Try describing what you see — the place, colours or objects — such as “jungle cliff” or “a dark hallway with a monster”, rather than a single word.
+                  <span className="mt-1 block text-[12px] text-ink-faint">These are phrasing tips, not guaranteed matches. Scene matches are always approximate.</span>
+                </p>
+              )}
+            </>
+          )}
         </div>
       )}
 
