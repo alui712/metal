@@ -5,6 +5,7 @@ import {
   Check,
   ChevronDown,
   CircleAlert,
+  Clapperboard,
   Eye,
   Film,
   LoaderCircle,
@@ -17,15 +18,18 @@ import {
   Square,
   TriangleAlert,
   Undo2,
+  Users,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { StepStrip } from "@/components/ui/how-it-works";
 import { cn } from "@/lib/cn";
 import { timecode } from "@/lib/format";
 import { TranscriptPanel } from "./transcript-panel";
-import { useSmartClip, type Analysis, type Suggestion } from "./use-smart-clip";
+import { useSmartClip, type Analysis, type SmartClipState, type Suggestion } from "./use-smart-clip";
 
 const STAGE: Record<string, string> = {
   audio: "Measuring audio loudness",
@@ -50,10 +54,13 @@ const len = (s: { startMs: number; endMs: number }) => `${Math.round((s.endMs - 
 export function SmartClipWorkspace({
   recording,
   startMs,
+  povs = false,
 }: {
   recording: { id: string; title: string; durationMs: number; videoUrl: string; posterUrl: string | null; proxied: boolean };
   /** Open at this moment (e.g. a Recall result's real timestamp). */
   startMs?: number;
+  /** The page shows the Other POVs panel (#povs). */
+  povs?: boolean;
 }) {
   const video = useRef<HTMLVideoElement>(null);
   const { state, loadError, analyze, transcribe, act, flagLine } = useSmartClip(recording.id);
@@ -128,6 +135,8 @@ export function SmartClipWorkspace({
   const suggestions = state?.suggestions ?? [];
   const open = suggestions.filter((s) => s.status !== "dismissed");
   const dismissed = suggestions.filter((s) => s.status === "dismissed");
+  // Workflow position: Find moments → Preview → Adjust → Save clip.
+  const step = a?.status !== "done" || open.length === 0 ? 0 : open.some((s) => s.saveStatus === "saved") ? 3 : selected ? 2 : 1;
 
   return (
     <div>
@@ -141,6 +150,7 @@ export function SmartClipWorkspace({
         className="aspect-video w-full scroll-mt-6 rounded-2xl bg-black object-contain"
       />
       {a?.status === "done" && <Timeline analysis={a} suggestions={open} durationMs={dur} nowMs={nowMs} selected={selected} onSeek={(ms) => seek(ms)} onSelect={(s) => { setSelected(s.id); seek(s.startMs); }} />}
+      <RecordingTools a={a} t={state?.transcript} openCount={open.length} povs={povs} />
 
       <section id="smart-clip" aria-labelledby="smart-clip-heading" className="mt-8 scroll-mt-6 overflow-hidden rounded-3xl border border-line bg-surface-2/60">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line p-5">
@@ -149,6 +159,7 @@ export function SmartClipWorkspace({
               <Scissors className="size-4 text-accent-ink" aria-hidden /> Smart Clip
             </h2>
             <AnalysisLine a={a} workerOnline={state?.workerOnline ?? true} loading={!state && !loadError} />
+            <StepStrip label="Smart Clip steps" steps={["Find moments", "Preview", "Adjust", "Save clip"]} current={step} className="mt-3" />
           </div>
           {a && (a.status === "none" || a.status === "failed") && (
             <Button onClick={() => run("analyze", analyze)} disabled={busy !== null}>
@@ -166,8 +177,10 @@ export function SmartClipWorkspace({
         {a?.status === "none" && (
           <p className="flex items-start gap-2 px-5 py-4 text-[12.5px] leading-relaxed text-ink-faint">
             <Eye className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            Runs on this computer with FFmpeg: it measures loudness and how much the picture changes, and saves timestamped keyframes. Nothing is uploaded
-            anywhere.
+            <span>
+              Suggestions come from two measured signals: how loud the audio gets and how much the picture changes. METAL doesn’t recognize kills or other game
+              events — you decide what’s worth keeping. Runs on this computer with FFmpeg; nothing is uploaded.
+            </span>
           </p>
         )}
         {a?.status === "done" && a.signals && <SignalChips a={a} />}
@@ -180,6 +193,11 @@ export function SmartClipWorkspace({
 
         {a?.status === "done" && (
           <div className="border-t border-line">
+            {open.length > 0 && (
+              <p className="border-b border-line px-5 py-2.5 text-[12px] leading-relaxed text-ink-faint">
+                Ranked by audio and picture-change signals, not game events. Preview a suggestion, adjust its start and end, then save it as a clip in your Library.
+              </p>
+            )}
             {open.length === 0 ? (
               <div className="px-5 py-10 text-center">
                 <p className="text-[15px] font-medium text-ink">No standout moments found</p>
@@ -208,6 +226,7 @@ export function SmartClipWorkspace({
                     onPreview={() => playRange(s)}
                     onAct={(body, key) => run(`${key}:${s.id}`, () => act(s.id, body))}
                     onSeek={seek}
+                    recording={recording}
                   />
                 ))}
               </ol>
@@ -237,6 +256,7 @@ export function SmartClipWorkspace({
         )}
       </section>
       <TranscriptPanel
+        recordingId={recording.id}
         t={state?.transcript}
         workerOnline={state?.workerOnline ?? true}
         nowMs={nowMs}
@@ -416,6 +436,7 @@ function SuggestionCard({
   onPreview,
   onAct,
   onSeek,
+  recording,
 }: {
   s: Suggestion;
   rank: number;
@@ -428,6 +449,7 @@ function SuggestionCard({
   onPreview: () => void;
   onAct: (body: Parameters<ReturnType<typeof useSmartClip>["act"]>[1], key: string) => void;
   onSeek: (ms: number) => void;
+  recording: { id: string; title: string };
 }) {
   const [why, setWhy] = useState(false);
   const conf = CONFIDENCE[s.confidence];
@@ -537,6 +559,11 @@ function SuggestionCard({
               <Button size="sm" onClick={() => onAct({ action: "accept" }, "accept")} disabled={busy !== null}>
                 {isBusy("accept") ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <Check className="size-3.5" aria-hidden />} Save clip
               </Button>
+              {!selected && (
+                <Button size="sm" variant="ghost" onClick={onSelect}>
+                  Adjust
+                </Button>
+              )}
               <Button size="sm" variant="ghost" onClick={() => onAct({ action: "dismiss" }, "dismiss")} disabled={busy !== null}>
                 <X className="size-3.5" aria-hidden /> Dismiss
               </Button>
@@ -569,8 +596,94 @@ function SuggestionCard({
               </Button>
             </>
           )}
+          <SendToStudio recording={recording} s={s} />
         </div>
       </div>
     </li>
+  );
+}
+
+/** Smart Clip → Story Studio: a new story from this suggestion's current range (same request as Recall's "Start a story"). */
+function SendToStudio({ recording, s }: { recording: { id: string; title: string }; s: Suggestion }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function start() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/stories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-metal-action": "1" },
+      body: JSON.stringify({ sessionId: null, title: `${recording.title} · ${timecode(s.startMs)}`, ranges: [{ recordingId: recording.id, inMs: s.startMs, outMs: s.endMs, caption: null }] }),
+    }).catch(() => null);
+    const json = res ? ((await res.json().catch(() => ({}))) as { id?: string; error?: string }) : {};
+    if (res?.ok && json.id) router.push(`/studio?story=${json.id}`);
+    else {
+      setError(json.error ?? "Couldn’t start a story.");
+      setBusy(false);
+    }
+  }
+  return (
+    <>
+      <Button size="sm" variant="ghost" onClick={start} disabled={busy} className="sm:ml-auto">
+        {busy ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <Clapperboard className="size-3.5" aria-hidden />} {busy ? "Starting…" : "Send to Story Studio"}
+      </Button>
+      {error && (
+        <span role="alert" className="text-[12.5px] text-danger">
+          {error}
+        </span>
+      )}
+    </>
+  );
+}
+
+/**
+ * Under the player: what else this page can do, with live status. Playback
+ * is just the video; Find moments and Transcribe are separate, opt-in runs.
+ */
+function RecordingTools({ a, t, openCount, povs }: { a: Analysis | undefined; t: SmartClipState["transcript"] | undefined; openCount: number; povs: boolean }) {
+  const moments = !a
+    ? "…"
+    : a.status === "done"
+      ? `${openCount} suggested`
+      : a.status === "queued" || a.status === "running"
+        ? "running…"
+        : a.status === "failed"
+          ? "failed"
+          : "not run yet";
+  const speech = !t
+    ? "…"
+    : t.status === "done"
+      ? t.segments.length
+        ? "searchable in Recall"
+        : "no speech found"
+      : t.status === "queued" || t.status === "running"
+        ? "running…"
+        : t.status === "failed"
+          ? "failed"
+          : "needed for Recall";
+  const tools = [
+    { href: "#smart-clip", icon: Scissors, label: "Find moments", status: moments },
+    { href: "#transcript", icon: Mic, label: "Transcribe speech", status: speech },
+    ...(povs ? [{ href: "#povs", icon: Users, label: "Other POVs", status: "match a teammate’s recording" }] : []),
+  ];
+  return (
+    <nav aria-label="Tools for this recording" className="mt-4">
+      <ul className="flex flex-wrap gap-2">
+        {tools.map(({ href, icon: Icon, label, status }) => (
+          <li key={href}>
+            <a href={href} className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface-2/70 px-3 text-[12.5px] font-medium text-ink transition-colors hover:border-line-strong hover:bg-surface-3">
+              <Icon className="size-3.5 text-accent-ink" aria-hidden />
+              {label}
+              <span className="font-normal text-ink-faint">· {status}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[12px] leading-relaxed text-ink-faint">
+        The player just plays the video. <span className="text-ink-muted">Find moments</span> measures audio and picture changes to suggest clips;{" "}
+        <span className="text-ink-muted">Transcribe speech</span> turns what was said into text you can search in Recall. Both run only when you ask.
+      </p>
+    </nav>
   );
 }

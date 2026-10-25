@@ -4,6 +4,7 @@ import { AudioLines, Check, Clock, Gamepad2, LoaderCircle, Plus, RefreshCw, Uplo
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, ButtonLink, buttonClass } from "@/components/ui/button";
+import { HowItWorks } from "@/components/ui/how-it-works";
 import { cn } from "@/lib/cn";
 import { duration, formatLocalDateTime } from "@/lib/format";
 import { signedSeconds } from "@/lib/pov/sync";
@@ -83,7 +84,9 @@ export function PovPanel({ recordingId }: { recordingId: string }) {
           <h2 id="povs-heading" className="text-[14px] font-medium text-ink">
             Other POVs
           </h2>
-          <p className="mt-0.5 text-[12px] leading-relaxed text-ink-faint">The same play from another player’s recording, imported with their permission.</p>
+          <p className="mt-0.5 text-[12px] leading-relaxed text-ink-faint">
+            The same play from another player’s recording. Both recordings need to be in your library — import theirs with their permission.
+          </p>
         </div>
       </div>
 
@@ -120,6 +123,15 @@ export function PovPanel({ recordingId }: { recordingId: string }) {
         {!view.workerOnline && !running && <p className="mt-2 text-[11.5px] text-warn">The worker isn’t running — start it to compare audio.</p>}
         {view.job?.status === "failed" && <p className="mt-2 text-[11.5px] text-danger">{view.job.error ?? "The search failed."}</p>}
         <p className="mt-2 text-[11.5px] leading-relaxed text-ink-faint">Uses recording times, game tags and shared audio, all on this computer. Nothing is paired until you pair it.</p>
+        <HowItWorks
+          className="mt-2"
+          steps={[
+            "Import your teammate’s recording of the same match.",
+            "Find other POVs compares recording times, game tags and shared sound (like the same callout or explosion).",
+            "Pair a match you recognize. Its sync starts as a suggestion.",
+            "In the viewer, check it side by side, nudge it if needed, then confirm it.",
+          ]}
+        />
 
         {open.length > 0 && (
           <ul aria-label="Possible POVs" className="mt-3 space-y-2.5">

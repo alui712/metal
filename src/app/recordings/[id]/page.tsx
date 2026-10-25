@@ -50,6 +50,7 @@ async function RecordingView({ params, searchParams }: { params: PageProps<"/rec
           <SmartClipWorkspace
             recording={{ id: r.id, title: r.title, durationMs: r.durationMs, videoUrl: r.videoUrl, posterUrl: r.posterUrl, proxied: r.proxied }}
             startMs={Number.isFinite(t) && t > 0 && t < r.durationMs ? Math.round(t) : undefined}
+            povs={r.origin !== "clip"}
           />
         ) : (
           <Stage r={r} />

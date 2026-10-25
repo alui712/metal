@@ -7,6 +7,7 @@ import {
   LoaderCircle,
   ArrowRight,
   Captions,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clapperboard,
@@ -28,6 +29,7 @@ import { seconds, timecode } from "@/lib/format";
 import { Button, IconButton } from "@/components/ui/button";
 import { Segmented, Switch } from "@/components/ui/controls";
 import { DemoBadge } from "@/components/ui/demo-badge";
+import { StepStrip } from "@/components/ui/how-it-works";
 import { ClipThumb } from "./clip-thumb";
 import { ClipTimeline } from "./clip-timeline";
 import { AddMomentsDialog, ExportDialog } from "./dialogs";
@@ -178,11 +180,29 @@ export function StudioEditor({
           <IconButton aria-label="Redo (⇧⌘Z)" title="Redo (⇧⌘Z)" onClick={() => dispatch({ type: "redo" })} disabled={!history.future.length} className="border border-line">
             <Redo2 className="size-[18px]" aria-hidden />
           </IconButton>
-          <Button onClick={() => setExportOpen(true)} className="ml-1">
-            {story.active ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Download className="size-4" aria-hidden />}
-            {story.active ? `Rendering ${Math.round((latestExport?.progress ?? 0) * 100)}%` : "Export"}
-          </Button>
+          {preview ? (
+            // The prepared demo never renders, so this opens the approved export history only.
+            <Button variant="secondary" onClick={() => setExportOpen(true)} className="ml-1" title="Rendering is off in the prepared demo">
+              <Download className="size-4" aria-hidden /> View exports
+            </Button>
+          ) : (
+            <Button onClick={() => setExportOpen(true)} className="ml-1">
+              {story.active ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Download className="size-4" aria-hidden />}
+              {story.active ? `Rendering ${Math.round((latestExport?.progress ?? 0) * 100)}%` : "Export"}
+            </Button>
+          )}
         </div>
+      </div>
+
+      <div className="-mt-2 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4">
+        <StepStrip label="Story Studio steps" steps={["Add clips", "Arrange", "Trim", "Preview", "Export"]} current={project.clips.length === 0 ? 0 : undefined} />
+        <p className="text-[12.5px] text-ink-faint">
+          {project.clips.length === 0
+            ? "Start by adding moments to the timeline."
+            : preview
+              ? "Drag clips to arrange them, select one to trim it, and press play to preview. Changes stay in this tab."
+              : "Drag clips in the timeline to arrange them, select one to trim it, press play to preview, then export an MP4."}
+        </p>
       </div>
 
       {(issueCount > 0 || (persist?.removedCount ?? 0) > 0) && (
@@ -200,45 +220,6 @@ export function StudioEditor({
         <div className="min-w-0">
           <SequencePreview project={project} library={library} seekTo={seekTo} onClipChange={setSelectedId} />
 
-          {/* AI instruction (not connected yet) */}
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="mt-5 rounded-2xl border border-line bg-surface-2/70 p-4"
-            aria-describedby="ai-note"
-          >
-            <label htmlFor="ai-instruction" className="flex items-center gap-2 text-[13px] font-medium text-ink">
-              <Sparkles className="size-4 text-accent-ink" aria-hidden />
-              Describe an edit
-            </label>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-              <input
-                id="ai-instruction"
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-                placeholder="“Make it 30 seconds and start with the funniest moment”"
-                className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3.5 text-[14px] text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent/50"
-              />
-              <Button type="submit" disabled>
-                Apply edit
-              </Button>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {INSTRUCTION_IDEAS.map((idea) => (
-                <button
-                  key={idea}
-                  type="button"
-                  onClick={() => setInstruction(idea)}
-                  className="h-7 rounded-full border border-line px-2.5 text-[12px] text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
-                >
-                  {idea}
-                </button>
-              ))}
-            </div>
-            <p id="ai-note" className="mt-3 text-[12.5px] leading-relaxed text-ink-faint">
-              Natural-language editing isn’t connected yet. When it is, your instruction becomes a list of the same edits
-              you can make by hand below — shown for review before anything changes.
-            </p>
-          </form>
         </div>
 
         {/* Settings panel */}
@@ -384,6 +365,52 @@ export function StudioEditor({
           />
         )}
       </section>
+
+      {/* AI instruction (not connected yet): kept out of the main workflow until it works. */}
+      <details className="group">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-md text-[12.5px] font-medium text-ink-faint transition-colors hover:text-ink [&::-webkit-details-marker]:hidden">
+          <Sparkles className="size-3.5" aria-hidden /> Coming later: describe an edit in words
+          <ChevronDown className="size-3.5 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden />
+        </summary>
+        <form
+          onSubmit={(e) => e.preventDefault()}
+          className="mt-3 rounded-2xl border border-line bg-surface-2/70 p-4"
+          aria-describedby="ai-note"
+        >
+          <label htmlFor="ai-instruction" className="flex items-center gap-2 text-[13px] font-medium text-ink">
+            <Sparkles className="size-4 text-accent-ink" aria-hidden />
+            Describe an edit
+          </label>
+          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+            <input
+              id="ai-instruction"
+              value={instruction}
+              onChange={(e) => setInstruction(e.target.value)}
+              placeholder="“Make it 30 seconds and start with the funniest moment”"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-line bg-surface px-3.5 text-[14px] text-ink outline-none placeholder:text-ink-faint focus-visible:border-accent/50"
+            />
+            <Button type="submit" disabled>
+              Apply edit
+            </Button>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {INSTRUCTION_IDEAS.map((idea) => (
+              <button
+                key={idea}
+                type="button"
+                onClick={() => setInstruction(idea)}
+                className="h-7 rounded-full border border-line px-2.5 text-[12px] text-ink-muted transition-colors hover:border-line-strong hover:text-ink"
+              >
+                {idea}
+              </button>
+            ))}
+          </div>
+          <p id="ai-note" className="mt-3 text-[12.5px] leading-relaxed text-ink-faint">
+            Natural-language editing isn’t connected yet. When it is, your instruction becomes a list of the same edits
+            you can make by hand above — shown for review before anything changes.
+          </p>
+        </form>
+      </details>
 
       {persist ? (
         <RealExportDialog
