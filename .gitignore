@@ -43,7 +43,7 @@ next-env.d.ts
 
 # METAL local data: database, imported media, analysis artifacts, exports, models
 /data/
-/models/
+/models
 *.db
 *.db-shm
 *.db-wal
