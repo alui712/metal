@@ -183,7 +183,8 @@ export function StudioEditor({
           {preview ? (
             // The prepared demo never renders, so this opens the approved export history only.
             <Button variant="secondary" onClick={() => setExportOpen(true)} className="ml-1" title="Rendering is off in the prepared demo">
-              <Download className="size-4" aria-hidden /> View exports
+              <Download className="size-4" aria-hidden /> <span className="hidden sm:inline">View exports</span>
+              <span className="sm:hidden">Exports</span>
             </Button>
           ) : (
             <Button onClick={() => setExportOpen(true)} className="ml-1">
