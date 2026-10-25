@@ -155,6 +155,34 @@ body:has([data-immersive]:not([style*="display: none"])) .tour-dock {
   mask-image: radial-gradient(ellipse 72% 62% at 46% 36%, black, transparent 78%);
 }
 
+/* Showcase intro film (src/components/judge/showcase-intro.tsx). Shots push in toward the
+   top right; with the film's left-hand shade, recorder overlays in the lower left stay hidden.
+   The push is gentle because the fallback stills are 1280-wide posters. */
+.intro-shot {
+  transform-origin: 100% 0%;
+  scale: 1.06;
+  transition: opacity 700ms var(--ease-out);
+}
+.intro-shot[data-active] {
+  animation: intro-push 2.6s linear both;
+}
+@keyframes intro-push {
+  to {
+    scale: 1.14;
+  }
+}
+.intro-progress {
+  animation: intro-progress 5.55s linear both;
+}
+@keyframes intro-progress {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
 /* Bottom fade used over hero art. */
 .scrim-b {
   background: linear-gradient(to top, var(--graphite-950) 0%, rgb(7 7 9 / 0.75) 35%, rgb(7 7 9 / 0) 75%);
@@ -214,6 +242,32 @@ input[type="range"] {
   animation:
     220ms ease-out 140ms both vt-fade,
     400ms ease-in-out both vt-slide;
+}
+
+/* Showcase → app: the stage pushes in and dissolves, the app settles into place.
+   Both together stay under a second. */
+::view-transition-old(.portal-out) {
+  animation: 380ms var(--ease-out) both portal-push;
+}
+::view-transition-new(.portal-in) {
+  animation: 460ms var(--ease-out) 140ms both portal-arrive;
+}
+html:active-view-transition-type(portal)::view-transition-new(app-sidebar) {
+  animation: 360ms var(--ease-out) 220ms both vt-fade;
+}
+@keyframes portal-push {
+  to {
+    opacity: 0;
+    scale: 1.08;
+    filter: blur(6px);
+  }
+}
+@keyframes portal-arrive {
+  from {
+    opacity: 0;
+    scale: 0.965;
+    filter: blur(4px);
+  }
 }
 
 ::view-transition-group(.morph) {

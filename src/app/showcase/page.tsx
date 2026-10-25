@@ -1,11 +1,14 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { FeatureCards } from "@/components/judge/feature-cards";
 import { MomentFan, PlayHint } from "@/components/judge/moment-fan";
 import { ShowcaseHero } from "@/components/judge/showcase-hero";
+import { IntroControls, IntroFilm, IntroGate, type IntroVideo } from "@/components/judge/showcase-intro";
 import { StartTourButton } from "@/components/judge/start-tour-button";
 import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/motion";
@@ -20,61 +23,101 @@ export const metadata: Metadata = {
 /** Full-bleed entry for judges and first-time visitors; the app chrome hides here (see globals.css). */
 export default function ShowcasePage() {
   return (
-    <div data-immersive className="showcase-stage grain relative isolate min-h-dvh overflow-hidden">
-      <div aria-hidden className="showcase-grid pointer-events-none absolute inset-0 -z-10" />
-
-      <header className="mx-auto flex max-w-[110rem] items-center justify-end gap-3 px-5 pt-5 sm:px-10 sm:pt-8 xl:px-16">
-        <p className="hidden items-center gap-2 text-[13px] text-ink-muted sm:flex">
-          <ShieldCheck className="size-4 text-accent-ink" aria-hidden />
-          Runs on this computer. Nothing is uploaded.
-        </p>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2/60 px-4 py-2 text-[13px] font-medium text-ink transition-colors hover:border-accent/50 hover:bg-surface-3"
-        >
-          Enter METAL <ArrowRight className="size-4" aria-hidden />
-        </Link>
-      </header>
-
-      <section className="mx-auto grid max-w-[110rem] grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pb-10 pt-10 sm:px-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 lg:pt-14 xl:px-16">
-        <div>
-          <ShowcaseHero />
-          <Reveal delay={0.9}>
-            <p className="mt-8 max-w-xl text-[17px] leading-relaxed text-ink-muted sm:text-[18px]">
-              METAL records your nights, finds the moments worth keeping, and lets you search, relive and recut them,
-              all on your own computer.
-            </p>
-          </Reveal>
-          <Reveal delay={1.0}>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Suspense fallback={<span className="inline-block h-13 w-56 animate-pulse rounded-xl bg-accent/30" />}>
-                <StartTour />
-              </Suspense>
-              <ButtonLink href="/" variant="secondary" size="lg">
-                Enter METAL
-              </ButtonLink>
-            </div>
-            <p className="mt-4 text-[13px] text-ink-faint">Four stops, about two minutes. A guide follows you across the app.</p>
-          </Reveal>
-        </div>
-
-        <Suspense fallback={<div className="hidden aspect-[1.08] w-full animate-pulse rounded-3xl bg-surface-2/40 lg:block" />}>
-          <Featured />
+    // Leaving for the app ("portal" navigations) pushes the camera into the stage; see globals.css.
+    <ViewTransition exit={{ portal: "portal-out", default: "none" }} default="none">
+      <div data-immersive className="showcase-stage grain relative isolate min-h-dvh overflow-hidden">
+        <div aria-hidden className="showcase-grid pointer-events-none absolute inset-0 -z-10" />
+        <Suspense fallback={null}>
+          <Film />
         </Suspense>
-      </section>
 
-      <section aria-labelledby="ways-heading" className="mx-auto max-w-[110rem] px-5 pb-16 sm:px-10 xl:px-16">
-        <Reveal delay={1.1}>
-          <h2 id="ways-heading" className="mb-5 text-[13px] font-medium uppercase tracking-[0.2em] text-ink-faint">
-            Four ways back to a moment
-          </h2>
-        </Reveal>
-        <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-surface-2/40" />}>
-          <Features />
-        </Suspense>
-      </section>
-    </div>
+        <header className="mx-auto flex max-w-[110rem] items-center justify-end gap-3 px-5 pt-5 sm:px-10 sm:pt-8 xl:px-16">
+          <Suspense fallback={null}>
+            <FilmControls />
+          </Suspense>
+          <p className="ml-auto hidden items-center gap-2 text-[13px] text-ink-muted sm:flex">
+            <ShieldCheck className="size-4 text-accent-ink" aria-hidden />
+            Runs on this computer. Nothing is uploaded.
+          </p>
+          <Link
+            href="/"
+            transitionTypes={["portal"]}
+            className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2/60 px-4 py-2 text-[13px] font-medium text-ink backdrop-blur transition-[border-color,background-color,transform] duration-200 hover:border-accent/50 hover:bg-surface-3 active:scale-[0.97]"
+          >
+            Enter METAL <ArrowRight className="size-4" aria-hidden />
+          </Link>
+        </header>
+
+        <section className="mx-auto grid max-w-[110rem] grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pb-10 pt-10 sm:px-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 lg:pt-14 xl:px-16">
+          <div>
+            <ShowcaseHero />
+            <Reveal delay={0.55}>
+              <p className="mt-8 max-w-xl text-[17px] leading-relaxed text-ink-muted sm:text-[18px]">
+                METAL records your nights, finds the moments worth keeping, and lets you search, relive and recut them,
+                all on your own computer.
+              </p>
+            </Reveal>
+            {/* The calls to action arrive with the headline: the film never makes anyone wait. */}
+            <Reveal delay={0.6}>
+              <div className="mt-9 flex flex-wrap items-center gap-3">
+                <Suspense fallback={<span className="inline-block h-13 w-56 animate-pulse rounded-xl bg-accent/30" />}>
+                  <StartTour />
+                </Suspense>
+                <ButtonLink href="/" variant="secondary" size="lg" transitionTypes={["portal"]}>
+                  Enter METAL
+                </ButtonLink>
+              </div>
+              <p className="mt-4 text-[13px] text-ink-faint">Four stops, about two minutes. A guide follows you across the app.</p>
+            </Reveal>
+          </div>
+
+          <IntroGate>
+            <Suspense fallback={<div className="hidden aspect-[1.08] w-full animate-pulse rounded-3xl bg-surface-2/40 lg:block" />}>
+              <Featured />
+            </Suspense>
+          </IntroGate>
+        </section>
+
+        <section aria-labelledby="ways-heading" className="mx-auto max-w-[110rem] px-5 pb-16 sm:px-10 xl:px-16">
+          <Reveal delay={1.1}>
+            <h2 id="ways-heading" className="mb-5 text-[13px] font-medium uppercase tracking-[0.2em] text-ink-faint">
+              Four ways back to a moment
+            </h2>
+          </Reveal>
+          <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-surface-2/40" />}>
+            <Features />
+          </Suspense>
+        </section>
+      </div>
+    </ViewTransition>
   );
+}
+
+/** Up to three approved recordings for the still film (the montage's fallback). */
+async function introShots() {
+  await connection();
+  const { night, reels } = spotlight();
+  return reels.slice(0, 3).map((r) => ({ id: r.recordingId, imageUrl: r.posterUrl, caption: r.title ?? night?.title ?? "approved recording" }));
+}
+
+/**
+ * The approved silent montage, if one was supplied: public/showcase/intro.mp4
+ * (+ optional intro.jpg poster), kept out of Git like all media.
+ */
+function introVideo(): IntroVideo | null {
+  const dir = path.join(/*turbopackIgnore: true*/ process.cwd(), "public", "showcase");
+  if (!fs.existsSync(path.join(dir, "intro.mp4"))) return null;
+  return { src: "/showcase/intro.mp4", poster: fs.existsSync(path.join(dir, "intro.jpg")) ? "/showcase/intro.jpg" : null };
+}
+
+async function Film() {
+  const shots = await introShots();
+  return <IntroFilm shots={shots} video={introVideo()} />;
+}
+
+async function FilmControls() {
+  const shots = await introShots();
+  return shots.length || introVideo() ? <IntroControls /> : null;
 }
 
 async function StartTour() {

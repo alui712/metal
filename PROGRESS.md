@@ -27,6 +27,17 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Memory Portal polish ✅ (2026-10-24)
+
+- **Showcase intro film:**
+  - approved footage behind the headline, ~5.5 s, then the memory cards push in;
+  - Skip/Escape and Replay; CTAs usable throughout;
+  - once per tab, muted, pauses off screen, no autoplay with reduced motion.
+  - The video slot reads `public/showcase/intro.mp4` (not supplied yet); until then it uses approved posters.
+- **Transitions:** a showcase → app "portal" view transition under 1 s, and a memory card → player morph.
+- **Interaction polish:** feature cards and memory cards get matching hover, focus and press feedback.
+- **Verified:** 19 intro checks (timing, skip/replay, off-screen pause, reduced motion, 390, CLS 0.006, portal), plus the tour, layout, scope, safety and Cycle 2 journeys.
+
 ## Judge Experience — Safety pass ✅ (2026-10-24)
 
 - **Judge mode is read-only in the UI:**

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AlertTriangle, ArrowLeft, LoaderCircle, Upload } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, ViewTransition } from "react";
 import { VideoPlayer } from "@/components/media/demo-player";
 import { PovPanel } from "@/components/pov/pov-panel";
 import { AutoRefresh } from "@/components/recordings/auto-refresh";
@@ -12,7 +12,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
 import { fileSize, formatLocalDateTime, timecode } from "@/lib/format";
-import { STAGE_LABEL, type LibraryRecording } from "@/lib/recordings/types";
+import { recordingArtName, STAGE_LABEL, type LibraryRecording } from "@/lib/recordings/types";
 import { isRecordingId } from "@/server/media/storage";
 import { getRecording } from "@/server/recordings";
 
@@ -89,7 +89,15 @@ async function RecordingView({ params, searchParams }: { params: PageProps<"/rec
 }
 
 function Stage({ r }: { r: LibraryRecording }) {
-  if (r.videoUrl) return <VideoPlayer src={r.videoUrl} poster={r.posterUrl ?? undefined} title={r.title} />;
+  if (r.videoUrl)
+    return (
+      // Shares its name with the showcase memory card, so opening one expands it into the player.
+      <ViewTransition name={recordingArtName(r.id)} share="morph" default="none">
+        <div>
+          <VideoPlayer src={r.videoUrl} poster={r.posterUrl ?? undefined} title={r.title} />
+        </div>
+      </ViewTransition>
+    );
 
   const processing = r.status === "imported" || r.status === "processing";
   return (

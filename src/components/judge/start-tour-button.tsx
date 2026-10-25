@@ -25,7 +25,7 @@ export function StartTourButton({
       type="button"
       onClick={() => {
         startTour(targets);
-        router.push(tourSteps(targets)[0].href);
+        router.push(tourSteps(targets)[0].href, { transitionTypes: ["portal"] });
       }}
       className={buttonClass(variant, size, className)}
     >

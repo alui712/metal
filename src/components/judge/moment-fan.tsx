@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRef, useState, ViewTransition } from "react";
 import { motion, useReducedMotion } from "motion/react";
 import { Play } from "lucide-react";
 import { EASE_OUT } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
+import { recordingArtName } from "@/lib/recordings/types";
 
 // Fanned stack of real gameplay frames. Hover or focus plays the footage
 // behind the card, muted, from `startMs`; nothing autoplays with sound.
@@ -70,6 +71,7 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
       initial={{ opacity: 0, y: reduce ? 0 : 70, rotate: 0, scale: reduce ? 1 : 0.92 }}
       animate={{ opacity: 1, y: 0, rotate: fan?.rotate ?? 0, scale: 1 }}
       whileHover={reduce || !fan ? undefined : { rotate: 0, scale: 1.05, y: -8, zIndex: 10, transition: { duration: 0.35, ease: EASE_OUT } }}
+      whileTap={reduce ? undefined : { scale: fan ? 1.02 : 0.98, transition: { duration: 0.12 } }}
       transition={{ duration: reduce ? 0.2 : 0.9, delay: reduce ? 0 : delay + order * 0.12, ease: EASE_OUT }}
     >
       <Link
@@ -81,22 +83,24 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
         onBlur={stop}
         className="group block overflow-hidden rounded-2xl border border-white/10 bg-surface-2 shadow-[0_40px_90px_-30px_rgb(0_0_0/0.95)] ring-accent/60 transition-[box-shadow,border-color] duration-300 hover:border-accent/50 hover:ring-2 focus-visible:ring-2"
       >
-        <span className="relative block aspect-video overflow-hidden bg-surface-3">
-          {/* eslint-disable-next-line @next/next/no-img-element -- local keyframe */}
-          <img src={c.imageUrl} alt="" className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
-          {c.videoUrl && (
-            <video
-              ref={video}
-              src={c.videoUrl}
-              muted
-              playsInline
-              preload="none"
-              aria-hidden
-              className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", playing ? "opacity-100" : "opacity-0")}
-            />
-          )}
-          <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-        </span>
+        <ViewTransition name={fan ? recordingArtName(c.id) : undefined} share="morph" default="none">
+          <span className="relative block aspect-video overflow-hidden bg-surface-3">
+            {/* eslint-disable-next-line @next/next/no-img-element -- local keyframe */}
+            <img src={c.imageUrl} alt="" className="absolute inset-0 size-full object-cover transition-transform duration-700 group-hover:scale-[1.04] group-focus-visible:scale-[1.04]" />
+            {c.videoUrl && (
+              <video
+                ref={video}
+                src={c.videoUrl}
+                muted
+                playsInline
+                preload="none"
+                aria-hidden
+                className={cn("absolute inset-0 size-full object-cover transition-opacity duration-500", playing ? "opacity-100" : "opacity-0")}
+              />
+            )}
+            <span aria-hidden className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+          </span>
+        </ViewTransition>
         <span className="flex items-center justify-between gap-3 border-t border-white/8 px-4 py-3">
           <span className="min-w-0">
             <span className="block truncate text-[14.5px] font-semibold text-ink">{c.title}</span>
@@ -106,7 +110,7 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
               <PlayHint lower />
             </span>
           </span>
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-4 text-ink transition-colors group-hover:bg-accent group-hover:text-white">
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-4 text-ink transition-colors group-hover:bg-accent group-hover:text-white group-focus-visible:bg-accent group-focus-visible:text-white">
             <Play className="size-3.5 fill-current" aria-hidden />
           </span>
         </span>

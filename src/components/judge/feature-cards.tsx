@@ -27,14 +27,14 @@ export function FeatureCards({ spotlight, className }: { spotlight: Spotlight; c
             <InView delay={i * 0.07} className="flex w-full">
               <Link
                 href={step.href}
-                className="group relative isolate flex w-full flex-col overflow-hidden rounded-3xl border border-line bg-surface-2/70 p-5 transition-[transform,border-color,box-shadow] duration-300 ease-[var(--ease-out)] hover:-translate-y-1 hover:border-accent/45 hover:shadow-[0_24px_60px_-28px_var(--violet-500)] focus-visible:-translate-y-1"
+                className="group relative isolate flex w-full flex-col overflow-hidden rounded-3xl border border-line bg-surface-2/70 p-5 transition-[transform,border-color,box-shadow] duration-300 ease-[var(--ease-out)] hover:-translate-y-1 hover:border-accent/45 hover:shadow-[0_24px_60px_-28px_var(--violet-500)] focus-visible:-translate-y-1 focus-visible:border-accent/45 focus-visible:shadow-[0_24px_60px_-28px_var(--violet-500)] active:translate-y-0 active:scale-[0.985] active:duration-100"
               >
                 <span
                   aria-hidden
-                  className="absolute -right-12 -top-16 -z-10 size-48 rounded-full bg-accent/20 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100"
+                  className="absolute -right-12 -top-16 -z-10 size-48 rounded-full bg-accent/20 opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-100 group-focus-visible:opacity-100"
                 />
                 <span className="flex items-center justify-between">
-                  <span className="grid size-11 place-items-center rounded-xl border border-line-strong bg-surface-3 text-accent-ink transition-colors group-hover:border-accent/40 group-hover:bg-accent/10">
+                  <span className="grid size-11 place-items-center rounded-xl border border-line-strong bg-surface-3 text-accent-ink transition-colors group-hover:border-accent/40 group-hover:bg-accent/10 group-focus-visible:border-accent/40 group-focus-visible:bg-accent/10">
                     <Icon className="size-5" strokeWidth={1.75} aria-hidden />
                   </span>
                   <span className="font-mono text-[12px] tracking-[0.2em] text-ink-faint">0{i + 1}</span>

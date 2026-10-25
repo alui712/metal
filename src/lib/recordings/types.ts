@@ -52,3 +52,6 @@ export function formatLabel(container: string | null, filename: string): string 
   if (container.includes("mp4") || container.includes("mov")) return ext === "MOV" ? "MOV" : "MP4";
   return ext || container;
 }
+
+/** View-transition name shared by a recording's card art and its player (card → player morph). */
+export const recordingArtName = (id: string) => `recording-art-${id}`;

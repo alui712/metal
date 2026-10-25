@@ -49,3 +49,6 @@ next-env.d.ts
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# showcase intro montage (approved local media; supplied separately, never committed)
+/public/showcase/intro.*

@@ -41,6 +41,26 @@ First-time viewers (judges) need to understand METAL in about ten seconds and re
   - **Links:** a moment relives in scope, and recording thumbnails aren't links. Deliberate exits are labeled "Leave the demo: …".
 - **Server lock (opt-in):** `"lock": true` in judge-demo.json makes write routes return 423 when they touch an approved recording, the night, the story, the POV group or an approved export. It also blocks session regrouping. This applies to every caller, whatever the UI does, and the rest of the library stays editable. It's a switch on this computer, not authentication: anyone with the file can turn it off.
 
+- **Showcase intro ("Memory Portal")** (`src/components/judge/showcase-intro.tsx`):
+  - **Film:** about 5.5 s of approved footage behind the headline, then the memory cards push in.
+  - **Never blocks:** the headline, Start guided demo and Enter METAL are usable throughout. Skip intro (or Escape) ends it, and Replay intro brings it back.
+  - **Plays once per tab,** muted, and pauses when less than half of it is on screen or the tab is hidden.
+  - **Reduced motion:** never autoplays.
+  - **Source:**
+    - an approved silent montage at `public/showcase/intro.mp4` (+ `intro.jpg` poster), gitignored and supplied by the video workspace;
+    - otherwise the first three approved recordings' posters with a gentle push-in.
+    - A failed video falls back to the posters.
+  - **Montage asset requirements:**
+    - H.264 MP4, 1920×1080 (or 1600×900), 24 or 30 fps, 5–6 s, no audio track, `+faststart`, at most ~4 MB;
+    - footage from the approved recordings only;
+    - no burned-in text, and no recorder overlays (the source recordings carry one in the lower left: crop or mask it);
+    - its last frame dark enough to dissolve;
+    - poster: first frame as JPEG, 1920×1080, at most ~250 KB.
+    - Files dropped into `public/` after a build need `npm run build` again.
+- **Transitions:**
+  - Leaving the showcase for the app (`portal` transition type on Enter METAL and Start guided demo) pushes the stage in and dissolves it while the app settles (≈600 ms). The sidebar fades in.
+  - A showcase memory card morphs into its recording's player (shared `recordingArtName`).
+
 ## Consequences
 - The tour depends on route paths (`onStep`). Renaming a feature route means updating `tourSteps`.
 - Approved IDs are specific to this library. Another machine needs its own `judge-demo.json`.
