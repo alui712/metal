@@ -6,6 +6,7 @@ import { Suspense, ViewTransition } from "react";
 import { VideoPlayer } from "@/components/media/demo-player";
 import { PovPanel } from "@/components/pov/pov-panel";
 import { AutoRefresh } from "@/components/recordings/auto-refresh";
+import { GamePanel } from "@/components/recordings/game-panel";
 import { RemoveRecordingButton } from "@/components/recordings/remove-button";
 import { SmartClipWorkspace } from "@/components/smartclip/smart-clip-workspace";
 import { ButtonLink } from "@/components/ui/button";
@@ -82,6 +83,7 @@ async function RecordingView({ params, searchParams }: { params: PageProps<"/rec
             </div>
           ))}
         </dl>
+        <GamePanel recordingId={r.id} />
         {r.videoUrl && r.origin !== "clip" && <PovPanel recordingId={r.id} />}
         <RemoveRecordingButton id={r.id} title={r.title} />
       </aside>

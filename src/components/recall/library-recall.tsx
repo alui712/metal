@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Clapperboard, ExternalLink, Eye, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
+import { CircleAlert, Clapperboard, ExternalLink, Eye, Gamepad2, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import { formatDate, timecode } from "@/lib/format";
 import { recallFetch } from "@/lib/recall/fetch";
 import { Highlight } from "./highlight";
 
-// Client types mirror src/server/search/recall.ts, src/server/visual/search.ts + /api/recall (no paths).
+// Client types mirror src/server/search/{recall,games}.ts, src/server/visual/search.ts + /api/recall (no paths).
 type Visual = { confidence: "likely" | "low"; similarity: number; frames: Array<{ frameId: string; tMs: number; similarity: number }>; model: string; intervalMs: number };
 type Line = { segmentId: string; startMs: number; endMs: number; text: string; matched: string[] };
 type Hit = {
@@ -19,7 +19,7 @@ type Hit = {
   endMs: number;
   seekMs: number;
   lines: Line[];
-  sources: Array<"phrase" | "keyword" | "semantic" | "title" | "visual">;
+  sources: Array<"phrase" | "keyword" | "semantic" | "title" | "visual" | "game">;
   reasons: string[];
   score: number;
   strength: "strong" | "good" | "weak";
@@ -33,6 +33,7 @@ type Response = {
   semantic: { available: boolean; reason: string | null };
   index: { segments: number; recordings: number; embedded: number; flagged: number };
   visual: { available: boolean; reason: string | null; frames: number; recordings: number; eventQuery: boolean };
+  games: { genres: string[]; games: string[]; rest: string; tagged: number };
   facets: { games: string[]; recordings: Array<{ id: string; title: string }> };
   scope: { kind: "library" } | { kind: "demo"; recording: { id: string; title: string }; lines: number; frames: number };
 };
@@ -48,8 +49,11 @@ const VISUAL_STRENGTH = {
   likely: { label: "Looks similar · approximate", cls: "border-accent/40 bg-accent/10 text-accent-ink" },
   low: { label: "Low confidence · approximate", cls: "border-warn/30 bg-warn/10 text-warn" },
 };
-const badge = (h: Hit) => (h.visual && !h.lines.length ? VISUAL_STRENGTH[h.visual.confidence] : STRENGTH[h.strength]);
-const SOURCE = { phrase: { label: "Exact phrase", icon: Type }, keyword: { label: "Words", icon: Search }, semantic: { label: "Meaning", icon: Sparkles }, title: { label: "Recording name", icon: Type }, visual: { label: "Looks like", icon: Eye } };
+// Game-only results come from the game set on the recording: whole-recording, never a moment on screen.
+const GAME_BADGE = { label: "Game match · set by you", cls: "border-line-strong bg-surface-3 text-ink" };
+const badge = (h: Hit) =>
+  h.visual && !h.lines.length ? VISUAL_STRENGTH[h.visual.confidence] : h.sources.length === 1 && h.sources[0] === "game" && h.strength !== "weak" ? GAME_BADGE : STRENGTH[h.strength];
+const SOURCE = { phrase: { label: "Exact phrase", icon: Type }, keyword: { label: "Words", icon: Search }, semantic: { label: "Meaning", icon: Sparkles }, title: { label: "Recording name", icon: Type }, visual: { label: "Looks like", icon: Eye }, game: { label: "Game", icon: Gamepad2 } };
 const frameUrl = (id: string) => `/api/visual-frames/${id}`;
 const keyOf = (h: Hit) => `${h.recordingId}:${h.startMs}:${h.sources.join()}`;
 
@@ -193,7 +197,7 @@ export function LibraryRecall() {
         <span className="text-ink-faint">
           {visual
             ? "Also matching what frames look like. Approximate — it can’t confirm actions like jumps, kills or aces."
-            : "Searching what was said and recording names. Turn on Scenes to also match what frames look like."}
+            : "Searching what was said, recording names and games you set. Turn on Scenes to also match what frames look like."}
         </span>
       </div>
 
@@ -341,6 +345,14 @@ export function LibraryRecall() {
                     : "Nothing said or named matches. Turn on Scenes to also search what was on screen."}
                 {hasFilters ? " Your filters may be hiding results." : visual && data.visual.frames ? "" : " Try other words, or describe the scene differently."}
               </p>
+              {(data.games.genres.length > 0 || data.games.games.length > 0) && (
+                <p className="mx-auto mt-3 max-w-md text-[13px] text-ink-muted">
+                  {data.games.tagged
+                    ? `None of the ${data.games.tagged} recording${data.games.tagged === 1 ? "" : "s"} with a game set ${data.games.genres.length ? `is a ${data.games.genres.join(" or ")}` : "is that game"}.`
+                    : "No recordings have a game set yet."}{" "}
+                  Recall finds games and genres only from the game you set on a recording (open it and choose Set game) — it doesn’t guess the game from the video.
+                </p>
+              )}
               {visual && data.visual.frames > 0 && !hasFilters && (
                 <p className="mx-auto mt-3 max-w-md text-[13px] text-ink-muted">
                   Try describing what you see — the place, colours or objects — such as “jungle cliff” or “a dark hallway with a monster”, rather than a single word.

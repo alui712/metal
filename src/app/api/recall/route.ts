@@ -5,6 +5,7 @@ import { jsonError, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
 import { readRecordings } from "@/server/recordings";
 import { ensureEmbeddings, recallIndexStats, searchRecall, type RecallFilters } from "@/server/search/recall";
+import { mergeGames, searchGames } from "@/server/search/games";
 import { isJudge, judgeRecallScope } from "@/lib/judge/scope";
 import { judgeScope } from "@/server/judge/demo";
 import { mergeRecall, searchVisual } from "@/server/visual/search";
@@ -49,12 +50,14 @@ export async function GET(request: Request) {
   // Experimental scene search runs only when asked (?visual=1); an empty query still reports its index status.
   const wantVisual = url.searchParams.get("visual") === "1";
   const [text, visual] = await Promise.all([searchRecall(db, q, filters), searchVisual(db, wantVisual ? q : "", filters)]);
-  const search = mergeRecall(text, visual.hits);
+  // Game and genre matches come from the game set on each recording, never from the video.
+  const games = searchGames(db, q, filters);
+  const search = mergeGames(mergeRecall(text, visual.hits), games.hits);
   const recs = new Map(readRecordings([...new Set(search.results.map((r) => r.recordingId))]).map((r) => [r.id, r]));
   const transcribed = new Set(db.selectDistinct({ id: transcriptSegments.recordingId }).from(transcriptSegments).all().map((r) => r.id));
   for (const r of db.selectDistinct({ id: visualFrames.recordingId }).from(visualFrames).all()) transcribed.add(r.id);
   const gameOf = new Map(db.select({ id: recordings.id, game: recordings.game }).from(recordings).where(isNotNull(recordings.game)).all().map((g) => [g.id, g.game]));
-  const games = db.selectDistinct({ game: recordings.game }).from(recordings).where(isNotNull(recordings.game)).all().flatMap((g) => (g.game ? [g.game] : []));
+  const gameNames = db.selectDistinct({ game: recordings.game }).from(recordings).where(isNotNull(recordings.game)).all().flatMap((g) => (g.game ? [g.game] : []));
   return Response.json(
     {
       ...search,
@@ -65,6 +68,7 @@ export async function GET(request: Request) {
       }),
       index: recallIndexStats(db),
       visual: visual.status,
+      games: games.status,
       // What this search covered: the whole library, or (guided demo) only the approved recording, with its own counts.
       scope: judge
         ? {
@@ -77,7 +81,7 @@ export async function GET(request: Request) {
       facets: judge
         ? { games: [], recordings: readRecordings([filters.recordingId!]).map((r) => ({ id: r.id, title: label.get(r.id) ?? r.title })) }
         : {
-            games,
+            games: gameNames,
             recordings: readRecordings()
               .filter((r) => transcribed.has(r.id))
               .map((r) => ({ id: r.id, title: r.title })),

@@ -243,3 +243,14 @@ Thresholds for every variant were tuned only on the feasibility TUNE set, using 
 - **Hubness normalisation (CSLS / QB-Norm style):** "jungle" fell below "underwater", and long-set AUC dropped from 0.99 to 0.83–0.97.
 - **Library-relative gap and z-score:** "snow" (Roblox) stands out more than "jungle".
 - **A low band that admits "jungle":** it would have to sit between 0.3226 and 0.3265, which means tuning on the held-out queries themselves.
+
+## Game and genre searches
+
+CLIP can't tell game genres apart reliably: on the real library "first person shooter" put the two Valorant recordings first but below the floor (0.326 / 0.319), with a first-person non-shooter (backrooms, 0.315) right behind; "Valorant" ranked PEAK above both. Lowering the floor would have returned all three.
+
+Recall therefore matches games and genres from metadata, not pixels (`src/server/search/games.ts`):
+
+- A recording matches a **game** only through the game a person set on its page (`recordings.game`, `PUT /api/recordings/:id/game`; locked for approved judge-demo recordings).
+- A **genre** ("first person shooter", "FPS", "shooter game", "tactical shooter", "MOBA" …) matches through METAL's explicit game list, `src/lib/games/catalog.ts` (game → undisputed genres, plus aliases). Unknown games match by name only.
+- Results are whole-recording, labelled "Game match · set by you", never approximate-visual and never a timestamp claim. When the search has words beyond the game ("first person shooter on a sunny sandstone street"), game matches become loose and say which words weren't confirmed.
+- If a recording also matched by speech or scene, the game is added as a reason on that moment instead of a duplicate result.

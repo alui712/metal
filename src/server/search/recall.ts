@@ -38,7 +38,7 @@ export function stem(w: string): string {
 }
 
 export type RecallFilters = { recordingId?: string; game?: string; fromMs?: number; toMs?: number };
-export type MatchSource = "phrase" | "keyword" | "semantic" | "title" | "visual";
+export type MatchSource = "phrase" | "keyword" | "semantic" | "title" | "visual" | "game";
 export type RecallLine = { segmentId: string; startMs: number; endMs: number; text: string; matched: string[] };
 export type RecallHit = {
   recordingId: string;
@@ -228,17 +228,17 @@ export async function searchRecall(db: Db, rawQuery: string, filters: RecallFilt
     flush();
   }
 
-  // Recording metadata: title / game words.
+  // Recording names (the game set on a recording is matched separately: src/server/search/games.ts).
   if (!q.phraseRequired && q.terms.length) {
     const recConds = [];
     if (filters.recordingId) recConds.push(eq(recordings.id, filters.recordingId));
     if (filters.game) recConds.push(eq(recordings.game, filters.game));
     if (filters.fromMs !== undefined) recConds.push(sql`coalesce(${recordings.recordedAt}, ${recordings.importedAt}) >= ${filters.fromMs}`);
     if (filters.toMs !== undefined) recConds.push(sql`coalesce(${recordings.recordedAt}, ${recordings.importedAt}) < ${filters.toMs}`);
-    const recs = db.select({ id: recordings.id, title: recordings.title, game: recordings.game }).from(recordings).where(recConds.length ? and(...recConds) : undefined).all();
+    const recs = db.select({ id: recordings.id, title: recordings.title }).from(recordings).where(recConds.length ? and(...recConds) : undefined).all();
     for (const r of recs) {
-      const m = matchedTerms(`${r.title} ${r.game ?? ""}`, q.terms);
-      const frac = q.terms.filter((t) => matchedTerms(`${r.title} ${r.game ?? ""}`, [t]).length).length / q.terms.length;
+      const m = matchedTerms(r.title, q.terms);
+      const frac = q.terms.filter((t) => matchedTerms(r.title, [t]).length).length / q.terms.length;
       if (!m.length || frac < 0.5) continue;
       hits.push({ recordingId: r.id, startMs: 0, endMs: 0, seekMs: 0, lines: [], sources: ["title"], reasons: [`Recording name matches: ${m.join(", ")}`], score: 0.3 + 0.3 * frac, strength: frac === 1 ? "good" : "weak" });
     }
