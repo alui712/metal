@@ -50,7 +50,7 @@ export function RealStudio({ storyId, judge = false }: { storyId: string; judge?
       library={library}
       candidates={view.candidates}
       sourceSession={view.sourceSession ? { href: `/sessions/${view.sourceSession.id}${judge ? "?judge=1" : ""}`, title: view.sourceSession.title } : undefined}
-      persist={{ storyId: view.project.id, exports: view.exports, removedCount: view.removedCount }}
+      persist={{ storyId: view.project.id, exports: view.exports, removedCount: view.removedCount, preview: judge }}
     />
   );
 }

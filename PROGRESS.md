@@ -27,6 +27,18 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Safety pass ✅ (2026-10-24)
+
+- **Judge mode is read-only in the UI:**
+  - Studio is an unsaved preview, with no render or delete;
+  - the night has no rename, favorites, Send to Story Studio or regrouping;
+  - POV has no sync edits or clipping;
+  - Recall has no Open recording or Start a story.
+- **Links stay in the demo;** intentional exits are labeled "Leave the demo".
+- **Export history:** only approved exports (the new `exports` list) appear in judge mode, both in the API and in the dialog.
+- **Opt-in `"lock": true`:** write routes refuse (423) anything touching approved content. Unit tests cover it, plus route tests on a temporary data dir.
+- **Browser checks:** the old Relive checks were replaced by corrected ones (see `relive.mjs`).
+
 ## Judge Experience — Cycle 1B: approved scope ✅ (2026-10-24)
 
 - **Judge mode:** `?judge=1` on tour links; the server scopes the night, Relive, Recall API, story API and POV page to the approved list. Out-of-scope judge URLs are refused, not substituted.

@@ -45,5 +45,14 @@ async function Viewer({ params, searchParams }: Pick<PageProps<"/povs/[id]">, "p
   // ?rec=<recording>&t=<ms in that recording>: open on that POV at that moment.
   const rec = typeof sp.rec === "string" && isRecordingId(sp.rec) && group.members.some((m) => m.recordingId === sp.rec) ? sp.rec : undefined;
   const t = Number(sp.t);
-  return <PovViewer initial={group} focusId={rec} startOwnMs={rec && Number.isFinite(t) && t >= 0 ? t : undefined} backHref={rec ? `/recordings/${rec}#povs` : "/library"} />;
+  const judge = isJudge(sp.judge);
+  return (
+    <PovViewer
+      initial={group}
+      focusId={rec}
+      startOwnMs={rec && Number.isFinite(t) && t >= 0 ? t : undefined}
+      backHref={judge ? "/showcase" : rec ? `/recordings/${rec}#povs` : "/library"}
+      judge={judge}
+    />
+  );
 }

@@ -74,7 +74,7 @@ export function tourSteps(t: TourTargets): TourStep[] {
       label: "Story Studio",
       title: "Cut it into a story",
       tip: t.story
-        ? `A story cut from real footage (${t.story.clipCount} clip${t.story.clipCount === 1 ? "" : "s"}). Reorder and trim, add captions, then Export renders an MP4 on this computer.`
+        ? `A story cut from real footage (${t.story.clipCount} clip${t.story.clipCount === 1 ? "" : "s"}). Reorder, trim and caption it; in the demo these edits are a preview and aren’t saved.${t.story.exported ? " Export shows the approved MP4 rendered on this computer." : ""}`
         : "No demo story is prepared. Start one from a night or a moment; Export renders an MP4 on this computer.",
       href: t.story ? `/studio?story=${t.story.id}&${J}` : "/studio",
       match: t.story ? { path: "/studio", params: { story: t.story.id, judge: "1" } } : { path: "/studio" },

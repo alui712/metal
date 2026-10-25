@@ -33,6 +33,14 @@ First-time viewers (judges) need to understand METAL in about ten seconds and re
   Readiness also requires the night to have at least one approved, playable moment (otherwise Relive isn't offered), and the story's clips to pass the exporter's `checkSources()` (file present, range inside the video).
 - **Exact stops:** a stop also needs `judge=1`, the prepared `recording`, no `game`/`from`/`to` on Recall, and no `t` on POV. Anything else counts as off target, and "Return to demo" restores the exact URL.
 
+- **Judge mode doesn't change anything** (safety pass):
+  - **Studio:** an unsaved preview. No autosave, no rendering, no deleting. The export list and its polling show only the approved exports (`exports` in judge-demo.json; each must be a finished export of the approved story with its file on disk).
+  - **Night page:** no rename, favorites, Send to Story Studio or regrouping.
+  - **POV page:** watching and switching only (no nudges, confirm, unpair, rename or clip).
+  - **Recall:** no Open recording or Start a story.
+  - **Links:** a moment relives in scope, and recording thumbnails aren't links. Deliberate exits are labeled "Leave the demo: …".
+- **Server lock (opt-in):** `"lock": true` in judge-demo.json makes write routes return 423 when they touch an approved recording, the night, the story, the POV group or an approved export. It also blocks session regrouping. This applies to every caller, whatever the UI does, and the rest of the library stays editable. It's a switch on this computer, not authentication: anyone with the file can turn it off.
+
 ## Consequences
 - The tour depends on route paths (`onStep`). Renaming a feature route means updating `tourSteps`.
 - Approved IDs are specific to this library. Another machine needs its own `judge-demo.json`.

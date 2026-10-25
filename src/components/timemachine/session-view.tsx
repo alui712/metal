@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from "motion/react";
 import { ArrowLeft, Check, CircleHelp, Clapperboard, Film, Mic, PencilLine, Play, Scissors, Sparkles, Star, Waves } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { type ComponentProps, useMemo, useState } from "react";
 import { buttonClass } from "@/components/ui/button";
 import { EASE_OUT } from "@/components/ui/motion";
 import { cn } from "@/lib/cn";
@@ -80,9 +80,9 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
           </Link>
           {judge && (
             <p className="mt-4 flex w-fit flex-wrap items-center gap-x-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-[12px] text-accent-ink">
-              Prepared demo: approved recordings only ·
+              Prepared demo: approved recordings only, changes are off ·
               <Link href={`/sessions/${s.id}`} className="font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
-                Open the full night
+                Leave the demo: open the full night
               </Link>
             </p>
           )}
@@ -135,9 +135,11 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
           ) : (
             <h1 className="mt-3 flex flex-wrap items-baseline gap-3 font-display text-[clamp(2.2rem,5.5vw,4.2rem)] leading-[1.02] tracking-[-0.02em] text-ink">
               {s.title}
-              <button type="button" onClick={() => setEditing(true)} className="rounded-lg p-1.5 text-ink-faint hover:bg-surface-3 hover:text-ink" aria-label="Rename session">
-                <PencilLine className="size-5" aria-hidden />
-              </button>
+              {!judge && (
+                <button type="button" onClick={() => setEditing(true)} className="rounded-lg p-1.5 text-ink-faint hover:bg-surface-3 hover:text-ink" aria-label="Rename session">
+                  <PencilLine className="size-5" aria-hidden />
+                </button>
+              )}
             </h1>
           )}
           <p className="mt-4 max-w-2xl text-[14.5px] leading-relaxed text-ink-muted">
@@ -145,7 +147,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
             {s.analyzedCount === 0
               ? "Nothing here has been analyzed yet, so there are no moments — analyze a recording to find them."
               : `${s.momentCount} moment${s.momentCount === 1 ? "" : "s"} found from loudness and picture changes${s.transcriptLines ? `, with ${s.transcriptLines} transcript line${s.transcriptLines === 1 ? "" : "s"}` : ""}.`}
-            {!s.titleIsCustom && s.timeKnown && " The name is just the day and time — rename it if you like."}
+            {!s.titleIsCustom && s.timeKnown && !judge && " The name is just the day and time — rename it if you like."}
           </p>
           <div className="mt-7 flex flex-wrap gap-3">
             {moments.length > 0 ? (
@@ -157,9 +159,11 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
                 <Play className="size-4" aria-hidden /> Relive this night
               </span>
             )}
-            <button type="button" disabled={busy || selected.size === 0} onClick={toStudio} className={buttonClass("secondary", "md", "bg-black/40 backdrop-blur")}>
-              <Scissors className="size-4" aria-hidden /> Send {selected.size || ""} to Story Studio
-            </button>
+            {!judge && (
+              <button type="button" disabled={busy || selected.size === 0} onClick={toStudio} className={buttonClass("secondary", "md", "bg-black/40 backdrop-blur")}>
+                <Scissors className="size-4" aria-hidden /> Send {selected.size || ""} to Story Studio
+              </button>
+            )}
           </div>
           {error && (
             <p role="alert" className="mt-3 text-[13px] text-danger">
@@ -170,7 +174,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
       </header>
 
       <div className="mx-auto max-w-7xl space-y-14 px-4 py-10 sm:px-8">
-        <TimeRail data={data} />
+        <TimeRail data={data} judge={judge} />
 
         {/* ── Moments ── */}
         <section aria-labelledby="moments-heading">
@@ -180,7 +184,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
                 Moments, in the order they happened
               </h2>
               <p className="mt-1 max-w-2xl text-[13px] text-ink-muted">
-                Found from measured signals. METAL doesn’t know who won or what was said beyond the machine transcript, which can contain errors. Select moments to relive them or send them to Story Studio.
+                Found from measured signals. METAL doesn’t know who won or what was said beyond the machine transcript, which can contain errors. Select moments to relive them{judge ? "" : " or send them to Story Studio"}.
               </p>
             </div>
             {moments.length > 0 && (
@@ -211,6 +215,8 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
                   rec={recById.get(m.recordingId)}
                   selected={selected.has(m.id)}
                   busy={busy}
+                  judge={judge}
+                  sessionId={s.id}
                   onSelect={() =>
                     setSelected((cur) => {
                       const next = new Set(cur);
@@ -243,6 +249,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
                 r={r}
                 canSplit={i > 0}
                 busy={busy}
+                readOnly={judge}
                 others={data.others}
                 onSplit={() => edit({ action: "split", atRecordingId: r.id })}
                 onMove={(to) => edit({ action: "move", recordingId: r.id, to })}
@@ -273,7 +280,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
                 </select>
               </label>
             )}
-            {s.locked && (
+            {s.locked && !judge && (
               <button type="button" disabled={busy} onClick={() => edit({ action: "reset" })} className={buttonClass("ghost", "sm")}>
                 Return to automatic grouping
               </button>
@@ -286,7 +293,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
 }
 
 /** Wall-clock rail: recordings to scale, moments as glowing ticks. */
-function TimeRail({ data }: { data: SessionDetail }) {
+function TimeRail({ data, judge }: { data: SessionDetail; judge: boolean }) {
   const reduce = useReducedMotion();
   const dated = data.recordings.filter((r) => r.startAt !== null);
   const undated = data.recordings.filter((r) => r.startAt === null);
@@ -312,9 +319,9 @@ function TimeRail({ data }: { data: SessionDetail }) {
           <div className="relative h-24">
             <span aria-hidden className="absolute inset-x-0 top-1/2 h-px bg-line-strong" />
             {dated.map((r) => (
-              <Link
+              <RecLink
                 key={r.id}
-                href={`/recordings/${r.id}`}
+                href={judge ? null : `/recordings/${r.id}`}
                 title={`${r.title} · ${clock(r.startAt!)} · ${span(r.durationMs)}`}
                 className="group absolute top-1/2 h-10 min-w-2 -translate-y-1/2 overflow-hidden rounded-lg border border-white/10 bg-surface-4 ring-accent/60 transition-shadow hover:ring-2 focus-visible:ring-2"
                 style={{ left: `${pct(r.startAt!)}%`, width: `max(8px, ${pct(r.startAt! + r.durationMs) - pct(r.startAt!)}%)` }}
@@ -326,7 +333,7 @@ function TimeRail({ data }: { data: SessionDetail }) {
                 <span className="sr-only">
                   {r.title}, {clock(r.startAt!)}
                 </span>
-              </Link>
+              </RecLink>
             ))}
             {data.moments
               .filter((m) => m.at !== null)
@@ -365,6 +372,8 @@ function MomentCard({
   rec,
   selected,
   busy,
+  judge,
+  sessionId,
   onSelect,
   onFavorite,
 }: {
@@ -373,6 +382,9 @@ function MomentCard({
   rec?: TimelineRecording;
   selected: boolean;
   busy: boolean;
+  /** Guided demo: the thumbnail relives this moment in scope instead of opening the full recording page. */
+  judge: boolean;
+  sessionId: string;
   onSelect: () => void;
   onFavorite: () => void;
 }) {
@@ -385,7 +397,11 @@ function MomentCard({
       transition={reduce ? { duration: 0.2, y: { duration: 0 } } : { duration: 0.45, delay: Math.min(i, 8) * 0.04, ease: EASE_OUT }}
       className={cn("group relative flex min-w-0 gap-3 rounded-2xl border bg-surface-2/70 p-3 transition-colors sm:gap-4", selected ? "border-accent/50 bg-accent/[0.06]" : "border-line")}
     >
-      <Link href={`/recordings/${m.recordingId}?t=${m.startMs}`} className="relative aspect-video w-28 shrink-0 self-start overflow-hidden rounded-xl bg-surface-3 sm:w-44" aria-label={`Play “${m.title}” at ${timecode(m.startMs)} in ${rec?.title ?? "the recording"}`}>
+      <Link
+        href={judge ? `/sessions/${sessionId}/relive?moments=${m.id}&judge=1` : `/recordings/${m.recordingId}?t=${m.startMs}`}
+        className="relative aspect-video w-28 shrink-0 self-start overflow-hidden rounded-xl bg-surface-3 sm:w-44"
+        aria-label={`Play “${m.title}” at ${timecode(m.startMs)} in ${rec?.title ?? "the recording"}`}
+      >
         {m.thumbUrl || rec?.posterUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- local keyframe
           <img src={(m.thumbUrl ?? rec?.posterUrl)!} alt="" className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
@@ -441,7 +457,8 @@ function MomentCard({
         <button
           type="button"
           onClick={onFavorite}
-          disabled={busy}
+          disabled={busy || judge}
+          title={judge ? "Favorites are off in the prepared demo" : undefined}
           aria-pressed={m.favorite}
           aria-label={m.favorite ? `Remove “${m.title}” from favorites` : `Mark “${m.title}” as a favorite`}
           className={cn("grid size-8 place-items-center rounded-lg transition-colors", m.favorite ? "text-accent-ink" : "text-ink-faint hover:text-ink")}
@@ -457,6 +474,7 @@ function RecordingRow({
   r,
   canSplit,
   busy,
+  readOnly,
   others,
   onSplit,
   onMove,
@@ -464,6 +482,8 @@ function RecordingRow({
   r: TimelineRecording;
   canSplit: boolean;
   busy: boolean;
+  /** Guided demo: no regrouping and no way into the full recording page. */
+  readOnly: boolean;
   others: SessionDetail["others"];
   onSplit: () => void;
   onMove: (to: string | null) => void;
@@ -471,13 +491,13 @@ function RecordingRow({
   const status = r.analysis === "done" ? `${r.momentCount} moment${r.momentCount === 1 ? "" : "s"}` : r.analysis === "none" ? "Not analyzed" : r.analysis === "failed" ? "Analysis failed" : "Analyzing…";
   return (
     <li className="flex flex-wrap items-center gap-3 py-3">
-      <Link href={`/recordings/${r.id}`} className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-surface-3 ring-1 ring-line">
+      <RecLink href={readOnly ? null : `/recordings/${r.id}`} className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg bg-surface-3 ring-1 ring-line">
         {r.posterUrl && (
           // eslint-disable-next-line @next/next/no-img-element -- local poster
           <img src={r.posterUrl} alt="" className="size-full object-cover" />
         )}
-        <span className="sr-only">Open {r.title}</span>
-      </Link>
+        {!readOnly && <span className="sr-only">Open {r.title}</span>}
+      </RecLink>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-medium text-ink">{r.title}</span>
         <span className="block text-[12px] text-ink-faint">
@@ -493,37 +513,44 @@ function RecordingRow({
           {r.transcript === "done" && " · transcribed"}
         </span>
       </span>
-      <div className="flex w-full flex-wrap items-center gap-2 pl-[5.75rem] sm:w-auto sm:pl-0">
-        <Link href={`/recordings/${r.id}#povs`} className={buttonClass("ghost", "sm")} title="Find other players’ recordings of this">
-          Other POVs
-        </Link>
-        {canSplit && (
-          <button type="button" disabled={busy} onClick={onSplit} className={buttonClass("ghost", "sm")} title="Start a new session from this recording onward">
-            Split here
-          </button>
-        )}
-        <label>
-          <span className="sr-only">Move {r.title}</span>
-          <select
-            value=""
-            disabled={busy}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v) onMove(v === "out" ? null : v);
-            }}
-            className="h-9 max-w-[12rem] rounded-lg border border-line bg-surface-2 px-2 text-[12.5px] text-ink"
-          >
-            <option value="">Move…</option>
-            <option value="new">To a new session</option>
-            <option value="out">Out of this session</option>
-            {others.map((o) => (
-              <option key={o.id} value={o.id}>
-                To {o.title}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      {!readOnly && (
+        <div className="flex w-full flex-wrap items-center gap-2 pl-[5.75rem] sm:w-auto sm:pl-0">
+          <Link href={`/recordings/${r.id}#povs`} className={buttonClass("ghost", "sm")} title="Find other players’ recordings of this">
+            Other POVs
+          </Link>
+          {canSplit && (
+            <button type="button" disabled={busy} onClick={onSplit} className={buttonClass("ghost", "sm")} title="Start a new session from this recording onward">
+              Split here
+            </button>
+          )}
+          <label>
+            <span className="sr-only">Move {r.title}</span>
+            <select
+              value=""
+              disabled={busy}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v) onMove(v === "out" ? null : v);
+              }}
+              className="h-9 max-w-[12rem] rounded-lg border border-line bg-surface-2 px-2 text-[12.5px] text-ink"
+            >
+              <option value="">Move…</option>
+              <option value="new">To a new session</option>
+              <option value="out">Out of this session</option>
+              {others.map((o) => (
+                <option key={o.id} value={o.id}>
+                  To {o.title}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
     </li>
   );
+}
+
+/** A link in the full app; plain content in the guided demo, so a click can't leave the prepared scope by accident. */
+function RecLink({ href, ...p }: { href: string | null } & Omit<ComponentProps<typeof Link>, "href">) {
+  return href ? <Link href={href} {...p} /> : <span className={p.className} style={p.style} title={p.title}>{p.children}</span>;
 }

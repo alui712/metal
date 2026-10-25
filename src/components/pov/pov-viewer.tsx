@@ -32,7 +32,8 @@ const nameOf = (m: PovMember) => m.playerName ?? m.title;
  * small drift, re-seek for large), and POVs without footage at that moment
  * wait with an honest overlay. Only one POV is ever audible.
  */
-export function PovViewer({ initial, focusId, startOwnMs, backHref }: { initial: PovGroupView; focusId?: string; startOwnMs?: number; backHref: string }) {
+/** `judge`: the guided demo; watching and switching only, so the approved sync can't be changed. */
+export function PovViewer({ initial, focusId, startOwnMs, backHref, judge = false }: { initial: PovGroupView; focusId?: string; startOwnMs?: number; backHref: string; judge?: boolean }) {
   const router = useRouter();
   const [group, setGroup] = useState(initial);
   const members = group.members;
@@ -284,7 +285,7 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref }: { initial:
     <div className="space-y-5" role="region" aria-label="Synced POVs">
       <div className="flex flex-wrap items-center gap-3">
         <Link href={backHref} className="inline-flex items-center gap-2 rounded-lg py-1 text-[13px] font-medium text-ink-muted hover:text-ink">
-          <ArrowLeft className="size-4" aria-hidden /> Back
+          <ArrowLeft className="size-4" aria-hidden /> {judge ? "Showcase" : "Back"}
         </Link>
         <div className="ml-auto flex items-center gap-2">
           <Segmented<Mode>
@@ -465,6 +466,7 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref }: { initial:
             m={active}
             alone={members.length < 2}
             saving={saving === active.recordingId}
+            readOnly={judge}
             onNudge={(d) => nudge(active, d)}
             onConfirm={() => confirm(active)}
             onRename={(n) => rename(active, n)}
@@ -472,17 +474,19 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref }: { initial:
             compareHint={mode === "switch" && others.length > 0 ? () => setMode("side") : undefined}
           />
 
-          <div className="rounded-2xl border border-line bg-surface-2/60 p-4">
-            <Button className="w-full" onClick={clipToStudio} disabled={clipping || !activeCovers || !active.videoUrl}>
-              {clipping ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Clapperboard className="size-4" aria-hidden />}
-              Clip this moment to Story Studio
-            </Button>
-            <p className="mt-2 text-[11.5px] leading-relaxed text-ink-faint">
-              {activeCovers
-                ? `${nameOf(active)}’s recording, ${timecode(Math.max(0, activeOwn - CLIP_BEFORE_MS))}–${timecode(Math.min(active.durationMs, activeOwn + CLIP_AFTER_MS))}. You can trim it in the Studio.`
-                : `${nameOf(active)} has no footage here — switch POV or move the playhead.`}
-            </p>
-          </div>
+          {!judge && (
+            <div className="rounded-2xl border border-line bg-surface-2/60 p-4">
+              <Button className="w-full" onClick={clipToStudio} disabled={clipping || !activeCovers || !active.videoUrl}>
+                {clipping ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Clapperboard className="size-4" aria-hidden />}
+                Clip this moment to Story Studio
+              </Button>
+              <p className="mt-2 text-[11.5px] leading-relaxed text-ink-faint">
+                {activeCovers
+                  ? `${nameOf(active)}’s recording, ${timecode(Math.max(0, activeOwn - CLIP_BEFORE_MS))}–${timecode(Math.min(active.durationMs, activeOwn + CLIP_AFTER_MS))}. You can trim it in the Studio.`
+                  : `${nameOf(active)} has no footage here — switch POV or move the playhead.`}
+              </p>
+            </div>
+          )}
           {notice && (
             <p role="alert" className="text-[12.5px] text-danger">
               {notice}
@@ -513,10 +517,12 @@ function SyncPanel({
   onRename,
   onUnpair,
   compareHint,
+  readOnly,
 }: {
   m: PovMember;
   alone: boolean;
   saving: boolean;
+  readOnly: boolean;
   onNudge: (deltaMs: number) => void;
   onConfirm: () => void;
   onRename: (name: string) => void;
@@ -542,8 +548,9 @@ function SyncPanel({
           value={name}
           maxLength={40}
           placeholder={m.title}
+          readOnly={readOnly}
           onChange={(e) => setName(e.target.value)}
-          onBlur={() => onRename(name)}
+          onBlur={() => !readOnly && onRename(name)}
           onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()}
           className="mt-1 h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-[13px] text-ink placeholder:text-ink-faint"
         />
@@ -558,7 +565,19 @@ function SyncPanel({
         {m.syncSource === "audio" && m.audioScore !== null ? ` (correlation ${m.audioScore.toFixed(2)})` : ""} · starts at <span className="font-mono tabular-nums text-ink-muted">{signedSeconds(m.offsetMs)}</span>
         {saving && " · saving…"}
       </p>
-      {!alone && (
+      {readOnly ? (
+        <p className="mt-3 text-[11.5px] leading-relaxed text-ink-faint">
+          Sync editing is off in the prepared demo, so this pair stays exactly as it was approved.
+          {compareHint && (
+            <>
+              {" "}
+              <button type="button" onClick={compareHint} className="font-medium text-accent-ink hover:text-white">
+                Compare side by side
+              </button>
+            </>
+          )}
+        </p>
+      ) : !alone && (
         <>
           <div className="mt-3 grid grid-cols-6 gap-1" role="group" aria-label={`Nudge ${m.playerName ?? m.title}'s sync`}>
             {steps.map(([label, d, aria]) => (

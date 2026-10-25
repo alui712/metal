@@ -17,6 +17,10 @@ export const judgeDemoSchema = z.object({
   pov: z.string().min(1).nullable().default(null),
   /** Story Studio project to open. */
   story: z.string().min(1).nullable().default(null),
+  /** Finished exports of that story that judge mode may list; no others are shown. */
+  exports: z.array(z.string().min(1)).default([]),
+  /** Refuse server writes that touch any approved item (see judgeLocked in src/server/judge/demo.ts). */
+  lock: z.boolean().default(false),
 });
 
 export type JudgeDemoConfig = z.infer<typeof judgeDemoSchema>;
@@ -31,10 +35,12 @@ export type DemoFacts = {
   lines: { text: string; recordingId: string; startMs: number }[];
   povGroups: Map<string, { recordingId: string; offsetMs: number; syncSource: SyncSource; confirmed: boolean }[]>;
   /** `clipIssues`: the exporter's own source checks (missing file, range outside the video). */
-  stories: Map<string, { id: string; title: string; clipRecordingIds: string[]; clipIssues: string[]; exported: boolean }>;
+  stories: Map<string, { id: string; title: string; clipRecordingIds: string[]; clipIssues: string[] }>;
+  /** Exports named in the approved list: whose story, whether it finished, whether the file is there. */
+  exports: Map<string, { id: string; projectId: string; succeeded: boolean; fileOk: boolean }>;
 };
 
-export type DemoCheck = { area: "night" | "recording" | "recall" | "pov" | "story" | "config"; ref: string; ready: boolean; detail: string };
+export type DemoCheck = { area: "night" | "recording" | "recall" | "pov" | "story" | "export" | "config"; ref: string; ready: boolean; detail: string };
 
 export type CuratedPov = {
   groupId: string;
@@ -55,7 +61,8 @@ export type Curated = {
   allowed: string[];
   recall: { line: string; recordingId: string; startMs: number } | null;
   pov: CuratedPov | null;
-  story: { id: string; title: string; clipCount: number; exported: boolean } | null;
+  /** `exports`: approved, finished exports of this story (the only ones judge mode lists). */
+  story: { id: string; title: string; clipCount: number; exported: boolean; exports: string[] } | null;
   checks: DemoCheck[];
 };
 
@@ -150,6 +157,20 @@ export function curate(config: JudgeDemoConfig | null, facts: DemoFacts): Curate
     }
   }
 
+  // Exports are listed only if approved, finished, on disk and of the approved story.
+  const exports: string[] = [];
+  for (const id of config.exports) {
+    const e = facts.exports.get(id);
+    const ok = Boolean(e && e.projectId === config.story && e.succeeded && e.fileOk);
+    checks.push({
+      area: "export",
+      ref: id,
+      ready: ok,
+      detail: !e ? "Export not found" : e.projectId !== config.story ? "Not an export of the approved story" : !e.succeeded ? "Not finished" : !e.fileOk ? "File missing" : "Finished · file present",
+    });
+    if (ok) exports.push(id);
+  }
+
   let story: Curated["story"] = null;
   if (config.story) {
     const s = facts.stories.get(config.story);
@@ -167,9 +188,9 @@ export function curate(config: JudgeDemoConfig | null, facts: DemoFacts): Curate
             ? `${s.title}: clips from unapproved or unplayable recordings`
             : s.clipIssues.length
               ? `${s.title}: ${s.clipIssues.join(" ")}`
-              : `${s.title} · ${s.clipRecordingIds.length} clip${s.clipRecordingIds.length === 1 ? "" : "s"}${s.exported ? " · exported" : " · not exported yet"}`,
+              : `${s.title} · ${s.clipRecordingIds.length} clip${s.clipRecordingIds.length === 1 ? "" : "s"}${exports.length ? ` · ${exports.length} approved export${exports.length === 1 ? "" : "s"}` : " · no approved export"}`,
     });
-    if (s && ready) story = { id: s.id, title: s.title, clipCount: s.clipRecordingIds.length, exported: s.exported };
+    if (s && ready) story = { id: s.id, title: s.title, clipCount: s.clipRecordingIds.length, exported: exports.length > 0, exports };
   }
 
   const allowed = config.recordings.map((r) => r.id).filter(usable);

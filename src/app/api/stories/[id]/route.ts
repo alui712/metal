@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/server/db/client";
 import { isJudge, scopeStory } from "@/lib/judge/scope";
-import { judgeScope } from "@/server/judge/demo";
+import { judgeLocked, judgeScope } from "@/server/judge/demo";
 import { jsonError, privileged, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
 import { deleteStory, isStoryId, MAX_STORY_CLIPS, renameStory, saveStory, storyView } from "@/server/studio/stories";
@@ -37,8 +37,8 @@ export async function GET(request: Request, ctx: RouteContext<"/api/stories/[id]
   if (isJudge(new URL(request.url).searchParams.get("judge"))) {
     // Guided demo: only the approved story, and only approved recordings as candidates.
     const scope = judgeScope(db);
-    if (scope.demo.story?.id !== id) return jsonError(403, "This story isn’t part of the prepared demo.");
-    return Response.json(scopeStory(v, scope.allowed, scope.demo.nightId), { headers: { "Cache-Control": "no-store" } });
+    if (!scope.demo.story || scope.demo.story.id !== id) return jsonError(403, "This story isn’t part of the prepared demo.");
+    return Response.json(scopeStory(v, scope.allowed, scope.demo.nightId, scope.demo.story.exports), { headers: { "Cache-Control": "no-store" } });
   }
   return Response.json(v, { headers: { "Cache-Control": "no-store" } });
 }
@@ -51,6 +51,8 @@ export async function PUT(request: Request, ctx: RouteContext<"/api/stories/[id]
   if (!isStoryId(id)) return jsonError(404, "Not found.");
   const body = Save.safeParse(await request.json().catch(() => null));
   if (!body.success) return jsonError(400, "Invalid story.");
+  const locked = judgeLocked(getDb(), { stories: [id] });
+  if (locked) return locked;
   const res = saveStory(getDb(), id, body.data);
   return "error" in res ? jsonError(res.status, res.error) : Response.json(res);
 }
@@ -63,6 +65,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/stories/[i
   if (!isStoryId(id)) return jsonError(404, "Not found.");
   const body = Rename.safeParse(await request.json().catch(() => null));
   if (!body.success) return jsonError(400, "Invalid title.");
+  const locked = judgeLocked(getDb(), { stories: [id] });
+  if (locked) return locked;
   const res = renameStory(getDb(), id, body.data.title);
   return "error" in res ? jsonError(res.status, res.error) : Response.json(res);
 }
@@ -73,6 +77,8 @@ export async function DELETE(request: Request, ctx: RouteContext<"/api/stories/[
   if (denied) return denied;
   const { id } = await ctx.params;
   if (!isStoryId(id)) return jsonError(404, "Not found.");
+  const locked = judgeLocked(getDb(), { stories: [id] });
+  if (locked) return locked;
   const res = deleteStory(getDb(), id);
   return "error" in res ? jsonError(res.status, res.error) : new Response(null, { status: 204 });
 }

@@ -30,14 +30,15 @@ export type ExportView = {
 
 const HEADERS = { "Content-Type": "application/json", "x-metal-action": "1" };
 
-/** Polls this story's exports while one is in flight. */
-export function useStoryExports(storyId: string, initial: ExportView[]) {
+/** Polls this story's exports while one is in flight. `preview` (judge mode): the given list is final. */
+export function useStoryExports(storyId: string, initial: ExportView[], preview = false) {
   const [exports, setExports] = useState(initial);
-  const active = exports.some((e) => e.status === "queued" || e.status === "rendering");
+  const active = !preview && exports.some((e) => e.status === "queued" || e.status === "rendering");
   const refresh = useCallback(async () => {
+    if (preview) return;
     const res = await fetch(`/api/stories/${storyId}/export`, { cache: "no-store" }).catch(() => null);
     if (res?.ok) setExports(((await res.json()) as { exports: ExportView[] }).exports);
-  }, [storyId]);
+  }, [storyId, preview]);
   useEffect(() => {
     if (!active) return;
     const t = setInterval(refresh, 1000);
@@ -55,6 +56,7 @@ export function RealExportDialog({
   onRefresh,
   flush,
   issues,
+  preview = false,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -65,6 +67,8 @@ export function RealExportDialog({
   /** Saves pending edits; resolves to an error message or null. */
   flush: () => Promise<string | null>;
   issues: Record<string, string>;
+  /** Judge mode: show only the approved exports; no rendering or deleting. */
+  preview?: boolean;
 }) {
   const reduce = useReducedMotion();
   const [starting, setStarting] = useState(false);
@@ -209,10 +213,16 @@ export function RealExportDialog({
               {error}
             </p>
           )}
-          <Button onClick={render} disabled={starting || busy || issueCount > 0 || project.clips.length === 0}>
-            {starting || busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : latest?.status === "done" ? <RotateCcw className="size-4" aria-hidden /> : <Check className="size-4" aria-hidden />}
-            {busy ? "Rendering…" : latest?.status === "failed" ? "Try again" : latest?.status === "done" ? "Render again" : "Render MP4"}
-          </Button>
+          {preview ? (
+            <p className="rounded-xl border border-line bg-surface-2 px-3 py-2 text-[12.5px] leading-relaxed text-ink-muted">
+              Rendering is off in the prepared demo, so it never adds files or changes the story. Exports made beforehand appear below if they were approved.
+            </p>
+          ) : (
+            <Button onClick={render} disabled={starting || busy || issueCount > 0 || project.clips.length === 0}>
+              {starting || busy ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : latest?.status === "done" ? <RotateCcw className="size-4" aria-hidden /> : <Check className="size-4" aria-hidden />}
+              {busy ? "Rendering…" : latest?.status === "failed" ? "Try again" : latest?.status === "done" ? "Render again" : "Render MP4"}
+            </Button>
+          )}
         </aside>
       </div>
 
@@ -263,7 +273,7 @@ export function RealExportDialog({
                           {deleting === item.id ? <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> : <Trash2 className="size-3.5" aria-hidden />} Confirm delete
                         </Button>
                       </>
-                    ) : (
+                    ) : preview ? null : (
                       <Button size="sm" variant="ghost" disabled={active || deleting !== null} aria-label={`Delete export from ${new Date(item.createdAt).toLocaleDateString()}`} title={active ? "Wait for rendering to finish" : undefined} onClick={() => setConfirmDelete(item.id)}>
                         <Trash2 className="size-3.5" aria-hidden /> Delete
                       </Button>

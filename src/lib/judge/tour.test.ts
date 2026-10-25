@@ -21,6 +21,9 @@ describe("tourSteps", () => {
     expect(tourSteps(full)[0].tip).toContain("“Did that bug just die?”");
     expect(tourSteps(full)[1].tip).toContain("Saturday evening");
     expect(tourSteps(full)[3].tip).toContain("3 clips");
+    expect(tourSteps(full)[3].tip).toContain("aren’t saved");
+    expect(tourSteps(full)[3].tip).not.toContain("approved MP4");
+    expect(tourSteps({ ...full, story: { ...full.story!, exported: true } })[3].tip).toContain("approved MP4");
   });
 
   it("describes how a POV pair was really synced", () => {

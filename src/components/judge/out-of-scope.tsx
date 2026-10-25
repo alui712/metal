@@ -11,8 +11,8 @@ export function JudgeOutOfScope({ what, href, fullscreen = false }: { what: stri
           The guided demo only shows approved recordings. Use the guide to return to the demo, or open this {what} in the full app.
         </p>
         <div className="mt-5 flex justify-center gap-4 text-[13px] font-medium">
-          <Link href="/showcase" className="text-accent-ink hover:text-white">Back to the showcase</Link>
-          <Link href={href} className="text-ink-muted hover:text-ink">Open in the full app</Link>
+          <Link href="/showcase" className="text-accent-ink hover:text-white">Return to the demo</Link>
+          <Link href={href} className="text-ink-muted hover:text-ink">Leave the demo: open in the full app</Link>
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { judgeLocked, recordingOfLine } from "@/server/judge/demo";
 import { getDb } from "@/server/db/client";
 import { jsonError, privileged } from "@/server/http";
 import { flagSegment, isSegmentId } from "@/server/search/recall";
@@ -13,6 +14,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/transcript
   if (!isSegmentId(id)) return jsonError(404, "Not found.");
   const body = Body.safeParse(await request.json().catch(() => null));
   if (!body.success) return jsonError(400, "Send { flagged: true | false }.");
+  const locked = judgeLocked(getDb(), { recordings: [recordingOfLine(getDb(), id)] });
+  if (locked) return locked;
   if (!flagSegment(getDb(), id, body.data.flagged)) return jsonError(404, "Not found.");
   return Response.json({ ok: true });
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { judgeLocked } from "@/server/judge/demo";
 import { getDb } from "@/server/db/client";
 import { jsonError, privileged, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
@@ -32,7 +33,13 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/sessions/[
   const body = Edit.safeParse(await request.json().catch(() => null));
   if (!body.success) return jsonError(400, "Invalid edit.");
   if (id === "none" && body.data.action !== "move") return jsonError(400, "Invalid edit.");
-  const err = editSession(getDb(), id, body.data as SessionEdit);
+  const e = body.data;
+  const locked = judgeLocked(getDb(), {
+    sessions: [id, e.action === "merge" ? e.into : e.action === "move" ? e.to : null],
+    recordings: [e.action === "move" ? e.recordingId : e.action === "split" ? e.atRecordingId : null],
+  });
+  if (locked) return locked;
+  const err = editSession(getDb(), id, e as SessionEdit);
   if (err === "not-found") return jsonError(404, "Not found.");
   if (err) return jsonError(409, err);
   return Response.json({ ok: true });

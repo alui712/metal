@@ -32,16 +32,18 @@ export function scopeSession(d: SessionDetail, allowed: ReadonlySet<string>, cov
 }
 
 type StoryLike = {
+  exports: Array<{ id: string }>;
   recordings: Record<string, unknown>;
   moments: Record<string, { recordingId: string }>;
   candidates: Array<{ recordingId: string }>;
   sourceSession: { id: string; title: string } | null;
 };
 
-/** A story's editor data limited to approved recordings (candidate clips included). */
-export function scopeStory<V extends StoryLike>(v: V, allowed: ReadonlySet<string>, nightId: string | null): V {
+/** A story's editor data limited to approved recordings (candidate clips included) and approved exports. */
+export function scopeStory<V extends StoryLike>(v: V, allowed: ReadonlySet<string>, nightId: string | null, approvedExports: readonly string[]): V {
   return {
     ...v,
+    exports: v.exports.filter((e) => approvedExports.includes(e.id)),
     recordings: Object.fromEntries(Object.entries(v.recordings).filter(([id]) => allowed.has(id))),
     moments: Object.fromEntries(Object.entries(v.moments).filter(([, m]) => allowed.has(m.recordingId))),
     candidates: v.candidates.filter((m) => allowed.has(m.recordingId)),

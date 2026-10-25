@@ -31,21 +31,23 @@ describe("scopeSession", () => {
 });
 
 describe("scopeStory", () => {
-  it("drops unapproved recordings, moments, candidates and unapproved source sessions", () => {
+  it("drops unapproved recordings, moments, candidates, exports and unapproved source sessions", () => {
     const v = {
+      exports: [{ id: "exp_new" }, { id: "exp_ok" }, { id: "exp_old" }],
       recordings: { rec_a: {}, rec_x: {} },
       moments: { m1: { recordingId: "rec_a" }, m2: { recordingId: "rec_x" } },
       candidates: [{ recordingId: "rec_x" }, { recordingId: "rec_a" }],
       sourceSession: { id: "ses_9", title: "Test night" },
       extra: 1,
     };
-    const s = scopeStory(v, allowed, "ses_1");
+    const s = scopeStory(v, allowed, "ses_1", ["exp_ok"]);
+    expect(s.exports).toEqual([{ id: "exp_ok" }]);
     expect(Object.keys(s.recordings)).toEqual(["rec_a"]);
     expect(Object.keys(s.moments)).toEqual(["m1"]);
     expect(s.candidates).toEqual([{ recordingId: "rec_a" }]);
     expect(s.sourceSession).toBeNull();
     expect(s.extra).toBe(1);
-    expect(scopeStory({ ...v, sourceSession: { id: "ses_1", title: "Saturday evening" } }, allowed, "ses_1").sourceSession).toEqual({ id: "ses_1", title: "Saturday evening" });
+    expect(scopeStory({ ...v, sourceSession: { id: "ses_1", title: "Saturday evening" } }, allowed, "ses_1", []).sourceSession).toEqual({ id: "ses_1", title: "Saturday evening" });
   });
 });
 

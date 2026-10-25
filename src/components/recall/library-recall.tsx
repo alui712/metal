@@ -162,7 +162,7 @@ export function LibraryRecall() {
         <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[12.5px] text-accent-ink">
           Prepared demo: searching {known?.facets.recordings[0]?.title ? `“${known.facets.recordings[0].title}”` : "the approved recording"} only.
           <Link href={q ? `/recall?q=${encodeURIComponent(q)}` : "/recall"} className="font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
-            Search your whole library
+            Leave the demo: search your whole library
           </Link>
         </p>
       )}
@@ -311,10 +311,15 @@ export function LibraryRecall() {
                     <button type="button" onClick={() => play(current)} className="inline-flex items-center gap-1 font-medium text-accent-ink hover:text-white">
                       <Play className="size-3.5" aria-hidden /> Play from {timecode(current.seekMs)}
                     </button>
-                    <Link href={`/recordings/${current.recordingId}?t=${current.seekMs}`} className="inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink">
-                      Open recording <ExternalLink className="size-3.5" aria-hidden />
-                    </Link>
-                    <StartStory hit={current} />
+                    {/* The guided demo plays here; the recording page and new stories belong to the full app. */}
+                    {!judge && (
+                      <>
+                        <Link href={`/recordings/${current.recordingId}?t=${current.seekMs}`} className="inline-flex items-center gap-1 font-medium text-ink-muted hover:text-ink">
+                          Open recording <ExternalLink className="size-3.5" aria-hidden />
+                        </Link>
+                        <StartStory hit={current} />
+                      </>
+                    )}
                   </div>
                 </div>
                 {current.lines.length > 0 && (

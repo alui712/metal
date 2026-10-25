@@ -51,7 +51,8 @@ export function StudioEditor({
   /** Where the story came from (link back). */
   sourceSession?: { href: string; title: string };
   /** Real stories: autosave + render through the worker. */
-  persist?: { storyId: string; exports: ExportView[]; removedCount: number };
+  /** `preview` (judge mode): edits stay in this tab; nothing is saved, rendered or deleted. */
+  persist?: { storyId: string; exports: ExportView[]; removedCount: number; preview?: boolean };
 }) {
   const lookup = useMemo(
     () => ({ recording: (id: string) => library.recordings[id], moment: (id: string) => library.moments[id] }),
@@ -66,8 +67,9 @@ export function StudioEditor({
   const [instruction, setInstruction] = useState("");
   const lastCoalesce = useRef<{ key: string; at: number } | null>(null);
 
-  const { save, flush } = useAutosave(persist?.storyId ?? null, project);
-  const story = useStoryExports(persist?.storyId ?? "", persist?.exports ?? []);
+  const preview = Boolean(persist?.preview);
+  const { save, flush } = useAutosave(preview ? null : (persist?.storyId ?? null), project);
+  const story = useStoryExports(persist?.storyId ?? "", persist?.exports ?? [], preview);
   const latestExport = story.exports[0];
   const issues = library.issues ?? {};
   const issueCount = project.clips.filter((c) => issues[c.id]).length;
@@ -159,6 +161,8 @@ export function StudioEditor({
                 <>
                   <LoaderCircle className="size-3.5 animate-spin" aria-hidden /> Saving…
                 </>
+              ) : preview ? (
+                <span title="The prepared demo never changes the story. Reload to start over.">Preview · not saved</span>
               ) : save === "error" ? (
                 <span className="flex items-center gap-1.5 text-danger">
                   <CloudOff className="size-3.5" aria-hidden /> Not saved
@@ -391,6 +395,7 @@ export function StudioEditor({
           onRefresh={story.refresh}
           flush={flush}
           issues={Object.fromEntries(project.clips.filter((c) => issues[c.id]).map((c) => [c.id, issues[c.id]]))}
+          preview={preview}
         />
       ) : (
         <ExportDialog open={exportOpen} onOpenChange={setExportOpen} project={project} library={library} />

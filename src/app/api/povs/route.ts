@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { judgeLocked } from "@/server/judge/demo";
 import { getDb } from "@/server/db/client";
 import { jsonError, privileged } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
@@ -24,6 +25,8 @@ export async function POST(request: Request) {
   if (!body.success) return jsonError(400, "Invalid request.");
   const db = getDb();
   const b = body.data;
+  const locked = judgeLocked(db, { recordings: [b.recordingId, b.action === "pair" ? b.otherId : null] });
+  if (locked) return locked;
   let res: { groupId: string | null } | { error: string; status: number };
   if (b.action === "pair") res = pairPov(db, b);
   else if (b.action === "offset") res = setPovOffset(db, b.recordingId, b.offsetMs);

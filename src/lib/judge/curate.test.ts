@@ -21,15 +21,21 @@ function facts(over: Partial<DemoFacts> = {}): DemoFacts {
       ],
     ]),
     stories: new Map([
-      ["sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a", "rec_b"], clipIssues: [], exported: true }],
-      ["sty_leak", { id: "sty_leak", title: "Mixed", clipRecordingIds: ["rec_a", "rec_x"], clipIssues: [], exported: false }],
+      ["sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a", "rec_b"], clipIssues: [] }],
+      ["sty_leak", { id: "sty_leak", title: "Mixed", clipRecordingIds: ["rec_a", "rec_x"], clipIssues: [] }],
+    ]),
+    exports: new Map([
+      ["exp_ok", { id: "exp_ok", projectId: "sty_ok", succeeded: true, fileOk: true }],
+      ["exp_other", { id: "exp_other", projectId: "sty_leak", succeeded: true, fileOk: true }],
+      ["exp_failed", { id: "exp_failed", projectId: "sty_ok", succeeded: false, fileOk: false }],
+      ["exp_gone", { id: "exp_gone", projectId: "sty_ok", succeeded: true, fileOk: false }],
     ]),
     ...over,
   };
 }
 
 const config = (over: object = {}) =>
-  judgeDemoSchema.parse({ night: "ses_1", recordings: [{ id: "rec_a", label: "Cave run" }, "rec_b"], recall: ["did that bug just die"], pov: "pov_1", story: "sty_ok", ...over });
+  judgeDemoSchema.parse({ night: "ses_1", recordings: [{ id: "rec_a", label: "Cave run" }, "rec_b"], recall: ["did that bug just die"], pov: "pov_1", story: "sty_ok", exports: ["exp_ok"], ...over });
 
 describe("curate", () => {
   it("uses only approved, verified content", () => {
@@ -42,7 +48,7 @@ describe("curate", () => {
       { id: "rec_b", label: null, durationMs: 20_000 },
     ]);
     expect(c.recall).toEqual({ line: "Did that bug just die?", recordingId: "rec_a", startMs: 4000 });
-    expect(c.story).toEqual({ id: "sty_ok", title: "Best of Saturday", clipCount: 2, exported: true });
+    expect(c.story).toEqual({ id: "sty_ok", title: "Best of Saturday", clipCount: 2, exported: true, exports: ["exp_ok"] });
     expect(c.checks.every((x) => x.ready)).toBe(true);
   });
 
@@ -62,7 +68,7 @@ describe("curate", () => {
   });
 
   it("does not fall back to other content when an approved item fails", () => {
-    const c = curate(config({ story: "sty_leak", recall: ["Holy cow, unapproved line"], night: "ses_gone" }), facts());
+    const c = curate(config({ story: "sty_leak", exports: [], recall: ["Holy cow, unapproved line"], night: "ses_gone" }), facts());
     expect(c.story).toBeNull();
     expect(c.recall).toBeNull();
     expect(c.nightId).toBeNull();
@@ -92,10 +98,17 @@ describe("curate", () => {
 
   it("rejects a story whose clips fail the exporter's source checks", () => {
     const f = facts();
-    f.stories.set("sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a"], clipIssues: ["Clip 1: The clip from “peak pov” is outside the video."], exported: false });
+    f.stories.set("sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a"], clipIssues: ["Clip 1: The clip from “peak pov” is outside the video."] });
     const c = curate(config(), f);
     expect(c.story).toBeNull();
     expect(c.checks.find((x) => x.area === "story")).toMatchObject({ ready: false, detail: expect.stringContaining("outside the video") });
+  });
+
+  it("lists only approved, finished exports of the approved story", () => {
+    const c = curate(config({ exports: ["exp_other", "exp_failed", "exp_gone", "exp_missing"] }), facts());
+    expect(c.story).toMatchObject({ exported: false, exports: [] });
+    expect(c.checks.filter((x) => x.area === "export").map((x) => x.detail)).toEqual(["Not an export of the approved story", "Not finished", "File missing", "Export not found"]);
+    expect(curate(config({ exports: [] }), facts()).story).toMatchObject({ exported: false, exports: [] });
   });
 
   it("shows nothing without an approved list", () => {

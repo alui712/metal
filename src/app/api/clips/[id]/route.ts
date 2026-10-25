@@ -1,4 +1,5 @@
 import { getDb } from "@/server/db/client";
+import { judgeLocked, recordingOfMoment } from "@/server/judge/demo";
 import { jsonError, privileged } from "@/server/http";
 import { applyClipAction, isSuggestionId, type ClipAction } from "@/server/smartclip/actions";
 
@@ -13,6 +14,8 @@ export async function PATCH(request: Request, ctx: RouteContext<"/api/clips/[id]
   if (body?.action === "adjust") action = { action: "adjust", startMs: Number(body.startMs), endMs: Number(body.endMs) };
   else if (body?.action === "accept" || body?.action === "dismiss" || body?.action === "restore" || body?.action === "retry" || body?.action === "favorite" || body?.action === "unfavorite") action = { action: body.action };
   else return jsonError(400, "Unknown action.");
+  const locked = judgeLocked(getDb(), { recordings: [recordingOfMoment(getDb(), id)] });
+  if (locked) return locked;
   const err = applyClipAction(getDb(), id, action);
   if (err === "not-found") return jsonError(404, "Not found.");
   if (err) return jsonError(400, err);

@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { judgeLocked } from "@/server/judge/demo";
 import { speechProvider } from "@/server/analysis/providers";
 import { requestTranscription, transcriptView } from "@/server/analysis/transcribe";
 import { getDb } from "@/server/db/client";
@@ -25,6 +26,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/recordings/
   const db = getDb();
   const rec = db.select({ status: recordings.status }).from(recordings).where(eq(recordings.id, id)).get();
   if (!rec) return jsonError(404, "Not found.");
+  const locked = judgeLocked(db, { recordings: [id] });
+  if (locked) return locked;
   if (rec.status !== "ready" && rec.status !== "analyzed") return jsonError(409, "Wait until the recording has finished processing.");
   const p = speechProvider();
   if (!p.available) return jsonError(409, p.reason);

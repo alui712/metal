@@ -1,4 +1,5 @@
 import { eq } from "drizzle-orm";
+import { judgeLocked } from "@/server/judge/demo";
 import { getDb } from "@/server/db/client";
 import { recordings } from "@/server/db/schema";
 import { jsonError, privileged, sameOrigin } from "@/server/http";
@@ -27,6 +28,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/recordings/
   const db = getDb();
   const rec = db.select({ status: recordings.status }).from(recordings).where(eq(recordings.id, id)).get();
   if (!rec) return jsonError(404, "Not found.");
+  const locked = judgeLocked(db, { recordings: [id] });
+  if (locked) return locked;
   if (rec.status !== "ready" && rec.status !== "analyzed") return jsonError(409, "Wait until the recording has finished processing.");
   const result = requestPovMatch(db, id);
   return Response.json({ result }, { status: result === "queued" ? 202 : 200 });

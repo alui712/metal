@@ -7,6 +7,7 @@ import { jsonError, privileged, sameOrigin } from "@/server/http";
 import { parseRange } from "@/server/media/range";
 import { exportFile, isExportId } from "@/server/studio/render";
 import { deleteExport, isStoryId } from "@/server/studio/stories";
+import { judgeLocked } from "@/server/judge/demo";
 
 // Serves a finished story export by id. The path is derived from the id inside
 // the exports directory; nothing from the client names a file.
@@ -63,6 +64,8 @@ export async function DELETE(request: Request, ctx: RouteContext<"/api/exports/[
   if (!isExportId(id)) return notFound();
   const body = (await request.json().catch(() => null)) as { projectId?: unknown } | null;
   if (!body || typeof body.projectId !== "string" || !isStoryId(body.projectId)) return jsonError(400, "Invalid export.");
+  const locked = judgeLocked(getDb(), { exports: [id], stories: [body.projectId] });
+  if (locked) return locked;
   const res = deleteExport(getDb(), id, body.projectId);
   return "error" in res ? jsonError(res.status, res.error) : new Response(null, { status: 204 });
 }
