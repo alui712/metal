@@ -76,11 +76,11 @@ function Card({ card: c, fan, order, delay }: { card: FanCard; fan?: (typeof FAN
     >
       <Link
         href={c.href}
-        transitionTypes={["dive"]}
+        transitionTypes={["card-dive"]}
         onClick={(e) => {
           // Card dive: this card is the frame that pushes forward into the recording (see globals.css).
           if (reduce) return;
-          document.documentElement.setAttribute("data-dive", "");
+          document.documentElement.setAttribute("data-dive", "card");
           e.currentTarget.setAttribute("data-dive-target", "");
         }}
         aria-label={c.label}

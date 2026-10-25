@@ -17,7 +17,7 @@ export function ShowcaseHero() {
 
   return (
     <div>
-      <div className="flex items-center gap-4">
+      <div data-dive-recede className="flex items-center gap-4">
         <motion.span
           className="relative grid place-items-center"
           initial={{ opacity: 0, scale: reduce ? 1 : 0.6, rotate: reduce ? 0 : -24, filter: reduce ? "blur(0px)" : "blur(12px)" }}
@@ -45,7 +45,7 @@ export function ShowcaseHero() {
       <h1 className="mt-10 uppercase">
         <span className="block text-[clamp(2.75rem,4.9vw,6rem)] font-bold leading-[0.92] tracking-[-0.045em] text-ink">
           {LINE_ONE.map((w, i) => (
-            <Word key={w} reduce={reduce} delay={0.3 + i * 0.075} className="mr-[0.24em] last:mr-0">
+            <Word key={w} index={i} reduce={reduce} delay={0.3 + i * 0.075} className="mr-[0.24em] last:mr-0">
               {w}
             </Word>
           ))}
@@ -53,7 +53,7 @@ export function ShowcaseHero() {
         {/* Follows the first line, then one slow sweep of light: emphasis, not a shimmer. */}
         <span className="mt-2 block font-display text-[clamp(3rem,5.6vw,6.75rem)] font-normal italic leading-[0.95] tracking-[-0.015em]">
           {LINE_TWO.map((w, i) => (
-            <Word key={w} reduce={reduce} delay={0.72 + i * 0.09} className="mr-[0.22em] last:mr-0" italic>
+            <Word key={w} index={LINE_ONE.length + i} reduce={reduce} delay={0.72 + i * 0.09} className="mr-[0.22em] last:mr-0" italic>
               <span className="headline-violet bg-clip-text pr-[0.06em] text-transparent" style={{ animationDelay: `${1.35 + i * 0.12}s` }}>
                 {w}
               </span>
@@ -66,9 +66,9 @@ export function ShowcaseHero() {
 }
 
 /** One word rising out of a mask. The mask is padded so italic overhangs and descenders aren't clipped. */
-function Word({ children, delay, reduce, className, italic = false }: { children: React.ReactNode; delay: number; reduce: boolean | null; className?: string; italic?: boolean }) {
+function Word({ children, delay, reduce, className, italic = false, index }: { children: React.ReactNode; delay: number; reduce: boolean | null; className?: string; italic?: boolean; index: number }) {
   return (
-    <span className={`inline-block overflow-hidden pb-[0.12em] -mb-[0.12em] align-bottom ${italic ? "pr-[0.08em] -mr-[0.08em]" : ""} ${className ?? ""}`}>
+    <span data-word style={{ "--i": index } as React.CSSProperties} className={`inline-block overflow-hidden pb-[0.12em] -mb-[0.12em] align-bottom ${italic ? "pr-[0.08em] -mr-[0.08em]" : ""} ${className ?? ""}`}>
       <motion.span
         className="inline-block"
         initial={reduce ? { opacity: 0 } : { opacity: 0, y: "105%", rotate: italic ? 2 : 0 }}

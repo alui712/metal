@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 export default function ShowcasePage() {
   return (
     // Leaving for the app ("portal" navigations) pushes the camera into the stage; see globals.css.
-    <ViewTransition exit={{ portal: "portal-out", dive: "dive-out", default: "none" }} default="none">
+    <ViewTransition exit={{ portal: "portal-out", dive: "dive-out", "card-dive": "dive-out", default: "none" }} default="none">
       <div data-immersive className="showcase-stage grain relative isolate min-h-dvh overflow-hidden">
         <div aria-hidden className="showcase-grid pointer-events-none absolute inset-0 -z-10" />
         <Suspense fallback={null}>
@@ -48,18 +48,21 @@ export default function ShowcasePage() {
           </Link>
         </header>
 
-        <section data-dive-copy className="mx-auto grid max-w-[110rem] grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pb-10 pt-10 sm:px-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 lg:pt-14 xl:px-16">
+        {/* Memory Dive light: a sweep, then a violet wash over the frame (globals.css). */}
+        <div aria-hidden className="dive-fx" />
+
+        <section className="mx-auto grid max-w-[110rem] grid-cols-[minmax(0,1fr)] items-center gap-12 px-5 pb-10 pt-10 sm:px-10 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:gap-10 lg:pt-14 xl:px-16">
           <div>
             <ShowcaseHero />
             <Reveal delay={0.55}>
-              <p className="mt-8 max-w-xl text-[17px] leading-relaxed text-ink-muted sm:text-[18px]">
+              <p data-dive-recede className="mt-8 max-w-xl text-[17px] leading-relaxed text-ink-muted sm:text-[18px]">
                 METAL records your nights, finds the moments worth keeping, and lets you search, relive and recut them,
                 all on your own computer.
               </p>
             </Reveal>
             {/* The calls to action arrive with the headline: the film never makes anyone wait. */}
             <Reveal delay={0.6}>
-              <div className="mt-9 flex flex-wrap items-center gap-3">
+              <div data-dive-recede data-dive-cta className="mt-9 flex flex-wrap items-center gap-3">
                 <Suspense fallback={<span className="inline-block h-13 w-56 animate-pulse rounded-xl bg-accent/30" />}>
                   <StartTour />
                 </Suspense>
@@ -67,15 +70,17 @@ export default function ShowcasePage() {
                   Enter METAL
                 </ButtonLink>
               </div>
-              <p className="mt-4 text-[13px] text-ink-faint">Four stops, about two minutes. A guide follows you across the app.</p>
+              <p data-dive-recede className="mt-4 text-[13px] text-ink-faint">Four stops, about two minutes. A guide follows you across the app.</p>
             </Reveal>
           </div>
 
-          <IntroGate>
-            <Suspense fallback={<div className="h-[18.75rem] w-full animate-pulse rounded-3xl bg-surface-2/40 sm:h-[20.75rem] lg:mb-7 lg:aspect-[1.08] lg:h-auto" />}>
-              <Featured />
-            </Suspense>
-          </IntroGate>
+          <div data-dive-cards>
+            <IntroGate>
+              <Suspense fallback={<div className="h-[18.75rem] w-full animate-pulse rounded-3xl bg-surface-2/40 sm:h-[20.75rem] lg:mb-7 lg:aspect-[1.08] lg:h-auto" />}>
+                <Featured />
+              </Suspense>
+            </IntroGate>
+          </div>
         </section>
 
         <section data-dive-copy aria-labelledby="ways-heading" className="mx-auto max-w-[110rem] px-5 pb-16 sm:px-10 xl:px-16">

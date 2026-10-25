@@ -19,8 +19,18 @@ export function TourDock() {
   // A Memory Dive (showcase → first stop) ends once the destination renders; the dock then fades in.
   useEffect(() => {
     if (pathname === "/showcase") return;
-    document.documentElement.removeAttribute("data-dive");
+    const html = document.documentElement;
+    html.removeAttribute("data-dive");
     document.querySelector("[data-dive-target]")?.removeAttribute("data-dive-target");
+    if (html.hasAttribute("data-dive-focus")) {
+      html.removeAttribute("data-dive-focus");
+      // The button that started the tour is gone; keyboard users continue from the new page's heading.
+      const h = document.querySelector<HTMLElement>("#main h1");
+      if (h) {
+        h.tabIndex = -1;
+        h.focus({ preventScroll: true });
+      }
+    }
   }, [pathname]);
   const search = useSearchParams();
   const router = useRouter();

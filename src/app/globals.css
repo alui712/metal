@@ -270,18 +270,16 @@ input[type="range"] {
     400ms ease-in-out both vt-slide;
 }
 
-/* Showcase → app. Enter METAL ("portal", ~380 ms): the stage lifts away and the app settles.
-   Start guided demo ("dive", ~600 ms, the Memory Dive): the copy drifts off before navigation
-   even starts (data-dive), the gameplay frame on screen is captured on its own and pushes
-   forward into a violet light, and the first stop settles in behind it. Reduced motion skips
-   all of it (the button sends no transition type; see also the prefers-reduced-motion block). */
+/* Showcase → app. Enter METAL ("portal", ~400 ms): the stage lifts away and the app settles.
+   Reduced motion skips every animation here (the buttons send no transition type, and see
+   the prefers-reduced-motion block). */
 ::view-transition-old(.portal-out) {
   animation: 240ms var(--ease-out) both portal-push;
 }
 ::view-transition-new(.portal-in) {
   animation: 320ms var(--ease-out) 60ms both portal-arrive;
 }
-html:active-view-transition-type(portal, dive)::view-transition-new(app-sidebar) {
+html:active-view-transition-type(portal)::view-transition-new(app-sidebar) {
   animation: 260ms var(--ease-out) 120ms both vt-fade;
 }
 @keyframes portal-push {
@@ -298,74 +296,195 @@ html:active-view-transition-type(portal, dive)::view-transition-new(app-sidebar)
   }
 }
 
+/* Memory Dive (Start guided demo, ~1 s). StartTourButton sets html[data-dive="demo"] and
+   navigates 380 ms later, prefetched, so the destination is ready when the view transition
+   starts. Live, on the real page (0–380 ms):
+     1 Activation (0–180): the button presses, the headline leaves word by word, the rest of
+       the copy recedes, the reel holds its frame and brightens.
+     2 Dive (90–600): the reel pushes forward, the memory cards (foreground) fly out faster
+       for parallax, and one violet light sweeps across, leaving a violet wash.
+   View transition ("dive"):
+     3 Transformation: the washed frame keeps pushing and dissolves (never to black: the
+       backdrop is graphite and violet) while the real first stop fades up through it.
+     4 Arrival: the page settles; the sidebar, then the tour dock, come in after it. */
+html[data-dive="demo"] [data-diving] {
+  scale: 0.97;
+  box-shadow: 0 0 0 2px var(--violet-400), 0 0 44px 4px rgb(139 92 255 / 0.65);
+  transition: scale 90ms var(--ease-out), box-shadow 90ms var(--ease-out);
+}
+html[data-dive="demo"] [data-word] > * {
+  translate: 0 -112%;
+  transition: translate 260ms cubic-bezier(0.55, 0, 0.75, 0.2) calc(var(--i) * 22ms);
+}
+[data-dive-recede],
+[data-dive-copy],
+[data-dive-cards] {
+  transform-origin: 0% 50%;
+}
+html[data-dive="demo"] [data-dive-recede],
 html[data-dive] [data-dive-copy] {
   opacity: 0;
-  translate: 0 -14px;
+  scale: 0.97;
+  filter: blur(2px);
   transition:
-    opacity 220ms var(--ease-out),
-    translate 420ms var(--ease-out);
+    opacity 240ms var(--ease-out),
+    scale 360ms var(--ease-out),
+    filter 240ms var(--ease-out);
+}
+html[data-dive="demo"] [data-dive-cta] {
+  transition-delay: 110ms; /* the press reads first */
+}
+html[data-dive="demo"] [data-dive-cards] {
+  transform-origin: 30% 50%;
+  opacity: 0;
+  scale: 1.2;
+  translate: 5% -2%;
+  filter: blur(3px);
+  transition:
+    opacity 360ms ease-in 80ms,
+    scale 520ms cubic-bezier(0.45, 0, 0.25, 1) 40ms,
+    translate 520ms cubic-bezier(0.45, 0, 0.25, 1) 40ms,
+    filter 360ms ease-in 80ms;
 }
 .intro-film {
+  transform-origin: 62% 45%;
   transition: opacity 260ms var(--ease-out);
+}
+.intro-shot img {
+  transition: filter 220ms var(--ease-out);
 }
 html[data-dive] .intro-film {
   opacity: 1 !important;
 }
-/* The frame that dives: the clicked memory card, otherwise the reel on screen. */
-html[data-dive]:not(:has([data-dive-target])) .intro-film,
-html[data-dive] [data-dive-target] {
-  view-transition-name: memory-frame;
+html[data-dive="demo"] .intro-film {
+  scale: 1.08;
+  /* Still easing out when the snapshot is taken, so the push hands over to the transition without a stop. */
+  transition:
+    opacity 260ms var(--ease-out),
+    scale 640ms cubic-bezier(0.3, 0, 0.2, 1) 60ms;
 }
-html[data-dive] [data-dive-target] {
-  view-transition-class: card-dive;
+html[data-dive="demo"] .intro-shot img {
+  filter: brightness(1.14) saturate(1.1);
+}
+.dive-fx {
+  pointer-events: none;
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 30;
+  height: min(100dvh, 72rem);
+  overflow: hidden;
+  visibility: hidden;
+}
+.dive-fx::before {
+  /* the light: a soft diagonal band */
+  content: "";
+  position: absolute;
+  inset: -20% auto -20% 0;
+  width: 42%;
+  rotate: 14deg;
+  translate: -130% 0;
+  background: linear-gradient(90deg, transparent, rgb(167 139 250 / 0.22) 30%, rgb(237 233 255 / 0.5) 50%, rgb(167 139 250 / 0.22) 70%, transparent);
+  mix-blend-mode: screen;
+  filter: blur(8px);
+}
+.dive-fx::after {
+  /* the wash the light leaves behind: violet, deepest at the edges */
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse 70% 65% at 62% 45%, rgb(167 139 250 / 0.14), rgb(109 40 217 / 0.26) 60%, rgb(24 12 48 / 0.62) 100%);
+}
+html[data-dive="demo"] .dive-fx {
+  visibility: visible;
+}
+html[data-dive="demo"] .dive-fx::before {
+  translate: 330% 0;
+  transition: translate 300ms cubic-bezier(0.45, 0, 0.3, 1) 90ms;
+}
+html[data-dive="demo"] .dive-fx::after {
+  opacity: 1;
+  transition: opacity 240ms ease-out 150ms;
 }
 .tour-dock {
   transition: opacity 450ms var(--ease-out) 120ms;
 }
-html[data-dive] .tour-dock {
+html[data-dive] .tour-dock,
+html:active-view-transition-type(dive, card-dive) .tour-dock {
   opacity: 0 !important;
 }
-html:active-view-transition-type(dive)::view-transition {
+html:active-view-transition-type(dive, card-dive)::view-transition {
   background:
     radial-gradient(64rem 44rem at 62% 42%, rgb(139 92 255 / 0.3), transparent 70%),
     var(--graphite-950);
 }
-::view-transition-old(memory-frame) {
-  animation: 580ms cubic-bezier(0.3, 0, 0.2, 1) both dive-push;
+html:active-view-transition-type(dive)::view-transition-old(.dive-out) {
+  transform-origin: 62% 30%;
+  animation: 480ms cubic-bezier(0.3, 0, 0.3, 1) both dive-through;
 }
-::view-transition-old(.card-dive) {
-  animation-name: card-dive;
+html:active-view-transition-type(dive)::view-transition-new(.dive-in) {
+  animation: 380ms cubic-bezier(0.2, 0, 0, 1) 130ms both dive-arrive;
 }
-::view-transition-old(.dive-out) {
-  animation: 180ms ease-in both vt-fade reverse;
+html:active-view-transition-type(dive)::view-transition-new(app-sidebar) {
+  animation: 280ms var(--ease-out) 220ms both vt-fade;
 }
-::view-transition-new(.dive-in) {
-  animation: 380ms var(--ease-out) 200ms both dive-arrive;
-}
-@keyframes dive-push {
-  55% {
+@keyframes dive-through {
+  35% {
     opacity: 1;
   }
   to {
     opacity: 0;
-    scale: 1.1;
-    filter: brightness(1.18) saturate(1.08);
-  }
-}
-@keyframes card-dive {
-  50% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    scale: 1.35;
-    filter: brightness(1.15);
+    scale: 1.06;
+    filter: brightness(1.25) saturate(1.15);
   }
 }
 @keyframes dive-arrive {
   from {
     opacity: 0;
     scale: 1.025;
+    filter: blur(3px) brightness(1.12);
+  }
+}
+
+/* Memory card dive (navigates at once, ~650 ms): the clicked card pushes forward and
+   brightens into its recording while the reel behind it drifts more slowly (parallax). */
+html[data-dive] [data-dive-target] {
+  view-transition-name: memory-frame;
+}
+html[data-dive="card"] .intro-film {
+  view-transition-name: dive-backdrop;
+}
+html:active-view-transition-type(card-dive)::view-transition-old(.dive-out) {
+  animation: 180ms ease-in both vt-fade reverse;
+}
+::view-transition-old(memory-frame) {
+  animation: 560ms cubic-bezier(0.3, 0, 0.2, 1) both card-dive;
+}
+::view-transition-old(dive-backdrop) {
+  animation: 520ms cubic-bezier(0.3, 0, 0.2, 1) both backdrop-drift;
+}
+html:active-view-transition-type(card-dive)::view-transition-new(.dive-in) {
+  animation: 380ms cubic-bezier(0.2, 0, 0, 1) 240ms both dive-arrive;
+}
+html:active-view-transition-type(card-dive)::view-transition-new(app-sidebar) {
+  animation: 300ms var(--ease-out) 260ms both vt-fade;
+}
+@keyframes card-dive {
+  45% {
+    opacity: 1;
+    scale: 1.16;
+    filter: brightness(1.12) saturate(1.08);
+  }
+  to {
+    opacity: 0;
+    scale: 1.4;
+    filter: brightness(1.3) saturate(1.15);
+  }
+}
+@keyframes backdrop-drift {
+  to {
+    opacity: 0;
+    scale: 1.06;
   }
 }
 

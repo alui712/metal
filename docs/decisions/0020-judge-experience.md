@@ -64,12 +64,17 @@ First-time viewers (judges) need to understand METAL in about ten seconds and re
     - Files dropped into `public/` after a build need `npm run build` again.
 - **Transitions:**
   - **Enter METAL** (`portal` transition type): the showcase lifts away and the app settles (≈400 ms). The sidebar fades in.
-  - **Memory Dive** (`dive` type, on Start guided demo; ≈600–700 ms including the route render):
-    - On click, `data-dive` on `<html>` starts fading the copy (`[data-dive-copy]`) right away, while navigation starts. Nothing waits on it.
-    - The reel on screen gets its own view-transition name (`memory-frame`) and pushes forward (scale 1.1, slight brightening) into a violet-lit backdrop, while the real Recall page settles in beneath.
-    - The tour dock stays hidden until the destination renders, then fades in.
-    - Without view-transition support it is a plain navigation. Reduced motion navigates with no transition at all. Back returns to an intact showcase.
-  - **Memory cards** dive the same way: the clicked card is the frame that pushes forward into its recording. A shared-element morph was tried, but it didn't fire across this navigation in the browser, so it was replaced.
+  - **Memory Dive 2.0** (on Start guided demo; about 0.95 s from click to the transition's end, Recall readable from about 0.85 s):
+    - **Live (0–380 ms):** `StartTourButton` sets `html[data-dive="demo"]` and navigates 380 ms later; the first stop is prefetched on mount and on hover, so it's ready. Meanwhile, on the real page:
+      - the button presses with a violet glow;
+      - the headline leaves word by word out of its masks, and the rest of the copy recedes;
+      - the reel holds its frame, brightens and pushes forward (to 1.08);
+      - the memory cards fly out faster than the reel (parallax);
+      - one violet light sweeps across (`.dive-fx::before`), leaving a soft violet wash (`::after`).
+    - **View transition (`dive`):** the washed showcase keeps pushing (to 1.06) and dissolves over a graphite and violet backdrop, never to black, while the real Recall page fades up through it. The sidebar follows. The dock stays hidden until the transition ends, then fades in. Focus moves to the destination's heading.
+    - **Why live first:** a view-transition snapshot can't gain new layers (light, wash), so those run on the real page before navigation.
+    - **Fallbacks:** without view-transition support it navigates at once (no wait). With reduced motion it navigates plainly. A double click starts one dive. Back returns to an intact showcase.
+  - **Memory cards** (`card-dive` type, navigates at once, about 0.65 s of animation): the clicked card pushes forward and brightens into its recording, while the reel behind it drifts more slowly (parallax). A shared-element morph was tried, but it didn't fire across this navigation in the browser, so it was replaced.
 
 ## Consequences
 - The tour depends on route paths (`onStep`). Renaming a feature route means updating `tourSteps`.

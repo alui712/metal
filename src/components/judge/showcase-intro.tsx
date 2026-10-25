@@ -74,6 +74,7 @@ export function IntroFilm({ shots, video, introCount }: { shots: IntroShot[]; vi
   useEffect(() => {
     document.documentElement.removeAttribute("data-dive"); // back from a Memory Dive
     document.querySelector("[data-dive-target]")?.removeAttribute("data-dive-target");
+    document.querySelectorAll("[data-diving]").forEach((b) => b.removeAttribute("data-diving"));
     let seen = false;
     try {
       seen = sessionStorage.getItem(SEEN_KEY) === "1";
@@ -131,7 +132,8 @@ export function IntroFilm({ shots, video, introCount }: { shots: IntroShot[]; vi
       void v.play().catch(() => setUseVideo(false));
     }
     const tick = (now: number) => {
-      const on = visible && document.visibilityState === "visible";
+      // A Memory Dive holds the frame on screen (no cut mid-dive).
+      const on = visible && document.visibilityState === "visible" && !document.documentElement.hasAttribute("data-dive");
       el?.toggleAttribute("data-paused", !on);
       if (on) elapsed += now - last;
       last = now;

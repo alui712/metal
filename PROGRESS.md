@@ -27,6 +27,19 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Memory Dive 2.0 ✅ (2026-10-24)
+
+- **Start guided demo:** a staged dive of about 0.95 s, replacing the 0.62 s fade.
+  - Live: press, headline exit, copy recedes, the reel pushes, the cards fly out (parallax), a violet light sweep and wash.
+  - Then a view transition dissolves into the real Recall page; the dock follows, and focus moves to the page heading.
+- The first stop is prefetched on mount. Fallbacks: no view-transition support or reduced motion navigate at once; a double click starts one dive.
+- **Memory cards** dive with reel parallax (`card-dive`, about 0.65 s).
+- No sound cue: left out on purpose (no licensed asset, and it would need its own mute setting).
+- **Verified** on an isolated production build (127.0.0.1:3002, so the server on :3001 was left alone for video capture):
+  - 18 dive checks: four dives took 944–976 ms;
+  - real-speed screencast frames, with no black, white or frozen frames;
+  - 179 regression checks.
+
 ## Judge Experience — Final cinematic polish ✅ (2026-10-24)
 
 - **Continuous reel:**

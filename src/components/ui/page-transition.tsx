@@ -11,7 +11,7 @@ import { ViewTransition } from "react";
 export function PageTransition({ children }: { children: React.ReactNode }) {
   return (
     <ViewTransition
-      enter={{ "nav-forward": "nav-forward", "nav-back": "nav-back", portal: "portal-in", dive: "dive-in", default: "page-in" }}
+      enter={{ "nav-forward": "nav-forward", "nav-back": "nav-back", portal: "portal-in", dive: "dive-in", "card-dive": "dive-in", default: "page-in" }}
       exit={{ "nav-forward": "nav-forward", "nav-back": "nav-back", default: "page-out" }}
       default="none"
     >
