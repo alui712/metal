@@ -126,7 +126,8 @@ export function syncSessions(db: Db): void {
 
 // ── Edits (each locks what it touches) ──────────────────────
 
-function lockSession(db: Db, id: string) {
+/** Keeps a session's grouping as it is (automatic grouping leaves it alone). */
+export function lockSession(db: Db, id: string) {
   db.update(sessions).set({ locked: true }).where(eq(sessions.id, id)).run();
   db.update(recordings).set({ sessionLocked: true }).where(eq(recordings.sessionId, id)).run();
 }

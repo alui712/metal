@@ -79,6 +79,9 @@ export function canonicalGame(input: string): string | null {
 /** Words that don't change what a game search asks for ("Valorant gameplay", "clips of shooter games"). */
 const FILLER = new Set("a an the my our of in on from with game games gameplay clip clips recording recordings match matches video videos footage moments moment show find me all some".split(" "));
 
+/** True for words that say nothing about which game ("game", "clips", "the"). */
+export const isGenericWord = (w: string) => FILLER.has(normalize(w));
+
 export type GameQuery = {
   /** Genres asked for, by key. */
   genres: Genre[];

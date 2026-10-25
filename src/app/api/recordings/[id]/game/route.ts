@@ -5,6 +5,7 @@ import { recordings } from "@/server/db/schema";
 import { judgeLocked } from "@/server/judge/demo";
 import { jsonError, privileged, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
+import { lockSession } from "@/server/timemachine/sessions";
 
 // The game a person set on a recording. Recall finds recordings by game and genre only through this.
 const view = (game: string | null) => {
@@ -30,11 +31,20 @@ export async function PUT(request: Request, ctx: RouteContext<"/api/recordings/[
   const body = (await request.json().catch(() => null)) as { game?: unknown } | null;
   if (!body || (body.game !== null && typeof body.game !== "string")) return jsonError(400, "Send { game: string | null }.");
   const db = getDb();
-  if (!db.select({ id: recordings.id }).from(recordings).where(eq(recordings.id, id)).get()) return jsonError(404, "Not found.");
-  // Approved judge-demo recordings stay as prepared (423).
-  const locked = judgeLocked(db, { recordings: [id] });
+  const rec = db.select({ game: recordings.game, sessionId: recordings.sessionId }).from(recordings).where(eq(recordings.id, id)).get();
+  if (!rec) return jsonError(404, "Not found.");
+  // Approved judge-demo recordings, and recordings in the approved night, stay as prepared (423).
+  const locked = judgeLocked(db, { recordings: [id], sessions: [rec.sessionId] });
   if (locked) return locked;
   const game = typeof body.game === "string" ? canonicalGame(body.game) : null;
-  db.update(recordings).set({ game }).where(eq(recordings.id, id)).run();
+  if (game === rec.game) return Response.json(view(game));
+  db.$client
+    .transaction(() => {
+      // Time Machine starts a new session when the known game changes; setting a game must not
+      // regroup a night the person already sees, so its session keeps its current grouping.
+      if (rec.sessionId) lockSession(db, rec.sessionId);
+      db.update(recordings).set({ game }).where(eq(recordings.id, id)).run();
+    })
+    .immediate();
   return Response.json(view(game));
 }

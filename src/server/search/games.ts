@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { recordings } from "../db/schema";
-import { catalogGame, genreLabels, normalize, parseGameQuery, type GameQuery } from "@/lib/games/catalog";
+import { catalogGame, genreLabels, isGenericWord, normalize, parseGameQuery, type GameQuery } from "@/lib/games/catalog";
 import type { RecallFilters, RecallHit, RecallSearch } from "./recall";
 
 // Recall by game and genre (src/lib/games/catalog.ts): a recording matches
@@ -41,6 +41,24 @@ export function gameHit(recordingId: string, game: string, gq: GameQuery): Recal
   // Only part of the search is about the game: say so, and keep it a loose match.
   if (gq.rest) reasons.push(`Only the game matched — nothing here confirms “${gq.rest}”`);
   return [{ recordingId, startMs: 0, endMs: 0, seekMs: 0, lines: [], sources: ["game"], reasons, score: named ? 0.62 : 0.58, strength: gq.rest ? "weak" : "good" }];
+}
+
+/**
+ * Pure: in a search that is only a game or genre ("shooter game"), a spoken
+ * line that matched just a generic word ("Good game everyone") says nothing
+ * about the game — it becomes a loose match. Lines that name the game, or
+ * match by meaning or exact phrase, are untouched.
+ */
+export function demoteGenericSpeech(search: RecallSearch, status: GameSearch["status"]): RecallSearch {
+  if (status.rest || (!status.genres.length && !status.games.length)) return search;
+  const generic = (h: RecallHit) =>
+    h.lines.length > 0 && h.sources.every((s) => s === "keyword") && h.lines.every((l) => l.matched.every(isGenericWord));
+  return {
+    ...search,
+    results: search.results.map((h) =>
+      generic(h) ? { ...h, strength: "weak", reasons: [...h.reasons, `Only the common word “${[...new Set(h.lines.flatMap((l) => l.matched))].join("”, “")}” was said — not the game`] } : h,
+    ),
+  };
 }
 
 /**

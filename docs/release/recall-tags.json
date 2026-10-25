@@ -1,0 +1,12 @@
+{
+  "tags": [
+    {
+      "recordingId": "rec_6520f3fcd3324fb8",
+      "startMs": 9000,
+      "endMs": 17500,
+      "queries": ["pink gun with ace"],
+      "label": "pink pistol kills leading to the ACE banner at 0:16",
+      "checked": "2026-10-25: frames reviewed by hand — kill-feed kills III (0:09), IV (0:13), V (0:14) with the pistol; ACE banner from 0:16.4"
+    }
+  ]
+}

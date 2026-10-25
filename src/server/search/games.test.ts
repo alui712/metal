@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { openDb, type Db } from "../db/client";
 import { recordings } from "../db/schema";
 import type { RecallHit, RecallSearch } from "./recall";
-import { mergeGames, searchGames } from "./games";
+import { demoteGenericSpeech, mergeGames, searchGames } from "./games";
 
 const REC = [
   { id: "rec_aaaaaaaaaaaaaaaa", title: "CTnULlxyHo", game: "Valorant" },
@@ -66,5 +66,25 @@ describe("merging game matches (pure)", () => {
     const m = mergeGames({ ...base, results: [{ ...scene, recordingId: "rec_eeeeeeeeeeeeeeee" }] }, [game("rec_aaaaaaaaaaaaaaaa", "weak")]);
     expect(m.results.map((r) => r.recordingId)).toEqual(["rec_eeeeeeeeeeeeeeee"]);
     expect(mergeGames(base, [game("rec_aaaaaaaaaaaaaaaa", "weak")])).toMatchObject({ ambiguous: true, results: [{ recordingId: "rec_aaaaaaaaaaaaaaaa" }] });
+  });
+});
+
+describe("generic speech in game searches (pure)", () => {
+  const line = (text: string, matched: string[]) => ({ segmentId: "seg_0000000000000001", startMs: 30_160, endMs: 33_000, text, matched });
+  const speech = (sources: RecallHit["sources"], text: string, matched: string[]): RecallHit => ({ recordingId: "rec_eeeeeeeeeeeeeeee", startMs: 30_160, endMs: 33_000, seekMs: 30_160, lines: [line(text, matched)], sources, reasons: [], score: 0.6, strength: "good" });
+  const s = (results: RecallHit[]): RecallSearch => ({ query: "shooter game", results, ambiguous: false, semantic: { available: true, reason: null } });
+  const status = (q: string) => searchGames(db, q, {}).status;
+  it("a line that only matched “game” is loose in a genre search", () => {
+    const [h] = demoteGenericSpeech(s([speech(["keyword"], "Good game everyone, that was a really close match.", ["game"])]), status("shooter game")).results;
+    expect(h.strength).toBe("weak");
+    expect(h.reasons.at(-1)).toBe("Only the common word “game” was said — not the game");
+  });
+  it("keeps lines that name the game, match by meaning or phrase, and every non-game search", () => {
+    const named = speech(["keyword"], "Let's queue Valorant", ["valorant"]);
+    expect(demoteGenericSpeech(s([named]), status("Valorant")).results[0].strength).toBe("good");
+    const meaning = speech(["keyword", "semantic"], "Good game everyone", ["game"]);
+    expect(demoteGenericSpeech(s([meaning]), status("shooter game")).results[0].strength).toBe("good");
+    const gg = speech(["keyword"], "Good game everyone", ["game"]);
+    for (const q of ["good game", "farming game", "first person shooter on a sunny street"]) expect(demoteGenericSpeech(s([gg]), status(q)).results[0].strength).toBe("good");
   });
 });

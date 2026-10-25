@@ -5,7 +5,7 @@ import { jsonError, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
 import { readRecordings } from "@/server/recordings";
 import { ensureEmbeddings, recallIndexStats, searchRecall, type RecallFilters } from "@/server/search/recall";
-import { mergeGames, searchGames } from "@/server/search/games";
+import { demoteGenericSpeech, mergeGames, searchGames } from "@/server/search/games";
 import { mergeTags, searchTags } from "@/server/search/tags";
 import { isJudge, judgeRecallScope } from "@/lib/judge/scope";
 import { judgeScope } from "@/server/judge/demo";
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
   // Game and genre matches come from the game set on each recording, never from the video.
   const games = searchGames(db, q, filters);
   // Hand-curated tags answer only their exact searches, and say they were tagged by hand.
-  const search = mergeTags(mergeGames(mergeRecall(text, visual.hits), games.hits), searchTags(db, q, filters));
+  const search = mergeTags(mergeGames(demoteGenericSpeech(mergeRecall(text, visual.hits), games.status), games.hits), searchTags(db, q, filters));
   const recs = new Map(readRecordings([...new Set(search.results.map((r) => r.recordingId))]).map((r) => [r.id, r]));
   const transcribed = new Set(db.selectDistinct({ id: transcriptSegments.recordingId }).from(transcriptSegments).all().map((r) => r.id));
   for (const r of db.selectDistinct({ id: visualFrames.recordingId }).from(visualFrames).all()) transcribed.add(r.id);
