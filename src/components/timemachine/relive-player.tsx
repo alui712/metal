@@ -21,11 +21,14 @@ export function RelivePlayer({
   title,
   moments,
   recordings,
+  judge = false,
 }: {
   sessionId: string;
   title: string;
   moments: TimelineMoment[];
   recordings: TimelineRecording[];
+  /** Guided demo: exit back to the judge-scoped night. */
+  judge?: boolean;
 }) {
   const router = useRouter();
   const reduce = useReducedMotion();
@@ -47,7 +50,7 @@ export function RelivePlayer({
   const offsetMs = shown && shown.id === m?.id ? shown.offsetMs : 0;
   const curtain = s.done || !m || !ready.has(m.id);
   const rec = recordings.find((r) => r.id === m?.recordingId);
-  const exitHref = `/sessions/${sessionId}`;
+  const exitHref = `/sessions/${sessionId}${judge ? "?judge=1" : ""}`;
   const failedNow = s.failed.includes(s.index);
   // Visible status instead of a silent black screen; after SLOW_MS offer Retry / Skip.
   const loadingNow = !s.done && !!m && !failedNow && (curtain || waitingId === m.id);

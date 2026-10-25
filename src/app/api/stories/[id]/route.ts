@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { getDb } from "@/server/db/client";
+import { isJudge, scopeStory } from "@/lib/judge/scope";
+import { judgeScope } from "@/server/judge/demo";
 import { jsonError, privileged, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
 import { deleteStory, isStoryId, MAX_STORY_CLIPS, renameStory, saveStory, storyView } from "@/server/studio/stories";
@@ -29,8 +31,16 @@ export async function GET(request: Request, ctx: RouteContext<"/api/stories/[id]
   if (!sameOrigin(request)) return jsonError(403, "Forbidden.");
   const { id } = await ctx.params;
   if (!isStoryId(id)) return jsonError(404, "Not found.");
-  const v = storyView(getDb(), id, mediaUrls());
-  return v ? Response.json(v, { headers: { "Cache-Control": "no-store" } }) : jsonError(404, "Not found.");
+  const db = getDb();
+  const v = storyView(db, id, mediaUrls());
+  if (!v) return jsonError(404, "Not found.");
+  if (isJudge(new URL(request.url).searchParams.get("judge"))) {
+    // Guided demo: only the approved story, and only approved recordings as candidates.
+    const scope = judgeScope(db);
+    if (scope.demo.story?.id !== id) return jsonError(403, "This story isn’t part of the prepared demo.");
+    return Response.json(scopeStory(v, scope.allowed, scope.demo.nightId), { headers: { "Cache-Control": "no-store" } });
+  }
+  return Response.json(v, { headers: { "Cache-Control": "no-store" } });
 }
 
 /** Saves the whole edit list (the editor autosaves). */

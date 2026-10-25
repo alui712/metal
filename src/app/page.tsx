@@ -157,7 +157,7 @@ async function Spotlit() {
   const cover = s.reels[0]?.posterUrl;
   return (
     <>
-      {s.night ? <NightSpotlight night={cover ? { ...s.night, coverUrl: cover } : s.night} moments={s.moments} /> : <DemoMoments />}
+      {s.night ? <NightSpotlight night={{ ...s.night, coverUrl: cover ?? null }} moments={s.moments} /> : <DemoMoments />}
       <section aria-labelledby="features-heading">
         <SectionHeading id="features-heading" title="Jump into a feature" />
         <FeatureCards spotlight={s} />

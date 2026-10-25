@@ -48,10 +48,12 @@ export function LibraryRecall() {
   const params = useSearchParams();
   const q = params.get("q") ?? "";
   const filterKey = FILTERS.map((f) => params.get(f) ?? "").join("|");
+  // Guided demo (?judge=1): the server limits the search to the prepared recording.
+  const judge = params.get("judge") === "1";
   const [draft, setDraft] = useState(q);
   const [lastQ, setLastQ] = useState(q);
   const [attempt, setAttempt] = useState(0);
-  const key = `${q}|${filterKey}|${attempt}`;
+  const key = `${q}|${filterKey}|${judge}|${attempt}`;
   // Only the response for the current query (and retry) is ever shown; `last`
   // keeps the index stats and filter options steady while a new search loads.
   const [fetched, setFetched] = useState<{ key: string; data: Response | null; error: string | null; last: Response | null } | null>(null);
@@ -73,6 +75,7 @@ export function LibraryRecall() {
     const ctrl = new AbortController();
     const sp = new URLSearchParams({ q });
     for (const f of FILTERS) if (params.get(f)) sp.set(f, params.get(f)!);
+    if (judge) sp.set("judge", "1");
     recallFetch<Response>(`/api/recall?${sp}`, ctrl.signal).then(
       (d) => setFetched((f) => ({ key, data: d, error: null, last: d ?? f?.last ?? null })),
       (e: unknown) => !ctrl.signal.aborted && setFetched((f) => ({ key, data: null, error: e instanceof Error ? e.message : String(e), last: f?.last ?? null })),
@@ -155,7 +158,15 @@ export function LibraryRecall() {
         </div>
       </form>
 
-      <div className="mt-4 flex flex-wrap items-end gap-3 text-[12.5px]" aria-label="Filters">
+      {judge && (
+        <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-accent/30 bg-accent/10 px-3 py-2 text-[12.5px] text-accent-ink">
+          Prepared demo: searching {known?.facets.recordings[0]?.title ? `“${known.facets.recordings[0].title}”` : "the approved recording"} only.
+          <Link href={q ? `/recall?q=${encodeURIComponent(q)}` : "/recall"} className="font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
+            Search your whole library
+          </Link>
+        </p>
+      )}
+      <div className={cn("mt-4 flex flex-wrap items-end gap-3 text-[12.5px]", judge && "hidden")} aria-label="Filters">
         <label className="flex min-w-0 flex-col gap-1 text-ink-faint">
           Recording
           <select value={params.get("recording") ?? ""} onChange={(e) => nav({ recording: e.target.value || null })} className="h-9 max-w-[16rem] rounded-lg border border-line bg-surface-2 px-2 text-ink">

@@ -8,6 +8,9 @@ import { getDb } from "@/server/db/client";
 import { mediaUrls } from "@/server/timemachine/media-urls";
 import { isSessionId, sessionDetail } from "@/server/timemachine/sessions";
 import { connection } from "next/server";
+import { JudgeOutOfScope } from "@/components/judge/out-of-scope";
+import { isJudge, scopeSession } from "@/lib/judge/scope";
+import { judgeScope } from "@/server/judge/demo";
 
 const repo = getMemoryRepository();
 
@@ -45,12 +48,20 @@ async function Relive({ params, searchParams }: Pick<PageProps<"/sessions/[id]/r
 
 /** Real Relive: `?moments=a,b,c` plays just those (still in chronological order); otherwise every moment. */
 async function RealRelive({ id, searchParams }: { id: string; searchParams: PageProps<"/sessions/[id]/relive">["searchParams"] }) {
-  const pick = (await searchParams).moments;
+  const sp = await searchParams;
+  const pick = sp.moments;
   await connection();
   if (!isSessionId(id)) notFound();
-  const data = sessionDetail(getDb(), id, mediaUrls());
+  const db = getDb();
+  let data = sessionDetail(db, id, mediaUrls());
   if (!data) notFound();
+  if (isJudge(sp.judge)) {
+    // Judge mode plays approved moments only; nothing else reaches the client.
+    const scope = judgeScope(db);
+    if (scope.demo.nightId !== id) return <JudgeOutOfScope what="night" href={`/sessions/${id}/relive`} fullscreen />;
+    data = scopeSession(data, scope.allowed, scope.cover);
+  }
   const only = typeof pick === "string" && pick ? new Set(pick.split(",")) : null;
   const moments = only ? data.moments.filter((m) => only.has(m.id)) : data.moments;
-  return <RelivePlayer sessionId={id} title={data.summary.title} moments={moments} recordings={data.recordings} />;
+  return <RelivePlayer sessionId={id} title={data.summary.title} moments={moments} recordings={data.recordings} judge={isJudge(sp.judge)} />;
 }

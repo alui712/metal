@@ -15,7 +15,8 @@ import { tmSend } from "./use-tm";
 
 const CONFIDENCE: Record<TimelineMoment["confidence"], string> = { strong: "Strong signal", moderate: "Moderate signal", weak: "Weak signal" };
 
-export function SessionView({ data }: { data: SessionDetail }) {
+/** `judge`: the guided demo's server-scoped view (approved recordings only); links stay in that scope. */
+export function SessionView({ data, judge = false }: { data: SessionDetail; judge?: boolean }) {
   const router = useRouter();
   const { summary: s, recordings, moments } = data;
   const [selected, setSelected] = useState<Set<string>>(() => new Set(moments.filter((m) => m.favorite).map((m) => m.id)));
@@ -57,7 +58,10 @@ export function SessionView({ data }: { data: SessionDetail }) {
     if (!r.error && id) router.push(`/studio?story=${id}`);
   }
 
-  const relivePick = selected.size ? `?moments=${moments.filter((m) => selected.has(m.id)).map((m) => m.id).join(",")}` : "";
+  const reliveParams = new URLSearchParams();
+  if (selected.size) reliveParams.set("moments", moments.filter((m) => selected.has(m.id)).map((m) => m.id).join(","));
+  if (judge) reliveParams.set("judge", "1");
+  const relivePick = reliveParams.size ? `?${reliveParams.toString().replace(/%2C/g, ",")}` : "";
 
   return (
     <article>
@@ -74,6 +78,14 @@ export function SessionView({ data }: { data: SessionDetail }) {
           <Link href="/sessions" className="inline-flex items-center gap-2 rounded-lg py-1 text-[13px] font-medium text-ink-muted hover:text-ink">
             <ArrowLeft className="size-4" aria-hidden /> Time Machine
           </Link>
+          {judge && (
+            <p className="mt-4 flex w-fit flex-wrap items-center gap-x-2 rounded-full border border-accent/30 bg-accent/10 px-3 py-1 text-[12px] text-accent-ink">
+              Prepared demo: approved recordings only ·
+              <Link href={`/sessions/${s.id}`} className="font-medium text-ink-muted underline-offset-2 hover:text-ink hover:underline">
+                Open the full night
+              </Link>
+            </p>
+          )}
           <p className="mt-10 flex flex-wrap items-center gap-2 text-[12.5px] text-ink-muted md:mt-16">
             {s.timeKnown ? (
               <>

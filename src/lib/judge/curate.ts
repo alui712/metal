@@ -25,11 +25,13 @@ export type SyncSource = "anchor" | "clock" | "audio" | "manual";
 
 export type DemoFacts = {
   recordings: Map<string, { id: string; title: string; playable: boolean; hasPoster: boolean; durationMs: number }>;
-  sessions: Map<string, { id: string; title: string }>;
+  /** `momentRecordingIds`: the recording of each of the session's moments. */
+  sessions: Map<string, { id: string; title: string; momentRecordingIds: string[] }>;
   /** Unflagged transcript lines. */
   lines: { text: string; recordingId: string; startMs: number }[];
   povGroups: Map<string, { recordingId: string; offsetMs: number; syncSource: SyncSource; confirmed: boolean }[]>;
-  stories: Map<string, { id: string; title: string; clipRecordingIds: string[]; exported: boolean }>;
+  /** `clipIssues`: the exporter's own source checks (missing file, range outside the video). */
+  stories: Map<string, { id: string; title: string; clipRecordingIds: string[]; clipIssues: string[]; exported: boolean }>;
 };
 
 export type DemoCheck = { area: "night" | "recording" | "recall" | "pov" | "story" | "config"; ref: string; ready: boolean; detail: string };
@@ -46,7 +48,11 @@ export type CuratedPov = {
 
 export type Curated = {
   nightId: string | null;
+  /** Moments in the night from approved, playable recordings (what judge Relive plays). */
+  nightMoments: number;
   recordings: { id: string; label: string | null; durationMs: number }[];
+  /** Every approved recording that can play: the scope for judge-mode pages and APIs. */
+  allowed: string[];
   recall: { line: string; recordingId: string; startMs: number } | null;
   pov: CuratedPov | null;
   story: { id: string; title: string; clipCount: number; exported: boolean } | null;
@@ -59,18 +65,33 @@ export function curate(config: JudgeDemoConfig | null, facts: DemoFacts): Curate
   const checks: DemoCheck[] = [];
   if (!config) {
     checks.push({ area: "config", ref: "judge-demo.json", ready: false, detail: "No approved demo list; judge-facing content stays empty." });
-    return { nightId: null, recordings: [], recall: null, pov: null, story: null, checks };
+    return { nightId: null, nightMoments: 0, allowed: [], recordings: [], recall: null, pov: null, story: null, checks };
   }
 
   const approved = new Map(config.recordings.map((r) => [r.id, r.label]));
   const label = (id: string) => approved.get(id) ?? facts.recordings.get(id)?.title ?? id;
   const usable = (id: string) => approved.has(id) && Boolean(facts.recordings.get(id)?.playable);
 
+  // A night is only worth showing if Relive has something approved to play.
   let nightId: string | null = null;
+  let nightMoments = 0;
   if (config.night) {
     const night = facts.sessions.get(config.night);
-    checks.push({ area: "night", ref: config.night, ready: Boolean(night), detail: night ? night.title : "Session not found" });
-    if (night) nightId = night.id;
+    const playable = night?.momentRecordingIds.filter(usable).length ?? 0;
+    checks.push({
+      area: "night",
+      ref: config.night,
+      ready: playable > 0,
+      detail: !night
+        ? "Session not found"
+        : playable
+          ? `${night.title} · ${playable} approved moment${playable === 1 ? "" : "s"}`
+          : `${night.title}: no moments from approved, playable recordings. Run Find moments on an approved recording, or approve one that has moments.`,
+    });
+    if (night && playable) {
+      nightId = night.id;
+      nightMoments = playable;
+    }
   }
 
   const recordings: Curated["recordings"] = [];
@@ -133,7 +154,7 @@ export function curate(config: JudgeDemoConfig | null, facts: DemoFacts): Curate
   if (config.story) {
     const s = facts.stories.get(config.story);
     const blocked = s?.clipRecordingIds.filter((id) => !usable(id)) ?? [];
-    const ready = Boolean(s && s.clipRecordingIds.length > 0 && blocked.length === 0);
+    const ready = Boolean(s && s.clipRecordingIds.length > 0 && blocked.length === 0 && s.clipIssues.length === 0);
     checks.push({
       area: "story",
       ref: config.story,
@@ -144,10 +165,13 @@ export function curate(config: JudgeDemoConfig | null, facts: DemoFacts): Curate
           ? `${s.title}: no clips`
           : blocked.length
             ? `${s.title}: clips from unapproved or unplayable recordings`
-            : `${s.title} · ${s.clipRecordingIds.length} clip${s.clipRecordingIds.length === 1 ? "" : "s"}${s.exported ? " · exported" : " · not exported yet"}`,
+            : s.clipIssues.length
+              ? `${s.title}: ${s.clipIssues.join(" ")}`
+              : `${s.title} · ${s.clipRecordingIds.length} clip${s.clipRecordingIds.length === 1 ? "" : "s"}${s.exported ? " · exported" : " · not exported yet"}`,
     });
     if (s && ready) story = { id: s.id, title: s.title, clipCount: s.clipRecordingIds.length, exported: s.exported };
   }
 
-  return { nightId, recordings, recall, pov, story, checks };
+  const allowed = config.recordings.map((r) => r.id).filter(usable);
+  return { nightId, nightMoments, allowed, recordings, recall, pov, story, checks };
 }

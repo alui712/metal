@@ -27,6 +27,14 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Judge Experience — Cycle 1B: approved scope ✅ (2026-10-24)
+
+- **Judge mode:** `?judge=1` on tour links; the server scopes the night, Relive, Recall API, story API and POV page to the approved list. Out-of-scope judge URLs are refused, not substituted.
+- **Readiness:** a night needs approved, playable moments, and story clips must pass `checkSources()`.
+- **Home:** the spotlight cover and counts come only from the approved scope.
+- **Exact stops:** Recall also checks `recording` and rejects extra filters; POV rejects `t`. "Return to demo" restores the exact URL.
+- **Verified:** typecheck, lint, 203 tests, build, `judge:ready` 10/10, and browser checks: scope 29, tour 21, layout 13, Cycle 2 suites, judge pages at 390. `demo:check` not run.
+
 ## Judge Experience — Cycle 2: UI/UX quality ✅ (2026-10-24)
 
 - **Recall:** only the current query's answer is shown. Superseded searches are aborted. The server's error message appears with Retry, and a search in progress shows "Searching for …". Home examples are the verified demo line (real Recall) plus demo queries labelled "Demo" that open `/recall/demo`.

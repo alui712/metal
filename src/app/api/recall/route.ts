@@ -5,6 +5,8 @@ import { jsonError, sameOrigin } from "@/server/http";
 import { isRecordingId } from "@/server/media/storage";
 import { readRecordings } from "@/server/recordings";
 import { ensureEmbeddings, recallIndexStats, searchRecall, type RecallFilters } from "@/server/search/recall";
+import { isJudge, judgeRecallScope } from "@/lib/judge/scope";
+import { judgeScope } from "@/server/judge/demo";
 
 const day = (v: string | null, end = false) => {
   if (!v || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return undefined;
@@ -31,6 +33,15 @@ export async function GET(request: Request) {
     toMs: day(url.searchParams.get("to"), true),
   };
   const db = getDb();
+  // Judge mode (?judge=1, added by the guided demo): only the prepared recording, no other filters.
+  const judge = isJudge(url.searchParams.get("judge")) ? judgeScope(db) : null;
+  if (judge) {
+    const scoped = judgeRecallScope(url.searchParams, judge.demo.recall?.recordingId ?? null, judge.allowed);
+    if ("error" in scoped) return jsonError(400, scoped.error);
+    filters.recordingId = scoped.recordingId;
+    filters.game = filters.fromMs = filters.toMs = undefined;
+  }
+  const label = new Map(judge?.demo.recordings.map((r) => [r.id, r.label]) ?? []);
   // Lines transcribed before embeddings existed get vectors on first search.
   await ensureEmbeddings(db).catch(() => 0);
   const search = await searchRecall(db, q, filters);
@@ -43,15 +54,18 @@ export async function GET(request: Request) {
       ...search,
       results: search.results.flatMap((h) => {
         const r = recs.get(h.recordingId);
-        return r ? [{ ...h, recording: { id: r.id, title: r.title, game: gameOf.get(r.id) ?? null, recordedAt: r.recordedAt ?? r.importedAt, durationMs: r.durationMs, posterUrl: r.posterUrl, videoUrl: r.videoUrl, origin: r.origin } }] : [];
+        if (judge && !judge.allowed.has(h.recordingId)) return [];
+        return r ? [{ ...h, recording: { id: r.id, title: label.get(r.id) ?? r.title, game: gameOf.get(r.id) ?? null, recordedAt: r.recordedAt ?? r.importedAt, durationMs: r.durationMs, posterUrl: r.posterUrl, videoUrl: r.videoUrl, origin: r.origin } }] : [];
       }),
       index: recallIndexStats(db),
-      facets: {
-        games,
-        recordings: readRecordings()
-          .filter((r) => transcribed.has(r.id))
-          .map((r) => ({ id: r.id, title: r.title })),
-      },
+      facets: judge
+        ? { games: [], recordings: readRecordings([filters.recordingId!]).map((r) => ({ id: r.id, title: label.get(r.id) ?? r.title })) }
+        : {
+            games,
+            recordings: readRecordings()
+              .filter((r) => transcribed.has(r.id))
+              .map((r) => ({ id: r.id, title: r.title })),
+          },
     },
     { headers: { "Cache-Control": "no-store" } },
   );

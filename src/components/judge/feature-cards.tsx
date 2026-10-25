@@ -67,7 +67,7 @@ function Evidence({ id, spotlight: s }: { id: TourStepId; spotlight: Spotlight }
           <span className="line-clamp-2">{s.recall.line}</span>
         </span>
         <span className="mt-1.5 block text-ink-faint">
-          {plural(s.recall.lines, "spoken line")} · {plural(s.recall.recordings, "recording")}
+          {s.recall.label ? `Said in “${s.recall.label}”` : "Said in an approved recording"} · searched on this computer
         </span>
       </span>
     ) : (

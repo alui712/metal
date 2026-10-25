@@ -5,7 +5,8 @@ import { config } from "../config";
 import type { Db } from "../db/client";
 import { povMembers, recordings, renderExports, storyClips, storyProjects, transcriptSegments } from "../db/schema";
 import { managedPath } from "../media/storage";
-import { timeMachineOverview } from "../timemachine/sessions";
+import { checkSources } from "../studio/render";
+import { sessionDetail } from "../timemachine/sessions";
 import { curate, judgeDemoSchema, type Curated, type DemoFacts, type JudgeDemoConfig } from "@/lib/judge/curate";
 
 // Loads the approved judge demo list and checks it against the library. Plain
@@ -45,9 +46,8 @@ export function demoFacts(db: Db, c: JudgeDemoConfig): DemoFacts {
   const facts: DemoFacts = { recordings: new Map(), sessions: new Map(), lines: [], povGroups: new Map(), stories: new Map() };
 
   const story = c.story ? db.select({ id: storyProjects.id, title: storyProjects.title }).from(storyProjects).where(eq(storyProjects.id, c.story)).get() : undefined;
-  const clipIds = story
-    ? db.select({ recordingId: storyClips.recordingId }).from(storyClips).where(eq(storyClips.projectId, story.id)).orderBy(storyClips.position).all().map((r) => r.recordingId)
-    : [];
+  const clips = story ? db.select().from(storyClips).where(eq(storyClips.projectId, story.id)).orderBy(storyClips.position).all() : [];
+  const clipIds = clips.map((c) => c.recordingId);
   const members = c.pov ? db.select().from(povMembers).where(eq(povMembers.groupId, c.pov)).all() : [];
 
   const ids = [...new Set([...c.recordings.map((r) => r.id), ...members.map((m) => m.recordingId), ...clipIds.filter((x): x is string => !!x)])];
@@ -65,8 +65,8 @@ export function demoFacts(db: Db, c: JudgeDemoConfig): DemoFacts {
   }
 
   if (c.night) {
-    const night = timeMachineOverview(db, new Map()).sessions.find((s) => s.id === c.night);
-    if (night) facts.sessions.set(night.id, { id: night.id, title: night.title });
+    const night = sessionDetail(db, c.night, new Map());
+    if (night) facts.sessions.set(night.summary.id, { id: night.summary.id, title: night.summary.title, momentRecordingIds: night.moments.map((m) => m.recordingId) });
   }
   if (c.pov && members.length) {
     facts.povGroups.set(
@@ -77,7 +77,15 @@ export function demoFacts(db: Db, c: JudgeDemoConfig): DemoFacts {
   if (story) {
     const last = db.select({ status: renderExports.status }).from(renderExports).where(eq(renderExports.projectId, story.id)).orderBy(desc(renderExports.createdAt)).get();
     // A clip whose recording was deleted (null) can't play, so it fails the check.
-    facts.stories.set(story.id, { id: story.id, title: story.title, clipRecordingIds: clipIds.map((x) => x ?? "(deleted)"), exported: last?.status === "succeeded" });
+    // The exporter's own checks: source present on disk and each range inside the video.
+    const { issues } = checkSources(db, clips);
+    facts.stories.set(story.id, {
+      id: story.id,
+      title: story.title,
+      clipRecordingIds: clipIds.map((x) => x ?? "(deleted)"),
+      clipIssues: issues.map((i) => `Clip ${i.index + 1}: ${i.reason}`),
+      exported: last?.status === "succeeded",
+    });
   }
   return facts;
 }
@@ -87,4 +95,12 @@ export function curatedDemo(db: Db, file = judgeDemoPath()): Curated {
   const out = curate(c, c ? demoFacts(db, c) : { recordings: new Map(), sessions: new Map(), lines: [], povGroups: new Map(), stories: new Map() });
   if (error) out.checks.unshift({ area: "config", ref: path.basename(file), ready: false, detail: `Invalid: ${error}` });
   return out;
+}
+
+/** Judge-mode scope: the curated demo plus the approved, playable recording ids. */
+export function judgeScope(db: Db): { demo: Curated; allowed: Set<string>; cover: string | null } {
+  const demo = curatedDemo(db);
+  // Only a verified approved poster; never the session's own (possibly unapproved) cover.
+  const first = demo.recordings[0];
+  return { demo, allowed: new Set(demo.allowed), cover: first ? `/api/media/${first.id}/poster` : null };
 }

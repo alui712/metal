@@ -26,7 +26,7 @@ export function StudioFromParams() {
     : repo.topMoments(1000);
   const params = useSearchParams();
   const story = params.get("story");
-  if (story) return <RealStudio key={story} storyId={story} />;
+  if (story) return <RealStudio key={`${story}:${params.get("judge")}`} storyId={story} judge={params.get("judge") === "1"} />;
   // The demo editor: ?session=<demo id> or ?demo=1. Otherwise, your saved stories.
   if (!sessionId && params.get("demo") !== "1") return <StoriesHome />;
   const session = project.sourceSessionId ? repo.session(project.sourceSessionId) : undefined;

@@ -18,6 +18,9 @@ import { getDb } from "@/server/db/client";
 import { mediaUrls } from "@/server/timemachine/media-urls";
 import { isSessionId, sessionDetail } from "@/server/timemachine/sessions";
 import { connection } from "next/server";
+import { JudgeOutOfScope } from "@/components/judge/out-of-scope";
+import { isJudge, scopeSession } from "@/lib/judge/scope";
+import { judgeScope } from "@/server/judge/demo";
 
 const repo = getMemoryRepository();
 
@@ -30,19 +33,19 @@ export async function generateMetadata({ params }: PageProps<"/sessions/[id]">):
   return { title: repo.session(id)?.title ?? "Session" };
 }
 
-export default function SessionPage({ params }: PageProps<"/sessions/[id]">) {
+export default function SessionPage({ params, searchParams }: PageProps<"/sessions/[id]">) {
   // Known sessions prerender in full; an unknown id resolves at request time.
   return (
     <Suspense fallback={<div className="min-h-[min(72svh,720px)] animate-pulse bg-surface-2/40" />}>
-      <Session params={params} />
+      <Session params={params} searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function Session({ params }: { params: PageProps<"/sessions/[id]">["params"] }) {
+async function Session({ params, searchParams }: Pick<PageProps<"/sessions/[id]">, "params" | "searchParams">) {
   const { id } = await params;
   const session = repo.session(id);
-  if (!session) return <RealSession id={id} />;
+  if (!session) return <RealSession id={id} judge={isJudge((await searchParams).judge)} />;
 
   const game = repo.game(session.gameId);
   const recordings = session.recordingIds.map((rid) => repo.recording(rid)!);
@@ -131,14 +134,22 @@ async function Session({ params }: { params: PageProps<"/sessions/[id]">["params
 }
 
 /** A session from your own recordings (ids that aren't demo fixtures). */
-async function RealSession({ id }: { id: string }) {
+async function RealSession({ id, judge }: { id: string; judge: boolean }) {
   await connection();
   if (!isSessionId(id)) notFound();
-  const data = sessionDetail(getDb(), id, mediaUrls());
-  if (!data) notFound();
+  const db = getDb();
+  const full = sessionDetail(db, id, mediaUrls());
+  if (!full) notFound();
+  let data = full;
+  if (judge) {
+    // Judge mode: approved recordings and moments only, filtered here on the server.
+    const scope = judgeScope(db);
+    if (scope.demo.nightId !== id) return <JudgeOutOfScope what="night" href={`/sessions/${id}`} />;
+    data = scopeSession(full, scope.allowed, scope.cover);
+  }
   return (
     <PageTransition>
-      <SessionView key={`${data.summary.id}:${data.summary.title}`} data={data} />
+      <SessionView key={`${data.summary.id}:${data.summary.title}:${judge}`} data={data} judge={judge} />
     </PageTransition>
   );
 }

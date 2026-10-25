@@ -6,7 +6,7 @@ const rec = (id: string, title = id, playable = true, hasPoster = true) => [id, 
 function facts(over: Partial<DemoFacts> = {}): DemoFacts {
   return {
     recordings: new Map([rec("rec_a", "peak pov"), rec("rec_b", "peak pov 2"), rec("rec_x", "unapproved"), rec("rec_broken", "broken", false)]),
-    sessions: new Map([["ses_1", { id: "ses_1", title: "Saturday evening" }]]),
+    sessions: new Map([["ses_1", { id: "ses_1", title: "Saturday evening", momentRecordingIds: ["rec_x", "rec_a", "rec_a"] }]]),
     lines: [
       { text: "Holy cow, unapproved line", recordingId: "rec_x", startMs: 0 },
       { text: "Did that bug just die?", recordingId: "rec_a", startMs: 4000 },
@@ -21,8 +21,8 @@ function facts(over: Partial<DemoFacts> = {}): DemoFacts {
       ],
     ]),
     stories: new Map([
-      ["sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a", "rec_b"], exported: true }],
-      ["sty_leak", { id: "sty_leak", title: "Mixed", clipRecordingIds: ["rec_a", "rec_x"], exported: false }],
+      ["sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a", "rec_b"], clipIssues: [], exported: true }],
+      ["sty_leak", { id: "sty_leak", title: "Mixed", clipRecordingIds: ["rec_a", "rec_x"], clipIssues: [], exported: false }],
     ]),
     ...over,
   };
@@ -35,6 +35,8 @@ describe("curate", () => {
   it("uses only approved, verified content", () => {
     const c = curate(config(), facts());
     expect(c.nightId).toBe("ses_1");
+    // rec_x's moment is not approved, so only rec_a's two count.
+    expect(c.nightMoments).toBe(2);
     expect(c.recordings).toEqual([
       { id: "rec_a", label: "Cave run", durationMs: 20_000 },
       { id: "rec_b", label: null, durationMs: 20_000 },
@@ -79,9 +81,26 @@ describe("curate", () => {
     expect(c.checks.find((x) => x.ref === "rec_broken")).toMatchObject({ ready: false, detail: "broken: video not playable" });
   });
 
+  it("does not prepare a night whose moments are all unapproved or unplayable", () => {
+    const f = facts();
+    f.sessions.set("ses_1", { id: "ses_1", title: "Saturday evening", momentRecordingIds: ["rec_x", "rec_broken"] });
+    const c = curate(config({ recordings: ["rec_a", "rec_broken"] }), f);
+    expect(c.nightId).toBeNull();
+    expect(c.nightMoments).toBe(0);
+    expect(c.checks.find((x) => x.area === "night")).toMatchObject({ ready: false, detail: expect.stringContaining("no moments from approved, playable recordings") });
+  });
+
+  it("rejects a story whose clips fail the exporter's source checks", () => {
+    const f = facts();
+    f.stories.set("sty_ok", { id: "sty_ok", title: "Best of Saturday", clipRecordingIds: ["rec_a"], clipIssues: ["Clip 1: The clip from “peak pov” is outside the video."], exported: false });
+    const c = curate(config(), f);
+    expect(c.story).toBeNull();
+    expect(c.checks.find((x) => x.area === "story")).toMatchObject({ ready: false, detail: expect.stringContaining("outside the video") });
+  });
+
   it("shows nothing without an approved list", () => {
     const c = curate(null, facts());
-    expect(c).toMatchObject({ nightId: null, recordings: [], recall: null, pov: null, story: null });
+    expect(c).toMatchObject({ nightId: null, nightMoments: 0, recordings: [], recall: null, pov: null, story: null });
     expect(c.checks).toEqual([expect.objectContaining({ area: "config", ready: false })]);
   });
 });

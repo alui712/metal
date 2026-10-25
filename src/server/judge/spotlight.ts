@@ -1,11 +1,10 @@
 import "server-only";
-import { sql } from "drizzle-orm";
 import { cache } from "react";
 import { getDb } from "../db/client";
-import { transcriptSegments } from "../db/schema";
 import { mediaUrls } from "../timemachine/media-urls";
-import { sessionDetail, timeMachineOverview } from "../timemachine/sessions";
-import { curatedDemo } from "./demo";
+import { sessionDetail } from "../timemachine/sessions";
+import { judgeScope } from "./demo";
+import { scopeSession } from "@/lib/judge/scope";
 import type { Curated, CuratedPov } from "@/lib/judge/curate";
 import type { SessionSummary, TimelineMoment } from "@/lib/timemachine/types";
 import type { TourTargets } from "@/lib/judge/tour";
@@ -23,7 +22,8 @@ export type Spotlight = {
   night: SessionSummary | null;
   /** The night's strongest moments from approved recordings that have a keyframe, best first. */
   moments: SpotlightMoment[];
-  recall: { line: string; lines: number; recordings: number } | null;
+  /** The approved line and the approved recording it was said in. */
+  recall: { line: string; recordingId: string; label: string | null } | null;
   pov: (CuratedPov & { titles: string[] }) | null;
   story: Curated["story"];
   /** Approved recordings in their configured order, with media URLs. */
@@ -38,11 +38,13 @@ const CONFIDENCE = { strong: 0, moderate: 1, weak: 2 } as const;
 export const spotlight = cache((): Spotlight => {
   const db = getDb();
   const urls = mediaUrls();
-  const demo = curatedDemo(db);
+  const { demo, allowed, cover } = judgeScope(db);
   const approved = new Set(demo.recordings.map((r) => r.id));
 
-  const night = demo.nightId ? (timeMachineOverview(db, urls).sessions.find((s) => s.id === demo.nightId) ?? null) : null;
-  const detail = night ? sessionDetail(db, night.id, urls) : null;
+  // The same server-side scope as the judge-mode night page, so counts and covers match it.
+  const full = demo.nightId ? sessionDetail(db, demo.nightId, urls) : null;
+  const detail = full ? scopeSession(full, allowed, cover) : null;
+  const night = detail?.summary ?? null;
   const meta = new Map(detail?.recordings.map((r) => [r.id, r]) ?? []);
   // Best first, one per recording before any repeats, so the night reads as a night.
   const ranked = (detail?.moments ?? [])
@@ -61,15 +63,9 @@ export const spotlight = cache((): Spotlight => {
     videoUrl: meta.get(m.recordingId)?.videoUrl ?? null,
   }));
 
-  // Library-wide counts only; the line itself is the approved one.
-  const totals = demo.recall
-    ? db
-        .select({ lines: sql<number>`count(*)`, recordings: sql<number>`count(distinct ${transcriptSegments.recordingId})` })
-        .from(transcriptSegments)
-        .where(sql`${transcriptSegments.flaggedAt} is null`)
-        .get()
-    : undefined;
-  const recall = demo.recall && totals ? { line: demo.recall.line, lines: totals.lines, recordings: totals.recordings } : null;
+  const recall = demo.recall
+    ? { line: demo.recall.line, recordingId: demo.recall.recordingId, label: demo.recordings.find((r) => r.id === demo.recall!.recordingId)?.label ?? null }
+    : null;
 
   const reels: Reel[] = demo.recordings.flatMap(({ id, label, durationMs }) => {
     const u = urls.get(id);
@@ -89,7 +85,7 @@ export const spotlight = cache((): Spotlight => {
 /** What the guided tour needs from the spotlight (plain data for the client). */
 export function tourTargets(s: Spotlight): TourTargets {
   return {
-    recallLine: s.recall?.line ?? null,
+    recall: s.recall ? { line: s.recall.line, recordingId: s.recall.recordingId } : null,
     night: s.night ? { id: s.night.id, title: s.night.title } : null,
     pov: s.pov ? { groupId: s.pov.groupId, recordingId: s.pov.firstRecordingId, members: s.pov.members.length, status: s.pov.status, method: s.pov.method } : null,
     story: s.story ? { id: s.story.id, clipCount: s.story.clipCount, exported: s.story.exported } : null,

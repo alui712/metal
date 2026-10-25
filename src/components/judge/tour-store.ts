@@ -29,7 +29,7 @@ function snapshot(): TourState | null {
     try {
       const parsed = next ? (JSON.parse(next) as TourState) : null;
       // Drop state saved by an older build rather than misdescribing its stops.
-      state = parsed && Number.isInteger(parsed.step) && parsed.targets && "night" in parsed.targets && "story" in parsed.targets ? parsed : null;
+      state = parsed && Number.isInteger(parsed.step) && parsed.targets && "recall" in parsed.targets && "night" in parsed.targets && "story" in parsed.targets ? parsed : null;
     } catch {
       state = null;
     }
