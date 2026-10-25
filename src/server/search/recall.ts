@@ -38,7 +38,7 @@ export function stem(w: string): string {
 }
 
 export type RecallFilters = { recordingId?: string; game?: string; fromMs?: number; toMs?: number };
-export type MatchSource = "phrase" | "keyword" | "semantic" | "title" | "visual" | "game";
+export type MatchSource = "phrase" | "keyword" | "semantic" | "title" | "visual" | "game" | "tag";
 export type RecallLine = { segmentId: string; startMs: number; endMs: number; text: string; matched: string[] };
 export type RecallHit = {
   recordingId: string;

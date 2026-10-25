@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert, Clapperboard, ExternalLink, Eye, Gamepad2, LoaderCircle, Mic, Play, Search, Sparkles, Type, X } from "lucide-react";
+import { CircleAlert, Clapperboard, ExternalLink, Eye, Gamepad2, LoaderCircle, Mic, Play, Search, Sparkles, Tag, Type, X } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -10,7 +10,7 @@ import { formatDate, timecode } from "@/lib/format";
 import { recallFetch } from "@/lib/recall/fetch";
 import { Highlight } from "./highlight";
 
-// Client types mirror src/server/search/{recall,games}.ts, src/server/visual/search.ts + /api/recall (no paths).
+// Client types mirror src/server/search/{recall,games,tags}.ts, src/server/visual/search.ts + /api/recall (no paths).
 type Visual = { confidence: "likely" | "low"; similarity: number; frames: Array<{ frameId: string; tMs: number; similarity: number }>; model: string; intervalMs: number };
 type Line = { segmentId: string; startMs: number; endMs: number; text: string; matched: string[] };
 type Hit = {
@@ -19,11 +19,13 @@ type Hit = {
   endMs: number;
   seekMs: number;
   lines: Line[];
-  sources: Array<"phrase" | "keyword" | "semantic" | "title" | "visual" | "game">;
+  sources: Array<"phrase" | "keyword" | "semantic" | "title" | "visual" | "game" | "tag">;
   reasons: string[];
   score: number;
   strength: "strong" | "good" | "weak";
   visual?: Visual;
+  /** Hand-curated tag (src/server/search/tags.ts): a person checked this moment; nothing was detected. */
+  tag?: { label: string; frames: Array<{ frameId: string; tMs: number }> };
   recording: { id: string; title: string; game: string | null; recordedAt: number; durationMs: number | null; posterUrl: string | null; videoUrl: string | null };
 };
 type Response = {
@@ -51,9 +53,17 @@ const VISUAL_STRENGTH = {
 };
 // Game-only results come from the game set on the recording: whole-recording, never a moment on screen.
 const GAME_BADGE = { label: "Game match · set by you", cls: "border-line-strong bg-surface-3 text-ink" };
+// Tagged moments were checked by a person, so they're neither approximate nor "detected".
+const TAG_BADGE = { label: "Tagged match · checked by hand", cls: "border-ok/30 bg-ok/10 text-ok" };
 const badge = (h: Hit) =>
-  h.visual && !h.lines.length ? VISUAL_STRENGTH[h.visual.confidence] : h.sources.length === 1 && h.sources[0] === "game" && h.strength !== "weak" ? GAME_BADGE : STRENGTH[h.strength];
-const SOURCE = { phrase: { label: "Exact phrase", icon: Type }, keyword: { label: "Words", icon: Search }, semantic: { label: "Meaning", icon: Sparkles }, title: { label: "Recording name", icon: Type }, visual: { label: "Looks like", icon: Eye }, game: { label: "Game", icon: Gamepad2 } };
+  h.tag
+    ? TAG_BADGE
+    : h.visual && !h.lines.length
+      ? VISUAL_STRENGTH[h.visual.confidence]
+      : h.sources.length === 1 && h.sources[0] === "game" && h.strength !== "weak"
+        ? GAME_BADGE
+        : STRENGTH[h.strength];
+const SOURCE = { phrase: { label: "Exact phrase", icon: Type }, keyword: { label: "Words", icon: Search }, semantic: { label: "Meaning", icon: Sparkles }, title: { label: "Recording name", icon: Type }, visual: { label: "Looks like", icon: Eye }, game: { label: "Game", icon: Gamepad2 }, tag: { label: "Tagged", icon: Tag } };
 const frameUrl = (id: string) => `/api/visual-frames/${id}`;
 const keyOf = (h: Hit) => `${h.recordingId}:${h.startMs}:${h.sources.join()}`;
 
@@ -393,17 +403,17 @@ export function LibraryRecall() {
                     >
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="min-w-0 truncate text-[14px] font-medium text-ink">{h.recording.title}</span>
-                        <span className="font-mono text-[12px] tabular-nums text-accent-ink">{h.lines.length || h.visual ? timecode(h.seekMs) : "whole recording"}</span>
+                        <span className="font-mono text-[12px] tabular-nums text-accent-ink">{h.lines.length || h.visual || h.tag ? timecode(h.seekMs) : "whole recording"}</span>
                         <span className={cn("ml-auto rounded-full border px-2 py-0.5 text-[11px] font-medium", badge(h).cls)}>{badge(h).label}</span>
                       </div>
-                      {h.visual && (
+                      {(h.visual ?? h.tag)?.frames.length ? (
                         <div className="mt-2.5 flex gap-1.5">
-                          {h.visual.frames.map((f) => (
+                          {(h.visual ?? h.tag)!.frames.map((f) => (
                             // eslint-disable-next-line @next/next/no-img-element -- local evidence frame, served by id
                             <img key={f.frameId} src={frameUrl(f.frameId)} alt={`Frame at ${timecode(f.tMs)}`} loading="lazy" className="h-14 w-auto rounded-md border border-line object-cover" />
                           ))}
                         </div>
-                      )}
+                      ) : null}
                       {h.lines.map((l) => (
                         <p key={l.segmentId} className="mt-2 text-[13.5px] leading-relaxed text-ink-muted">
                           <span className="mr-2 font-mono text-[11.5px] text-ink-faint">{timecode(l.startMs)}</span>“<Highlight text={l.text} terms={l.matched} />”

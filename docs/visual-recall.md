@@ -254,3 +254,7 @@ Recall therefore matches games and genres from metadata, not pixels (`src/server
 - A **genre** ("first person shooter", "FPS", "shooter game", "tactical shooter", "MOBA" …) matches through METAL's explicit game list, `src/lib/games/catalog.ts` (game → undisputed genres, plus aliases). Unknown games match by name only.
 - Results are whole-recording, labelled "Game match · set by you", never approximate-visual and never a timestamp claim. When the search has words beyond the game ("first person shooter on a sunny sandstone street"), game matches become loose and say which words weren't confirmed.
 - If a recording also matched by speech or scene, the game is added as a reason on that moment instead of a duplicate result.
+
+## Hand-curated tags
+
+Some moments are things CLIP can't confirm (an ACE, a clutch). A person can tag one in `data/recall-tags.json` (or `METAL_RECALL_TAGS`): recording id, start/end ms, the exact searches it answers, and a label saying what they saw. `src/server/search/tags.ts` returns the tag only for those searches (case, punctuation and spacing ignored), within the usual filters — so judge mode never shows a tag outside its recording. Tagged results are labelled "Tagged match · checked by hand", use the recording's own indexed frames as thumbnails, and come first; loose guesses for the same search are dropped, so the event warning and "No close matches" don't appear for them. Any other wording still goes through normal speech and scene search, with its warnings. A missing or broken file means no tags.
