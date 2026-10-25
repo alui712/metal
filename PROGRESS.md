@@ -23,10 +23,22 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | 8C Demo readiness | ✅ Complete |
 | Judge Experience (showcase, guided tour, home polish) | ✅ Complete |
 | Multi-POV split-screen export | ✅ Complete (branch `feat/split-screen-export`) |
+| Final integration (preview, not on main) | ✅ Validated (branch `feat/integration`) |
 | Demo video / trailer | ⏳ Not started |
 | Stretch: Wrapped · Desktop packaging (Electron) | ⏳ Not started |
 
 ---
+
+## Final integration preview ✅ (2026-10-25)
+
+- **Branch `feat/integration`:** the split-screen checkpoint (`a73e4fd`, which already has the judge UI and Memory Dive 2.0, the studio-management PR via `main`, and feature-ux code `670f004`), plus `4c05362`, the feature-ux submission docs (merge, no conflicts). Not merged into `main`.
+- **Kept out:** experimental Visual Recall (`feat/visual-recall`, CLIP) and Qwen Visual Recall 2.0.
+- **Migrations:** `0011_split_clips` is the only 0011 here. Visual Recall's `0011_visual_index` collides by number. More importantly, its `when` (1792898348738) is *older* than `0011_split_clips` (1792910133391), and Drizzle applies only migrations newer than the newest one already recorded. So when Visual Recall is integrated, it must be regenerated as `0012_*` with a new `when`, using `IF NOT EXISTS` for databases that already ran its old 0011. Simulated: with the old `when`, `visual_frames` is silently never created.
+- **Verified (isolated data dir, worker and port 3107):**
+  - typecheck, lint, 222/222 unit tests (models linked), production build;
+  - migrations on fresh, pre-0008/0009/0010, production (0010), split (0011) and Visual-Recall (old 0011) copies: integrity, foreign keys, every story opens, re-open is a no-op;
+  - 39 journey checks (showcase → Memory Dive → four tour stops, Recall, Relive, POV, demo fixtures, all pages at 1920 and 390, reduced motion);
+  - 18 export checks: a real split-screen MP4 (two POVs + caption, 6.48 s) and a real single-POV MP4 (10.00 s).
 
 ## Multi-POV split-screen export ✅ (2026-10-25)
 
