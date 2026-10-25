@@ -10,7 +10,7 @@ import { Segmented } from "@/components/ui/controls";
 import { HowItWorks } from "@/components/ui/how-it-works";
 import { cn } from "@/lib/cn";
 import { timecode } from "@/lib/format";
-import { coverage, frameMs, nearestCovered, signedSeconds, toOwnTime } from "@/lib/pov/sync";
+import { coverage, frameMs, nearestCovered, signedSeconds, splitWindow, toOwnTime } from "@/lib/pov/sync";
 import type { PovGroupView, PovMember } from "@/lib/pov/types";
 import { SYNC_LABEL, SyncChip } from "./pov-panel";
 
@@ -20,6 +20,8 @@ const SEEK_DRIFT_MS = 250;
 const PAUSED_DRIFT_MS = 30;
 const CLIP_BEFORE_MS = 5_000;
 const CLIP_AFTER_MS = 5_000;
+/** Story Studio's shortest clip. */
+const MIN_CLIP_MS = 1_000;
 
 type Mode = "switch" | "side";
 type TileState = { waiting: boolean; error: boolean };
@@ -260,15 +262,29 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref, judge = fals
   const [clipping, setClipping] = useState(false);
   const activeOwn = toOwnTime(active, t);
   const activeCovers = coverage(active, t) === "inside";
+  // Side by side with exactly two playable POVs: the clip keeps both, aligned, where both have footage.
+  const partner = mode === "side" && playableIds.length === 2 && active.videoUrl ? members.find((m) => m.videoUrl && m.recordingId !== activeId) : undefined;
+  const split = partner && activeCovers ? splitWindow(active, partner, activeOwn, { beforeMs: CLIP_BEFORE_MS, afterMs: CLIP_AFTER_MS, minMs: MIN_CLIP_MS }) : null;
+  const singleSpan = `${timecode(Math.max(0, activeOwn - CLIP_BEFORE_MS))}–${timecode(Math.min(active.durationMs, activeOwn + CLIP_AFTER_MS))}`;
+  const clipHint = !activeCovers
+    ? `${nameOf(active)} has no footage here — switch POV or move the playhead.`
+    : split
+      ? `${nameOf(active)} and ${nameOf(partner!)} side by side, aligned, ${timecode(split.inMs)}–${timecode(split.outMs)} of ${nameOf(active)}’s recording (where both have footage), with ${nameOf(active)}’s sound. You can trim it in the Studio.`
+      : partner
+        ? `${nameOf(partner)} has under a second of footage here, so this clips ${nameOf(active)}’s POV only, ${singleSpan}.`
+        : mode === "side" && playableIds.length > 2
+          ? `Side-by-side clips take two POVs; with ${playableIds.length}, this clips ${nameOf(active)}’s, ${singleSpan}.`
+          : `${nameOf(active)}’s recording, ${singleSpan}. You can trim it in the Studio.`;
   async function clipToStudio() {
     setClipping(true);
     setNotice(null);
-    const inMs = Math.max(0, Math.round(activeOwn - CLIP_BEFORE_MS));
-    const outMs = Math.min(active.durationMs, Math.round(activeOwn + CLIP_AFTER_MS));
+    const range = split
+      ? { recordingId: active.recordingId, inMs: split.inMs, outMs: split.outMs, secondary: { recordingId: partner!.recordingId, inMs: split.secondaryInMs } }
+      : { recordingId: active.recordingId, inMs: Math.max(0, Math.round(activeOwn - CLIP_BEFORE_MS)), outMs: Math.min(active.durationMs, Math.round(activeOwn + CLIP_AFTER_MS)) };
     const res = await fetch("/api/stories", {
       method: "POST",
       headers: HEADERS,
-      body: JSON.stringify({ sessionId: null, ranges: [{ recordingId: active.recordingId, inMs, outMs }], title: `${nameOf(active)} POV` }),
+      body: JSON.stringify({ sessionId: null, ranges: [range], title: split ? `${nameOf(active)} + ${nameOf(partner!)}` : `${nameOf(active)} POV` }),
     }).catch(() => null);
     const data = (await res?.json().catch(() => null)) as { id?: string; error?: string } | null;
     if (res?.ok && data?.id) router.push(`/studio?story=${data.id}`);
@@ -479,12 +495,10 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref, judge = fals
             <div className="rounded-2xl border border-line bg-surface-2/60 p-4">
               <Button className="w-full" onClick={clipToStudio} disabled={clipping || !activeCovers || !active.videoUrl}>
                 {clipping ? <LoaderCircle className="size-4 animate-spin" aria-hidden /> : <Clapperboard className="size-4" aria-hidden />}
-                Clip this moment to Story Studio
+                {split ? "Clip both POVs to Story Studio" : "Clip this moment to Story Studio"}
               </Button>
               <p className="mt-2 text-[11.5px] leading-relaxed text-ink-faint">
-                {activeCovers
-                  ? `${nameOf(active)}’s recording, ${timecode(Math.max(0, activeOwn - CLIP_BEFORE_MS))}–${timecode(Math.min(active.durationMs, activeOwn + CLIP_AFTER_MS))}. You can trim it in the Studio.`
-                  : `${nameOf(active)} has no footage here — switch POV or move the playhead.`}
+                {clipHint}
               </p>
             </div>
           )}

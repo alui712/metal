@@ -7,7 +7,7 @@ import { newId } from "../ids";
 import { enqueueJob } from "../jobs/queue";
 import { listSuggestions } from "../smartclip/actions";
 import { sessionTitle, type MediaUrls } from "../timemachine/sessions";
-import type { Moment, Recording, StoryProject } from "@/lib/memory/contracts";
+import type { Moment, Recording, SplitPov, StoryProject } from "@/lib/memory/contracts";
 import { edlKey } from "@/lib/studio/edl";
 import { checkSources, exportFile, isExportId, MAX_STORY_MS, type Edl } from "./render";
 
@@ -17,7 +17,24 @@ import { checkSources, exportFile, isExportId, MAX_STORY_MS, type Edl } from "./
 export const MAX_STORY_CLIPS = 30;
 const MIN_CLIP_MS = 1000;
 
-type Range = { recordingId: string; inMs: number; outMs: number; caption?: string | null };
+/** `secondary`: a second POV shown side by side, given as its own time at `inMs` (Multi-POV handoff). */
+type Range = { recordingId: string; inMs: number; outMs: number; caption?: string | null; secondary?: { recordingId: string; inMs: number } | null };
+
+/** Why a side-by-side pairing can't be used, or null. The second POV must be a different, ready recording with footage for the whole clip. */
+function secondaryProblem(db: Db, primaryId: string, inMs: number, outMs: number, s: { recordingId: string; inMs: number }): string | null {
+  if (s.recordingId === primaryId) return "Side by side needs two different recordings.";
+  const rec = db.select({ dur: recordings.durationMs, status: recordings.status }).from(recordings).where(eq(recordings.id, s.recordingId)).get();
+  if (!rec || (rec.status !== "ready" && rec.status !== "analyzed")) return "The second POV’s recording isn’t available.";
+  if (!(Number.isInteger(s.inMs) && s.inMs >= 0 && s.inMs + (outMs - inMs) <= (rec.dur ?? 0))) return "The second POV has no footage for part of this clip.";
+  return null;
+}
+
+const splitColumns = (s: SplitPov | null | undefined) =>
+  s ? { layout: "side_by_side" as const, secondaryRecordingId: s.recordingId, secondaryInMs: s.inMs } : { layout: "single" as const, secondaryRecordingId: null, secondaryInMs: null };
+
+/** A stored clip's second POV (recordingId null if that recording was deleted). */
+export const splitOf = (c: { layout: string; secondaryRecordingId: string | null; secondaryInMs: number | null }): SplitPov | null =>
+  c.layout === "side_by_side" ? { recordingId: c.secondaryRecordingId, inMs: c.secondaryInMs ?? 0 } : null;
 
 /** From Smart Clip moments (Time Machine) or raw ranges (Recall). Clips are ordered as they happened. */
 export function createStory(
@@ -25,7 +42,7 @@ export function createStory(
   input: { sessionId: string | null; momentIds?: string[]; ranges?: Range[]; title?: string },
 ): { id: string } | { error: string } {
   const ids = [...new Set(input.momentIds ?? [])].slice(0, MAX_STORY_CLIPS);
-  const rows: Array<{ recordingId: string; suggestionId: string | null; inMs: number; outMs: number; caption: string | null; at: number | null; given: number }> = [];
+  const rows: Array<{ recordingId: string; suggestionId: string | null; inMs: number; outMs: number; caption: string | null; secondary: SplitPov | null; at: number | null; given: number }> = [];
   if (ids.length) {
     const found = db
       .select({ s: clipSuggestions, at: recordings.recordedAt })
@@ -39,7 +56,7 @@ export function createStory(
     const speech = new Map<string, string>();
     for (const rid of new Set(found.map((r) => r.s.recordingId)))
       for (const v of listSuggestions(db, rid)) if (v.speech.length) speech.set(v.id, v.speech.map((g) => g.text).join(" ").slice(0, 200));
-    for (const r of found) rows.push({ recordingId: r.s.recordingId, suggestionId: r.s.id, inMs: r.s.startMs, outMs: r.s.endMs, caption: speech.get(r.s.id) ?? null, at: r.at, given: ids.indexOf(r.s.id) });
+    for (const r of found) rows.push({ recordingId: r.s.recordingId, suggestionId: r.s.id, inMs: r.s.startMs, outMs: r.s.endMs, caption: speech.get(r.s.id) ?? null, secondary: null, at: r.at, given: ids.indexOf(r.s.id) });
   }
   for (const [i, g] of (input.ranges ?? []).slice(0, MAX_STORY_CLIPS).entries()) {
     const rec = db.select({ dur: recordings.durationMs, at: recordings.recordedAt, status: recordings.status }).from(recordings).where(eq(recordings.id, g.recordingId)).get();
@@ -47,7 +64,15 @@ export function createStory(
     const inMs = Math.max(0, Math.round(g.inMs));
     const outMs = Math.min(rec.dur ?? 0, Math.round(g.outMs));
     if (outMs - inMs < MIN_CLIP_MS) return { error: "A clip must be at least 1 second long and inside the video." };
-    rows.push({ recordingId: g.recordingId, suggestionId: null, inMs, outMs, caption: g.caption?.slice(0, 200) ?? null, at: rec.at, given: ids.length + i });
+    let secondary: SplitPov | null = null;
+    if (g.secondary) {
+      // Clamping the in-point moves the second POV with it, so the pair stays aligned.
+      const s = { recordingId: g.secondary.recordingId, inMs: Math.round(g.secondary.inMs) + (inMs - Math.round(g.inMs)) };
+      const problem = secondaryProblem(db, g.recordingId, inMs, outMs, s);
+      if (problem) return { error: problem };
+      secondary = s;
+    }
+    rows.push({ recordingId: g.recordingId, suggestionId: null, inMs, outMs, caption: g.caption?.slice(0, 200) ?? null, secondary, at: rec.at, given: ids.length + i });
   }
   if (!rows.length) return { error: "Pick at least one moment." };
   if (rows.length > MAX_STORY_CLIPS) return { error: `A story can have at most ${MAX_STORY_CLIPS} clips.` };
@@ -61,7 +86,7 @@ export function createStory(
         .values({ id, title: (input.title?.trim() || (session ? sessionTitle(db, session) : "My story")).slice(0, 80), sourceSessionId: session?.id ?? null, updatedAt: Date.now() })
         .run();
       rows.forEach((r, i) =>
-        db.insert(storyClips).values({ id: newId("stc"), projectId: id, position: i, recordingId: r.recordingId, suggestionId: r.suggestionId, inMs: r.inMs, outMs: r.outMs, caption: r.caption }).run(),
+        db.insert(storyClips).values({ id: newId("stc"), projectId: id, position: i, recordingId: r.recordingId, suggestionId: r.suggestionId, inMs: r.inMs, outMs: r.outMs, caption: r.caption, ...splitColumns(r.secondary) }).run(),
       );
     })
     .immediate();
@@ -73,7 +98,8 @@ export type SaveInput = {
   aspect: "16:9" | "9:16" | "1:1";
   framing: "fill" | "fit";
   captions: boolean;
-  clips: Array<{ recordingId: string; suggestionId: string | null; inMs: number; outMs: number; caption: string | null }>;
+  /** `secondary.recordingId` null keeps a side-by-side clip whose second POV was deleted (it can't export until removed). */
+  clips: Array<{ recordingId: string; suggestionId: string | null; inMs: number; outMs: number; caption: string | null; secondary?: SplitPov | null }>;
 };
 
 /** Replaces the project's edit list. Every clip must point at an existing recording, inside its length. */
@@ -88,6 +114,11 @@ export function saveStory(db: Db, id: string, input: SaveInput): { updatedAt: nu
     const dur = recs.get(c.recordingId);
     if (dur === undefined) return { error: `Clip ${i + 1}: its source recording no longer exists. Remove it and try again.`, status: 409 };
     if (!(c.inMs >= 0 && c.outMs <= dur && c.outMs - c.inMs >= MIN_CLIP_MS)) return { error: `Clip ${i + 1} is outside its recording.`, status: 400 };
+    const sid = c.secondary?.recordingId;
+    if (c.secondary && sid) {
+      const problem = secondaryProblem(db, c.recordingId, c.inMs, c.outMs, { recordingId: sid, inMs: c.secondary.inMs });
+      if (problem) return { error: `Clip ${i + 1}: ${problem}`, status: 400 };
+    }
   }
   const updatedAt = Date.now();
   db.$client
@@ -99,7 +130,7 @@ export function saveStory(db: Db, id: string, input: SaveInput): { updatedAt: nu
       db.delete(storyClips).where(eq(storyClips.projectId, id)).run();
       input.clips.forEach((c, i) =>
         db.insert(storyClips)
-          .values({ id: newId("stc"), projectId: id, position: i, recordingId: c.recordingId, suggestionId: c.suggestionId && sugs.has(c.suggestionId) ? c.suggestionId : null, inMs: Math.round(c.inMs), outMs: Math.round(c.outMs), caption: c.caption?.slice(0, 200) || null })
+          .values({ id: newId("stc"), projectId: id, position: i, recordingId: c.recordingId, suggestionId: c.suggestionId && sugs.has(c.suggestionId) ? c.suggestionId : null, inMs: Math.round(c.inMs), outMs: Math.round(c.outMs), caption: c.caption?.slice(0, 200) || null, ...splitColumns(c.secondary) })
           .run(),
       );
     })
@@ -149,6 +180,9 @@ export function duplicateStory(db: Db, id: string): { id: string } | { error: st
             inMs: clip.inMs,
             outMs: clip.outMs,
             caption: clip.caption,
+            layout: clip.layout,
+            secondaryRecordingId: clip.secondaryRecordingId,
+            secondaryInMs: clip.secondaryInMs,
           })
           .run();
       });
@@ -275,7 +309,11 @@ export function storyView(db: Db, id: string, urls: MediaUrls): StoryView | null
   const session = p.sourceSessionId ? db.select().from(sessions).where(eq(sessions.id, p.sourceSessionId)).get() : undefined;
   // Candidates: the source session's open moments, plus the story's own recordings.
   const recIds = [
-    ...new Set([...(session ? db.select({ id: recordings.id }).from(recordings).where(eq(recordings.sessionId, session.id)).all().map((r) => r.id) : []), ...clips.map((c) => c.recordingId)]),
+    ...new Set([
+      ...(session ? db.select({ id: recordings.id }).from(recordings).where(eq(recordings.sessionId, session.id)).all().map((r) => r.id) : []),
+      ...clips.map((c) => c.recordingId),
+      ...clips.flatMap((c) => (c.secondaryRecordingId ? [c.secondaryRecordingId] : [])),
+    ]),
   ];
   const recRows = recIds.length ? db.select().from(recordings).where(inArray(recordings.id, recIds)).all() : [];
   const recs: Record<string, Recording> = {};
@@ -317,7 +355,7 @@ export function storyView(db: Db, id: string, urls: MediaUrls): StoryView | null
       };
     }
   }
-  const { issues } = checkSources(db, clips);
+  const { issues } = checkSources(db, clips.map((c) => ({ ...c, secondary: splitOf(c) })));
   const at = (m: Moment) => (recs[m.recordingId].recordedAt || 0) + m.startMs;
   return {
     project: {
@@ -328,7 +366,7 @@ export function storyView(db: Db, id: string, urls: MediaUrls): StoryView | null
       framing: p.framing,
       sourceSessionId: p.sourceSessionId,
       // A clip from a moment keeps the "clip_<moment>" id the editor uses to know it's already added.
-      clips: clips.map((c) => ({ id: c.suggestionId ? `clip_${c.suggestionId}` : c.id, recordingId: c.recordingId, momentId: c.suggestionId, inMs: c.inMs, outMs: c.outMs, caption: c.caption })),
+      clips: clips.map((c) => ({ id: c.suggestionId ? `clip_${c.suggestionId}` : c.id, recordingId: c.recordingId, momentId: c.suggestionId, inMs: c.inMs, outMs: c.outMs, caption: c.caption, secondary: splitOf(c) })),
     },
     createdAt: p.createdAt,
     updatedAt: p.updatedAt,
@@ -416,7 +454,7 @@ export function requestExport(db: Db, projectId: string): { id: string } | { err
         aspect: p.aspect,
         framing: p.framing,
         captions: p.captions,
-        clips: clips.map((c) => ({ recordingId: c.recordingId, inMs: c.inMs, outMs: c.outMs, caption: c.caption })),
+        clips: clips.map((c) => ({ recordingId: c.recordingId, inMs: c.inMs, outMs: c.outMs, caption: c.caption, secondary: splitOf(c) })),
       };
       const { issues } = checkSources(db, edl.clips);
       if (issues.length) {

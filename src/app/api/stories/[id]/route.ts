@@ -20,6 +20,8 @@ const Save = z.object({
         inMs: z.number().int().nonnegative(),
         outMs: z.number().int().positive(),
         caption: z.string().max(200).nullable(),
+        // Side by side; a null recording keeps a pairing whose second POV was deleted.
+        secondary: z.object({ recordingId: z.string().refine(isRecordingId).nullable(), inMs: z.number().int().nonnegative() }).nullable().optional(),
       }),
     )
     .max(MAX_STORY_CLIPS),

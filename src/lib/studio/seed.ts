@@ -56,12 +56,15 @@ export function trimBounds(repo: SourceLookup, clips: StoryClip[]): TrimBounds {
       const rec = repo.recording(c.recordingId);
       const m = c.momentId ? repo.moment(c.momentId) : undefined;
       const maxRec = rec?.durationMs ?? c.outMs;
-      return [
-        c.id,
-        m
-          ? { minMs: Math.max(0, m.startMs - HANDLE_MS), maxMs: Math.min(maxRec, m.endMs + HANDLE_MS) }
-          : { minMs: 0, maxMs: maxRec },
-      ];
+      const b = m ? { minMs: Math.max(0, m.startMs - HANDLE_MS), maxMs: Math.min(maxRec, m.endMs + HANDLE_MS) } : { minMs: 0, maxMs: maxRec };
+      // Side by side: only where the second POV has footage too (its time = own time − lag).
+      const second = c.secondary?.recordingId ? repo.recording(c.secondary.recordingId) : undefined;
+      if (c.secondary && second) {
+        const lag = c.inMs - c.secondary.inMs;
+        b.minMs = Math.max(b.minMs, lag);
+        b.maxMs = Math.min(b.maxMs, lag + second.durationMs);
+      }
+      return [c.id, b];
     }),
   );
 }

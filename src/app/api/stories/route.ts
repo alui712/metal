@@ -12,7 +12,16 @@ const Body = z
     sessionId: z.string().refine(isSessionId).nullable(),
     momentIds: z.array(z.string().refine(isSuggestionId)).max(MAX_STORY_CLIPS).optional(),
     ranges: z
-      .array(z.object({ recordingId: z.string().refine(isRecordingId), inMs: z.number().finite(), outMs: z.number().finite(), caption: z.string().max(200).nullable().optional() }))
+      .array(
+        z.object({
+          recordingId: z.string().refine(isRecordingId),
+          inMs: z.number().finite(),
+          outMs: z.number().finite(),
+          caption: z.string().max(200).nullable().optional(),
+          // Multi-POV side by side: the second POV's own time at inMs.
+          secondary: z.object({ recordingId: z.string().refine(isRecordingId), inMs: z.number().int().nonnegative() }).nullable().optional(),
+        }),
+      )
       .max(MAX_STORY_CLIPS)
       .optional(),
     title: z.string().max(200).optional(),

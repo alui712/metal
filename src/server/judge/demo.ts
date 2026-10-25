@@ -6,6 +6,7 @@ import type { Db } from "../db/client";
 import { clipSuggestions, povMembers, recordings, renderExports, storyClips, storyProjects, transcriptSegments } from "../db/schema";
 import { managedPath } from "../media/storage";
 import { checkSources, exportFile } from "../studio/render";
+import { splitOf } from "../studio/stories";
 import { sessionDetail } from "../timemachine/sessions";
 import { curate, judgeDemoSchema, type Curated, type DemoFacts, type JudgeDemoConfig } from "@/lib/judge/curate";
 
@@ -86,7 +87,7 @@ export function demoFacts(db: Db, c: JudgeDemoConfig): DemoFacts {
   if (story) {
     // A clip whose recording was deleted (null) can't play, so it fails the check.
     // The exporter's own checks: source present on disk and each range inside the video.
-    const { issues } = checkSources(db, clips);
+    const { issues } = checkSources(db, clips.map((c) => ({ ...c, secondary: splitOf(c) })));
     facts.stories.set(story.id, {
       id: story.id,
       title: story.title,

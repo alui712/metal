@@ -10,12 +10,15 @@ import { PermanentJobError } from "../jobs/errors";
 import { runFfmpeg } from "../media/ffmpeg";
 import { probeFile } from "../media/probe";
 import { managedPath } from "../media/storage";
+import type { SplitPov } from "@/lib/memory/contracts";
 
 // Story export: one FFmpeg pass over the real source recordings. Every clip is
 // cut frame-accurately and normalized (size, 30 fps, yuv420p, 48 kHz stereo)
 // before a hard-cut concat, so mixed resolutions, frame rates and codecs join
 // cleanly. Video and audio are each forced to exactly the clip's length, which
-// keeps them in sync across cuts; clips without audio get silence.
+// keeps them in sync across cuts; clips without audio get silence. A
+// side-by-side clip (Multi-POV) cuts a second POV at its aligned in-point and
+// stacks both halves into one frame; its sound is the primary POV's.
 
 export type Aspect = "16:9" | "9:16" | "1:1";
 export type Framing = "fill" | "fit";
@@ -24,7 +27,7 @@ export type Edl = {
   aspect: Aspect;
   framing: Framing;
   captions: boolean;
-  clips: Array<{ recordingId: string | null; inMs: number; outMs: number; caption: string | null }>;
+  clips: Array<{ recordingId: string | null; inMs: number; outMs: number; caption: string | null; secondary?: SplitPov | null }>;
 };
 
 export const OUTPUT_SIZE: Record<Aspect, { width: number; height: number }> = {
@@ -37,7 +40,14 @@ export const MAX_STORY_MS = 30 * 60_000;
 /** Allowed difference between the rendered and the planned duration. */
 export const DURATION_TOLERANCE_MS = 300;
 
-export type RenderInput = { file: string; inMs: number; outMs: number; hasAudio: boolean };
+/** `secondary`: the second POV of a side-by-side clip, cut from its own time `inMs` for the same length. */
+export type RenderInput = { file: string; inMs: number; outMs: number; hasAudio: boolean; secondary?: { file: string; inMs: number } };
+
+/** Side-by-side halves: left|right, except top/bottom in a vertical story. */
+export const splitHalf = (aspect: Aspect) => {
+  const { width: W, height: H } = OUTPUT_SIZE[aspect];
+  return aspect === "9:16" ? { width: W, height: H / 2, stack: "vstack" as const } : { width: W / 2, height: H, stack: "hstack" as const };
+};
 /** A burned-in caption image shown over [startMs, endMs) of the story timeline. */
 export type CaptionOverlay = { file: string; startMs: number; endMs: number };
 
@@ -94,23 +104,44 @@ const sec = (ms: number) => (ms / 1000).toFixed(3);
 
 export function storyArgs(inputs: RenderInput[], output: string, opts: { aspect: Aspect; framing: Framing; subtitles?: string; overlays?: CaptionOverlay[] }): string[] {
   const { width: W, height: H } = OUTPUT_SIZE[opts.aspect];
-  const frame =
+  const frame = (w: number, h: number) =>
     opts.framing === "fill"
-      ? `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}`
-      : `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`;
+      ? `scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h}`
+      : `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=black`;
   const args = ["-hide_banner", "-nostdin", "-loglevel", "error", "-y"];
-  for (const c of inputs) args.push("-ss", sec(c.inMs), "-t", sec(c.outMs - c.inMs), "-i", c.file);
+  // Video inputs in clip order; a side-by-side clip's second POV directly follows its primary.
+  // -reinit_filter 0: a source whose frame properties change mid-clip (e.g. an appended outro
+  // encoded with other colour tags) would otherwise rebuild the whole graph, restarting every
+  // chain's PTS-STARTPTS and silently skipping footage in all clips. Scale/format convert instead.
+  const at: Array<{ main: number; second: number | null }> = [];
+  let n = 0;
+  for (const c of inputs) {
+    const d = sec(c.outMs - c.inMs);
+    args.push("-reinit_filter", "0", "-ss", sec(c.inMs), "-t", d, "-i", c.file);
+    if (c.secondary) args.push("-reinit_filter", "0", "-ss", sec(c.secondary.inMs), "-t", d, "-i", c.secondary.file);
+    at.push({ main: n, second: c.secondary ? n + 1 : null });
+    n += c.secondary ? 2 : 1;
+  }
   const overlays = opts.overlays ?? [];
   for (const o of overlays) args.push("-i", o.file);
   if (opts.subtitles) args.push("-i", opts.subtitles);
+  const half = splitHalf(opts.aspect);
   const chains: string[] = [];
   inputs.forEach((c, i) => {
     const d = sec(c.outMs - c.inMs);
+    const { main, second } = at[i];
     // tpad holds the last frame if a source ends a few ms early; trim makes the length exact.
-    chains.push(`[${i}:v:0]setpts=PTS-STARTPTS,fps=${OUTPUT_FPS},${frame},setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=1,trim=duration=${d},setpts=PTS-STARTPTS[v${i}]`);
+    const cut = (input: number, w: number, h: number, label: string) =>
+      `[${input}:v:0]setpts=PTS-STARTPTS,fps=${OUTPUT_FPS},${frame(w, h)},setsar=1,format=yuv420p,tpad=stop_mode=clone:stop_duration=1,trim=duration=${d},setpts=PTS-STARTPTS[${label}]`;
+    if (second === null) chains.push(cut(main, W, H, `v${i}`));
+    else {
+      // Both halves start at the same moment (aligned in-points) and run exactly d.
+      chains.push(cut(main, half.width, half.height, `v${i}l`), cut(second, half.width, half.height, `v${i}r`));
+      chains.push(`[v${i}l][v${i}r]${half.stack}=inputs=2[v${i}]`);
+    }
     chains.push(
       c.hasAudio
-        ? `[${i}:a:0]asetpts=PTS-STARTPTS,aresample=48000:async=1,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=duration=${d},asetpts=PTS-STARTPTS[a${i}]`
+        ? `[${main}:a:0]asetpts=PTS-STARTPTS,aresample=48000:async=1,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo,apad,atrim=duration=${d},asetpts=PTS-STARTPTS[a${i}]`
         : `anullsrc=r=48000:cl=stereo,atrim=duration=${d},aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[a${i}]`,
     );
   });
@@ -121,10 +152,10 @@ export function storyArgs(inputs: RenderInput[], output: string, opts: { aspect:
   overlays.forEach((o, k) => {
     const from = k === 0 ? "[vc]" : `[vo${k - 1}]`;
     const to = k === overlays.length - 1 ? "[v]" : `[vo${k}]`;
-    chains.push(`${from}[${inputs.length + k}:v]overlay=x=(W-w)/2:y=H-h-${bottom}:enable='between(t,${sec(o.startMs)},${sec(o.endMs - 1)})':format=auto${to}`);
+    chains.push(`${from}[${n + k}:v]overlay=x=(W-w)/2:y=H-h-${bottom}:enable='between(t,${sec(o.startMs)},${sec(o.endMs - 1)})':format=auto${to}`);
   });
   args.push("-filter_complex", chains.join(";"), "-map", "[v]", "-map", "[a]");
-  if (opts.subtitles) args.push("-map", `${inputs.length + overlays.length}:s:0`, "-c:s", "mov_text", "-metadata:s:s:0", "language=eng");
+  if (opts.subtitles) args.push("-map", `${n + overlays.length}:s:0`, "-c:s", "mov_text", "-metadata:s:s:0", "language=eng");
   args.push(
     "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-profile:v", "high", "-pix_fmt", "yuv420p", "-r", String(OUTPUT_FPS),
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2",
@@ -160,10 +191,9 @@ export type SourceIssue = { index: number; reason: string };
 export function checkSources(db: Db, clips: Edl["clips"]): { issues: SourceIssue[]; inputs: RenderInput[] } {
   const issues: SourceIssue[] = [];
   const inputs: RenderInput[] = [];
-  clips.forEach((c, index) => {
-    const r = c.recordingId ? db.select().from(recordings).where(eq(recordings.id, c.recordingId)).get() : undefined;
-    if (!r) return void issues.push({ index, reason: "Its source recording was deleted." });
-    if (r.status !== "ready" && r.status !== "analyzed") return void issues.push({ index, reason: `“${r.title}” isn’t ready to use (${r.status}).` });
+  const source = (id: string) => {
+    const r = db.select().from(recordings).where(eq(recordings.id, id)).get();
+    if (!r) return { r: null, file: null };
     let file: string | null = null;
     for (const rel of [r.originalPath, r.proxyPath]) {
       if (!rel) continue;
@@ -175,10 +205,30 @@ export function checkSources(db: Db, clips: Edl["clips"]): { issues: SourceIssue
         }
       } catch {}
     }
+    return { r, file };
+  };
+  const ready = (status: string) => status === "ready" || status === "analyzed";
+  clips.forEach((c, index) => {
+    const { r, file } = c.recordingId ? source(c.recordingId) : { r: null, file: null };
+    if (!r) return void issues.push({ index, reason: "Its source recording was deleted." });
+    if (!ready(r.status)) return void issues.push({ index, reason: `“${r.title}” isn’t ready to use (${r.status}).` });
     if (!file) return void issues.push({ index, reason: `“${r.title}” is missing from storage.` });
     const dur = r.durationMs ?? 0;
     if (!(c.inMs >= 0 && c.outMs <= dur + 50 && c.outMs - c.inMs >= 500)) return void issues.push({ index, reason: `The clip from “${r.title}” is outside the video.` });
-    inputs.push({ file, inMs: c.inMs, outMs: Math.min(c.outMs, dur), hasAudio: Boolean(r.audioCodec) });
+    const outMs = Math.min(c.outMs, dur);
+    // A side-by-side clip needs its second POV just as much; never fall back to one POV silently.
+    let secondary: RenderInput["secondary"];
+    if (c.secondary) {
+      const s = c.secondary.recordingId ? source(c.secondary.recordingId) : { r: null, file: null };
+      if (!s.r) return void issues.push({ index, reason: "Its second POV’s recording was deleted." });
+      if (s.r.id === r.id) return void issues.push({ index, reason: "Both sides show the same recording." });
+      if (!ready(s.r.status)) return void issues.push({ index, reason: `“${s.r.title}” isn’t ready to use (${s.r.status}).` });
+      if (!s.file) return void issues.push({ index, reason: `“${s.r.title}” is missing from storage.` });
+      if (!(c.secondary.inMs >= 0 && c.secondary.inMs + (outMs - c.inMs) <= (s.r.durationMs ?? 0) + 50))
+        return void issues.push({ index, reason: `“${s.r.title}” has no footage for part of this side-by-side clip.` });
+      secondary = { file: s.file, inMs: c.secondary.inMs };
+    }
+    inputs.push({ file, inMs: c.inMs, outMs, hasAudio: Boolean(r.audioCodec), ...(secondary && { secondary }) });
   });
   return { issues, inputs };
 }

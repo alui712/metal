@@ -118,6 +118,16 @@ describe.skipIf(!hasFfmpeg)("story export (real FFmpeg)", () => {
     ffmpeg(["-f", "lavfi", "-i", "testsrc2=size=1280x720:rate=30:duration=10", "-f", "lavfi", "-i", "sine=frequency=440:duration=10", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", fx("a.mp4")]);
     ffmpeg(["-f", "lavfi", "-i", "testsrc=size=640x480:rate=25:duration=8", "-c:v", "mpeg4", "-q:v", "5", fx("b.mkv")]);
     ffmpeg(["-f", "lavfi", "-i", "testsrc2=size=1920x1080:rate=60:duration=6", "-f", "lavfi", "-i", "sine=frequency=880:duration=6:sample_rate=44100", "-ac", "1", "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", fx("c.mp4")]);
+    // Two POVs of one "world" (Multi-POV): each frame's brightness encodes the world frame w as 16 + (w mod 32)·6 (inside video range).
+    // p films from world frame 0 with a 440 Hz tone; s starts 21 frames (700 ms) later with 880 Hz.
+    const world = (name: string, start: number, seconds: number, hz: number, tags = "") =>
+      ffmpeg(["-f", "lavfi", "-i", `color=c=black:size=320x240:rate=30:duration=${seconds},geq=lum='16+mod(N+${start},32)*6':cb=128:cr=128${tags}`, "-f", "lavfi", "-i", `sine=frequency=${hz}:duration=${seconds}`, "-c:v", "libx264", "-qp", "0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", fx(name)]);
+    world("p.mp4", 0, 5, 440);
+    // Like a clip with an appended outro: s's stream changes colour tags (new in-band SPS) 2.5 s in, mid-clip.
+    world("s1.ts", 21, 2.5, 880);
+    world("s2.ts", 21 + 75, 2.5, 880, ",setparams=range=tv:color_primaries=bt709:color_trc=iec61966-2-1");
+    fs.writeFileSync(fx("s.txt"), `file '${fx("s1.ts")}'\nfile '${fx("s2.ts")}'\n`);
+    ffmpeg(["-f", "concat", "-safe", "0", "-i", fx("s.txt"), "-c", "copy", fx("s.mp4")]);
     const { openDb } = await import("../db/client");
     m = {
       db: openDb(":memory:"),
@@ -129,7 +139,7 @@ describe.skipIf(!hasFfmpeg)("story export (real FFmpeg)", () => {
       receiveUpload: (await import("../media/upload")).receiveUpload,
       managedPath: (await import("../media/storage")).managedPath,
     };
-    for (const n of ["a.mp4", "b.mkv", "c.mp4"]) {
+    for (const n of ["a.mp4", "b.mkv", "c.mp4", "p.mp4", "s.mp4"]) {
       ids[n] = (await m.receiveUpload(m.db, { body: Readable.toWeb(fs.createReadStream(fx(n))) as ReadableStream<Uint8Array>, filename: n })).id;
     }
     await runJobs();
@@ -182,6 +192,54 @@ describe.skipIf(!hasFfmpeg)("story export (real FFmpeg)", () => {
     expect(Math.abs(start - 3.0)).toBeLessThan(0.06);
     expect(Math.abs(end - 5.5)).toBeLessThan(0.06);
     expect(fs.existsSync(file.replace(".mp4", ".part.mp4"))).toBe(false);
+  }, 180_000);
+
+  it("renders a side-by-side clip with both POVs aligned frame for frame", async () => {
+    // As the Multi-POV handoff sends it: s's own time = p's own time − 700 ms, already trimmed in the Studio.
+    const r = m.stories.createStory(m.db, { sessionId: null, ranges: [{ recordingId: ids["a.mp4"], inMs: 0, outMs: 1000 }] });
+    if ("error" in r) throw new Error(r.error);
+    expect(
+      m.stories.saveStory(m.db, r.id, {
+        title: "Both POVs",
+        aspect: "16:9",
+        framing: "fill",
+        captions: true,
+        clips: [
+          { recordingId: ids["a.mp4"], suggestionId: null, inMs: 0, outMs: 1000, caption: null },
+          { recordingId: ids["p.mp4"], suggestionId: null, inMs: 1500, outMs: 4000, caption: "Both POVs", secondary: { recordingId: ids["s.mp4"], inMs: 800 } },
+        ],
+      }),
+    ).toHaveProperty("updatedAt");
+    await (m.stories.requestExport(m.db, r.id), runJobs());
+    const e = latest(r.id);
+    expect(e).toMatchObject({ status: "done", clipCount: 2 });
+    const file = m.render.exportFile(e.id);
+    const p = probe(file);
+    const v = p.streams.find((s) => s.codec_type === "video")!;
+    expect([v.width, v.height, v.avg_frame_rate]).toEqual([1920, 1080, "30/1"]);
+    expect(Math.abs(Number(p.format.duration) - 3.5)).toBeLessThan(0.1);
+    execFileSync("ffmpeg", ["-v", "error", "-xerror", "-i", file, "-f", "null", "-"]); // decodes cleanly end to end
+
+    // Mean luma of a patch in each half, every frame of the split clip (story 1.0–3.5 s).
+    const luma = (x: number) => {
+      const raw = execFileSync("ffmpeg", ["-v", "error", "-ss", "1", "-i", file, "-t", "2.5", "-vf", `crop=40:40:${x}:520,scale=2:2:flags=area`, "-pix_fmt", "yuv420p", "-f", "rawvideo", "-"]);
+      return Array.from({ length: Math.floor(raw.length / 6) }, (_, k) => (raw[k * 6] + raw[k * 6 + 1] + raw[k * 6 + 2] + raw[k * 6 + 3]) / 4);
+    };
+    const frameOf = (y: number) => Math.round((y - 16) / 6) % 32;
+    const left = luma(460).map(frameOf);
+    const right = luma(1420).map(frameOf);
+    expect(left.length).toBeGreaterThanOrEqual(74);
+    const off = (a: number, b: number) => ((b - a + 48) % 32) - 16; // signed frame difference
+    // Left is p from own 1.5 s (world frame 45); right shows the same world frame (±1).
+    left.forEach((f, k) => expect(Math.abs(off((45 + k) % 32, f))).toBeLessThanOrEqual(1));
+    left.forEach((f, k) => expect(Math.abs(off(f, right[k]))).toBeLessThanOrEqual(1));
+    if (process.env.METAL_KEEP_FRAME) execFileSync("ffmpeg", ["-v", "error", "-y", "-ss", "2", "-i", file, "-frames:v", "1", process.env.METAL_KEEP_FRAME]);
+
+    // Losing the second POV blocks the export instead of silently falling back to one POV.
+    m.db.delete(m.schema.recordings).where(eq(m.schema.recordings.id, ids["s.mp4"])).run();
+    const view = m.stories.storyView(m.db, r.id, new Map())!;
+    expect(view.issues[view.project.clips[1].id]).toBe("Its second POV’s recording was deleted.");
+    expect(m.stories.requestExport(m.db, r.id)).toEqual({ error: "Clip 2: Its second POV’s recording was deleted.", status: 409 });
   }, 180_000);
 
   it("renders vertical with captions as a subtitle track", async () => {

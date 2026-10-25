@@ -1,4 +1,4 @@
-import type { Aspect, StoryClip, StoryProject } from "../memory/contracts";
+import type { Aspect, SplitPov, StoryClip, StoryProject } from "../memory/contracts";
 
 // Edit decision list operations. Pure and deterministic: the editor UI, undo
 // history, and (later) natural-language edit plans all go through these.
@@ -63,7 +63,9 @@ export function applyOp(project: StoryProject, op: EdlOp, bounds: TrimBounds = {
           if (inMs !== c.inMs) inMs = outMs - MIN_CLIP_MS;
           else outMs = inMs + MIN_CLIP_MS;
         }
-        return { ...c, inMs: Math.max(minMs, inMs), outMs: Math.min(maxMs, outMs) };
+        const next = { ...c, inMs: Math.max(minMs, inMs), outMs: Math.min(maxMs, outMs) };
+        // The second POV moves with the primary's in-point, so they stay aligned.
+        return c.secondary ? { ...next, secondary: { ...c.secondary, inMs: c.secondary.inMs + (next.inMs - c.inMs) } } : next;
       });
     }
     case "setCaption":
@@ -100,9 +102,20 @@ function mapClip(
  * Comparable key of what a render depends on (mirrored by the server's export
  * records), so the UI can tell whether an export matches the current edit.
  */
-export function edlKey(p: { aspect: string; framing?: string; captions: boolean; clips: Array<{ recordingId: string | null; inMs: number; outMs: number; caption: string | null }> }): string {
-  return JSON.stringify([p.aspect, p.framing ?? "fill", p.captions, p.clips.map((c) => [c.recordingId, c.inMs, c.outMs, p.captions ? (c.caption?.trim() ? c.caption.slice(0, 200) : "") : ""])]);
+export function edlKey(p: { aspect: string; framing?: string; captions: boolean; clips: Array<{ recordingId: string | null; inMs: number; outMs: number; caption: string | null; secondary?: SplitPov | null }> }): string {
+  return JSON.stringify([
+    p.aspect,
+    p.framing ?? "fill",
+    p.captions,
+    p.clips.map((c) => {
+      const k: unknown[] = [c.recordingId, c.inMs, c.outMs, p.captions ? (c.caption?.trim() ? c.caption.slice(0, 200) : "") : ""];
+      return c.secondary ? [...k, c.secondary.recordingId, c.secondary.inMs] : k;
+    }),
+  ]);
 }
+
+/** A side-by-side clip's second POV time at primary time `ownMs` (same moment, its own clock). */
+export const secondaryTime = (c: { inMs: number; secondary?: SplitPov | null }, ownMs: number) => (c.secondary ? c.secondary.inMs + (ownMs - c.inMs) : null);
 
 export function clipDuration(c: StoryClip): number {
   return c.outMs - c.inMs;

@@ -5,13 +5,17 @@ import { Pause, Play, RotateCcw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { CAPTION_BOTTOM, CAPTION_FONT, wrapCaption } from "@/lib/studio/caption-layout";
 import type { StoryProject } from "@/lib/memory/contracts";
-import { locate, totalDuration } from "@/lib/studio/edl";
+import { locate, secondaryTime, totalDuration } from "@/lib/studio/edl";
 import { timecode } from "@/lib/format";
 import { SceneArt } from "@/components/media/scene-art";
 import { Scrubber } from "@/components/media/scrubber";
 import { usePlaybackClock } from "@/components/media/use-playback-clock";
 import { DemoBadge } from "@/components/ui/demo-badge";
+import { secondOf } from "./clip-thumb";
 import type { StudioLibrary } from "./types";
+
+/** The second POV re-seeks when it drifts this far from the first. */
+const SPLIT_DRIFT_MS = 80;
 
 /**
  * Plays the edit in order, without rendering. Demo clips have no video,
@@ -40,6 +44,11 @@ export function SequencePreview({
   const src = rec?.media.kind === "video" ? rec.media.src : null;
   const video = useRef<HTMLVideoElement>(null);
   const [failed, setFailed] = useState<string | null>(null);
+  // Side by side: the second POV follows the first (its time = secondary in + offset), muted.
+  const second = clip ? secondOf(library, clip) : undefined;
+  const secondSrc = second && second !== "missing" && second.media.kind === "video" ? second.media.src : null;
+  const video2 = useRef<HTMLVideoElement>(null);
+  const vertical = project.aspect === "9:16";
 
   // Real clips: the <video> follows the edit's clock (exact source time = clip in + offset).
   const expected = clip ? (clip.inMs + (at?.offsetMs ?? 0)) / 1000 : 0;
@@ -54,6 +63,29 @@ export function SequencePreview({
     if (clock.playing && v.paused) void v.play().catch(() => {});
     if (!clock.playing && !v.paused) v.pause();
   }, [src, expected, clock.playing]);
+
+  useEffect(() => {
+    const v2 = video2.current;
+    if (!v2 || !secondSrc || !clip?.secondary) return;
+    if (v2.getAttribute("src") !== secondSrc) {
+      v2.setAttribute("src", secondSrc);
+      v2.load();
+    }
+    const c = clip;
+    let raf = 0;
+    const follow = () => {
+      const v = video.current;
+      // The first POV's own clock when it's playing, else the edit's clock.
+      const ownMs = v && v.readyState >= 2 && !v.seeking ? v.currentTime * 1000 : c.inMs + (at?.offsetMs ?? 0);
+      const want = secondaryTime(c, Math.min(Math.max(ownMs, c.inMs), c.outMs))!;
+      if (v2.readyState >= 1 && Math.abs(v2.currentTime * 1000 - want) > SPLIT_DRIFT_MS) v2.currentTime = want / 1000;
+      if (clock.playing) raf = requestAnimationFrame(follow);
+    };
+    follow();
+    if (clock.playing && v2.paused) void v2.play().catch(() => {});
+    if (!clock.playing && !v2.paused) v2.pause();
+    return () => cancelAnimationFrame(raf);
+  }, [secondSrc, clip, at?.offsetMs, clock.playing]);
 
   const seekMs = seekTo?.ms;
   const nonce = seekTo?.nonce;
@@ -122,8 +154,26 @@ export function SequencePreview({
                     setFailed(null);
                   }}
                   onError={() => setFailed(rec.title)}
-                  className={`absolute inset-0 size-full bg-black ${project.framing === "fit" ? "object-contain" : "object-cover"}`}
+                  className={`absolute bg-black ${second ? (vertical ? "inset-x-0 top-0 h-1/2 w-full" : "inset-y-0 left-0 h-full w-1/2") : "inset-0 size-full"} ${project.framing === "fit" ? "object-contain" : "object-cover"}`}
                 />
+              )}
+              {second && (
+                <div className={`absolute bg-black ${vertical ? "inset-x-0 bottom-0 h-1/2" : "inset-y-0 right-0 w-1/2"}`}>
+                  {secondSrc ? (
+                    <video
+                      ref={video2}
+                      muted
+                      playsInline
+                      preload="auto"
+                      aria-label={`${second !== "missing" ? second.title : ""} at ${timecode(secondaryTime(clip, clip.inMs + (at?.offsetMs ?? 0)) ?? 0)}`}
+                      className={`size-full ${project.framing === "fit" ? "object-contain" : "object-cover"}`}
+                    />
+                  ) : (
+                    <p className="grid size-full place-items-center p-4 text-center text-[12px] text-ink-muted">
+                      {second === "missing" ? "This POV’s recording was deleted." : "This POV can’t be played."}
+                    </p>
+                  )}
+                </div>
               )}
               {failed && (
                 <p className="absolute inset-0 grid place-items-center bg-black/80 p-6 text-center text-[13px] text-ink-muted">
@@ -153,6 +203,11 @@ export function SequencePreview({
         ) : (
           <span className="absolute right-3 top-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">
             Live preview from your originals · not rendered
+          </span>
+        )}
+        {second && (
+          <span className="absolute bottom-3 right-3 rounded-full bg-black/55 px-2.5 py-1 text-[11px] font-medium text-white/85 backdrop-blur">
+            Side by side · aligned
           </span>
         )}
         {moment && (

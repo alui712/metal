@@ -139,7 +139,16 @@ export type StoryClip = {
   inMs: number;
   outMs: number;
   caption: string | null;
+  /** Side by side: a second, synced POV of the same moment (Multi-POV). */
+  secondary?: SplitPov | null;
 };
+
+/**
+ * The second POV of a side-by-side clip: its own time at the clip's `inMs`.
+ * It moves with every trim, so the alignment never changes. `recordingId` is
+ * null when that recording was deleted (the clip can't render until removed).
+ */
+export type SplitPov = { recordingId: string | null; inMs: number };
 
 export type StoryProject = {
   id: string;

@@ -1,13 +1,13 @@
 "use client";
 
 import { Reorder } from "motion/react";
-import { GripVertical, Plus } from "lucide-react";
+import { Columns2, GripVertical, Plus } from "lucide-react";
 import { useState } from "react";
 import type { StoryClip } from "@/lib/memory/contracts";
 import { clipDuration } from "@/lib/studio/edl";
 import { seconds } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { ClipThumb } from "./clip-thumb";
+import { ClipThumb, secondOf } from "./clip-thumb";
 import type { StudioLibrary } from "./types";
 
 const PX_PER_SEC = 9;
@@ -76,6 +76,7 @@ export function ClipTimeline({
             if (!clip) return null;
             const rec = library.recordings[clip.recordingId];
             const moment = clip.momentId ? library.moments[clip.momentId] : undefined;
+            const second = secondOf(library, clip);
             const isSel = clip.id === selectedId;
             const width = Math.max(MIN_W, (clipDuration(clip) / 1000) * PX_PER_SEC);
             return (
@@ -98,14 +99,19 @@ export function ClipTimeline({
                   onClick={() => onSelect(clip.id)}
                   onKeyDown={(e) => onKeyDown(e, clip, index)}
                   aria-pressed={isSel}
-                  aria-label={`Clip ${index + 1}: ${moment?.title ?? rec?.title}, ${seconds(clipDuration(clip))}${library.issues?.[clip.id] ? `. ${library.issues[clip.id]}` : ""}. Alt+arrows to move, Delete to remove.`}
+                  aria-label={`Clip ${index + 1}: ${moment?.title ?? rec?.title}${second ? `, side by side with ${second === "missing" ? "a deleted POV" : second.title}` : ""}, ${seconds(clipDuration(clip))}${library.issues?.[clip.id] ? `. ${library.issues[clip.id]}` : ""}. Alt+arrows to move, Delete to remove.`}
                   className={cn(
                     "group flex h-full w-full flex-col overflow-hidden rounded-xl border bg-surface-3 text-left transition-[border-color,transform] duration-200 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent motion-reduce:hover:translate-y-0",
                     isSel ? "border-accent shadow-[0_0_0_1px_var(--violet-500)]" : "border-line hover:border-line-strong",
                   )}
                 >
                   <span className="relative block h-16 w-full overflow-hidden">
-                    {rec && <ClipThumb rec={rec} moment={moment} atMs={moment?.startMs ?? clip.inMs} />}
+                    {rec && <ClipThumb rec={rec} moment={moment} atMs={moment?.startMs ?? clip.inMs} second={second} />}
+                    {second && (
+                      <span className="absolute bottom-1.5 right-1.5 grid size-5 place-items-center rounded bg-black/60 text-white" title="Side by side">
+                        <Columns2 className="size-3" aria-hidden />
+                      </span>
+                    )}
                     <span className="absolute left-1.5 top-1.5 grid size-5 place-items-center rounded bg-black/60 font-mono text-[10px] text-white">
                       {index + 1}
                     </span>

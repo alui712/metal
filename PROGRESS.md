@@ -22,10 +22,26 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 | Story Studio management | ✅ Complete |
 | 8C Demo readiness | ✅ Complete |
 | Judge Experience (showcase, guided tour, home polish) | ✅ Complete |
+| Multi-POV split-screen export | ✅ Complete (branch `feat/split-screen-export`) |
 | Demo video / trailer | ⏳ Not started |
 | Stretch: Wrapped · Desktop packaging (Electron) | ⏳ Not started |
 
 ---
+
+## Multi-POV split-screen export ✅ (2026-10-25)
+
+- **Flow:** Multi-POV side by side → "Clip both POVs to Story Studio" → one side-by-side clip (both recording ids, plus the second POV's aligned in-point) → trim and caption → Export MP4 with both POVs in one frame (ADR 0021).
+  - Single view and existing stories are unchanged.
+- **Fixed in the export:** a source that changes frame properties mid-clip (such as a Medal outro) made FFmpeg rebuild the graph, which skipped footage in every clip. All clip inputs now use `-reinit_filter 0`.
+- **Verified:**
+  - typecheck, lint, 212 tests (10 whisper/embedding tests skip without `models/`), and a production build.
+  - The real-FFmpeg split test is frame-exact and fails on a 3-frame shift or without the fix.
+  - Isolated copy on the real PEAK pair:
+    - 18/18 UI checks, including the handoff, trim keeping a 2507 ms lag, the caption, preview drift ≤ 59 ms, and a single-POV regression export.
+    - Export: 1920×1080, 30 fps, 6.48 s; strict full decode passes; each half matches its source within 1 frame.
+- **Limits:**
+  - Two POVs per clip; no independent trim of the second POV.
+  - The audio check could not confirm the pair's manual offset (inconclusive), so its accuracy rests on the user's Multi-POV sync.
 
 ## Judge Experience — Memory Dive 2.0 ✅ (2026-10-24)
 

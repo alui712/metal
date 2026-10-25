@@ -30,7 +30,7 @@ import { Button, IconButton } from "@/components/ui/button";
 import { Segmented, Switch } from "@/components/ui/controls";
 import { DemoBadge } from "@/components/ui/demo-badge";
 import { StepStrip } from "@/components/ui/how-it-works";
-import { ClipThumb } from "./clip-thumb";
+import { ClipThumb, secondOf } from "./clip-thumb";
 import { ClipTimeline } from "./clip-timeline";
 import { AddMomentsDialog, ExportDialog } from "./dialogs";
 import { RealExportDialog, useStoryExports, type ExportView } from "./real-export";
@@ -123,6 +123,7 @@ export function StudioEditor({
   const selRec = selected ? library.recordings[selected.recordingId] : undefined;
   const selMoment = selected?.momentId ? library.moments[selected.momentId] : undefined;
   const selBounds = selected ? bounds[selected.id] : undefined;
+  const selSecond = selected ? secondOf(library, selected) : undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -267,7 +268,7 @@ export function StudioEditor({
               <div className="mt-3">
                 <div className="flex items-center gap-3">
                   <span className="relative aspect-video w-20 shrink-0 overflow-hidden rounded-lg ring-1 ring-line">
-                    <ClipThumb rec={selRec} moment={selMoment} atMs={selMoment?.startMs ?? selected.inMs} />
+                    <ClipThumb rec={selRec} moment={selMoment} atMs={selMoment?.startMs ?? selected.inMs} second={selSecond} />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-[14px] font-medium text-ink">{selMoment?.title ?? selRec.title}</span>
@@ -276,6 +277,14 @@ export function StudioEditor({
                     </span>
                   </span>
                 </div>
+                {selSecond && (
+                  <p className="mt-3 rounded-xl border border-line bg-surface px-3 py-2 text-[12px] leading-relaxed text-ink-muted">
+                    <span className="font-medium text-ink">Side by side · aligned.</span>{" "}
+                    {selSecond === "missing"
+                      ? "The second POV’s recording was deleted, so this clip can’t be exported. Remove it."
+                      : `${selRec.title} (sound) next to ${selSecond.title}, at the sync from Multi-POV. Trimming moves both together.`}
+                  </p>
+                )}
 
                 <label htmlFor="clip-caption" className="mt-5 block text-[13px] font-medium text-ink-muted">Caption</label>
                 <input
@@ -315,7 +324,7 @@ export function StudioEditor({
                       </label>
                     );
                   })}
-                  <p className="mt-2 text-[11.5px] text-ink-faint">{selected.momentId ? "Up to 10 s of handles around the moment." : "Anywhere within the recording."}</p>
+                  <p className="mt-2 text-[11.5px] text-ink-faint">{selSecond ? "Wherever both POVs have footage." : selected.momentId ? "Up to 10 s of handles around the moment." : "Anywhere within the recording."}</p>
                 </fieldset>
 
                 <div className="mt-5 flex items-center gap-2">
@@ -452,7 +461,7 @@ const saveBody = (p: StoryProject) =>
     aspect: p.aspect,
     framing: p.framing ?? "fill",
     captions: p.captions,
-    clips: p.clips.map((c) => ({ recordingId: c.recordingId, suggestionId: c.momentId, inMs: c.inMs, outMs: c.outMs, caption: c.caption })),
+    clips: p.clips.map((c) => ({ recordingId: c.recordingId, suggestionId: c.momentId, inMs: c.inMs, outMs: c.outMs, caption: c.caption, secondary: c.secondary ?? null })),
   });
 
 /** Saves a real story shortly after each edit, on demand (before export), and when the page is hidden. */

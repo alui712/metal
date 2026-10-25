@@ -23,3 +23,21 @@ export const frameMs = (fps: number | null | undefined) => 1000 / (fps && fps > 
 export function signedSeconds(ms: number): string {
   return `${ms < 0 ? "−" : "+"}${(Math.abs(ms) / 1000).toFixed(2)} s`;
 }
+
+/**
+ * A side-by-side clip around the primary's own time `ownMs`: the in/out (primary's
+ * own time) clamped to where BOTH POVs have footage, and the second POV's own time
+ * at the in-point. null when they overlap for less than `minMs` there.
+ */
+export function splitWindow(
+  primary: SyncedPov,
+  second: SyncedPov,
+  ownMs: number,
+  { beforeMs, afterMs, minMs }: { beforeMs: number; afterMs: number; minMs: number },
+): { inMs: number; outMs: number; secondaryInMs: number } | null {
+  // The same moment is own time t in the primary and t − lag in the second POV.
+  const lag = second.offsetMs - primary.offsetMs;
+  const inMs = Math.ceil(Math.max(0, lag, ownMs - beforeMs));
+  const outMs = Math.floor(Math.min(primary.durationMs, lag + second.durationMs, ownMs + afterMs));
+  return outMs - inMs >= minMs ? { inMs, outMs, secondaryInMs: inMs - lag } : null;
+}

@@ -489,6 +489,12 @@ export const storyClips = sqliteTable(
     inMs: integer("in_ms").notNull(),
     outMs: integer("out_ms").notNull(),
     caption: text("caption"),
+    /** "side_by_side": a second, synced POV shares the frame (Multi-POV handoff). */
+    layout: text("layout", { enum: ["single", "side_by_side"] }).notNull().default("single"),
+    /** null on a side-by-side clip: that POV's recording was deleted (the clip can't render until removed). */
+    secondaryRecordingId: text("secondary_recording_id").references(() => recordings.id, { onDelete: "set null" }),
+    /** The secondary's own time at `inMs`, frozen at handoff so regrouping the POVs can't shift it. */
+    secondaryInMs: integer("secondary_in_ms"),
   },
   (t) => [index("story_clips_project_idx").on(t.projectId, t.position)],
 );
