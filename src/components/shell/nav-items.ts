@@ -2,6 +2,7 @@ import {
   Activity,
   CircleDot,
   Clapperboard,
+  Columns2,
   History,
   LibraryBig,
   Radio,
@@ -29,6 +30,7 @@ export const primaryNav: NavItem[] = [
   { href: "/clips", label: "Smart Clip", shortLabel: "Clips", hint: "Suggested clips from your recordings", icon: Scissors },
   { href: "/recall", label: "Recall", hint: "Search your memories", icon: Search },
   { href: "/sessions", label: "Time Machine", shortLabel: "Sessions", hint: "Relive your sessions", icon: History },
+  { href: "/povs", label: "Multi-POV", shortLabel: "POV", hint: "Synced angles of one match, side by side", icon: Columns2 },
   { href: "/studio", label: "Story Studio", shortLabel: "Studio", hint: "Cut a montage", icon: Clapperboard },
 ];
 

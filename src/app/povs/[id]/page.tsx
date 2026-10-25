@@ -51,7 +51,7 @@ async function Viewer({ params, searchParams }: Pick<PageProps<"/povs/[id]">, "p
       initial={group}
       focusId={rec}
       startOwnMs={rec && Number.isFinite(t) && t >= 0 ? t : undefined}
-      backHref={judge ? "/showcase" : rec ? `/recordings/${rec}#povs` : "/library"}
+      backHref={judge ? "/showcase" : rec ? `/recordings/${rec}#povs` : "/povs"}
       judge={judge}
     />
   );

@@ -29,6 +29,22 @@ Product: a local, **web-first** gameplay recording and clipping app (Next.js ser
 
 ---
 
+## Multi-POV in the main navigation ✅ (2026-10-25)
+
+- **Sidebar and phone tab bar:** a Multi-POV item (`Columns2` icon) between Time Machine and Story Studio. It is highlighted on `/povs` and inside every group viewer, and the command palette lists it. The phone tab bar now has 7 columns ("POV").
+- **`/povs` landing page:** real groups from `listPovGroups` (`src/server/pov/povs.ts`), most recently edited first. Each card shows:
+  - the first two POVs' posters side by side;
+  - player or recording names, POV count, game, date and timeline length;
+  - sync state (confirmed or suggested), how it was aligned, and how long all POVs overlap;
+  - an **Open Multi-POV** action.
+- **Empty state:** explains the existing Library → Find other POVs → pair → confirm workflow. No new syncing.
+- **Viewer:** unchanged, except that Back goes to `/povs` when the viewer wasn't opened from a recording.
+- **Verified (isolated copy of the visual-recall integration data, port 3109):**
+  - typecheck, lint, 244/244 unit tests (3 new), build;
+  - 32 browser checks: sidebar order and active state, cards match the DB with loaded posters, open group, one POV + key 2, a ±100 ms nudge round-trip, V side by side, Clip both POVs → split preview → real split MP4, palette, 390 tab bar, guided demo step 3 still read-only;
+  - empty state at 1440 and 390;
+  - Recall check 22/23: the one failure is the documented "underwater" CLIP limitation.
+
 ## Integration candidate: experimental CLIP scene search in Recall ✅ (2026-10-25)
 
 - **Branch `feat/integration-visual-recall`:** this is `feat/integration` (`ac6f1e0`) plus the CLIP Visual Recall from `feat/visual-recall` (`e08f41f` and `c02d647`). It contains no Qwen code, no `vlm-eval` scripts and no HALT lock. Not merged.

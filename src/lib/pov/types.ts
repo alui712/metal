@@ -24,6 +24,16 @@ export type PovMember = {
 
 export type PovGroupView = { id: string; members: PovMember[]; startMs: number; endMs: number };
 
+/** A group as the Multi-POV landing page lists it. */
+export type PovGroupSummary = PovGroupView & {
+  updatedAt: number;
+  /** How long every POV has footage at once (0 when they never all overlap). */
+  sharedMs: number;
+  /** Every non-anchor offset was confirmed or set by the user. */
+  confirmed: boolean;
+  method: "audio" | "clock" | "manual" | "mixed";
+};
+
 export type PovCandidate = {
   recordingId: string;
   title: string;

@@ -8,7 +8,7 @@ import { PermanentJobError } from "../jobs/errors";
 import { APPROXIMATE_SOURCES, type RecordedAtSource } from "../media/recorded-time";
 import { managedPath } from "../media/storage";
 import type { MediaUrls } from "../timemachine/sessions";
-import type { PovCandidate, PovGroupView, PovView, TimeEvidence } from "@/lib/pov/types";
+import type { PovCandidate, PovGroupSummary, PovGroupView, PovView, TimeEvidence } from "@/lib/pov/types";
 import { alignEnvelopes, classifyAlignment, decodeEnvelope } from "./audio-sync";
 
 // Multi-POV (ADR 0019). Candidates come only from evidence: recording clocks
@@ -146,6 +146,26 @@ export function groupView(db: Db, groupId: string, urls: MediaUrls): PovGroupVie
     startMs: Math.min(...members.map((m) => m.offsetMs)),
     endMs: Math.max(...members.map((m) => m.offsetMs + m.durationMs)),
   };
+}
+
+/** Every POV group, most recently edited first (the Multi-POV landing page). */
+export function listPovGroups(db: Db, urls: MediaUrls): PovGroupSummary[] {
+  const groups = db.select({ id: povGroups.id, updatedAt: povGroups.updatedAt }).from(povGroups).orderBy(desc(povGroups.updatedAt)).all();
+  return groups.flatMap(({ id, updatedAt }) => {
+    const g = groupView(db, id, urls);
+    if (!g) return [];
+    const others = g.members.filter((m) => m.syncSource !== "anchor");
+    const methods = new Set(others.map((m) => m.syncSource as Exclude<PovGroupSummary["method"], "mixed">));
+    const sharedStart = Math.max(...g.members.map((m) => m.offsetMs));
+    const sharedEnd = Math.min(...g.members.map((m) => m.offsetMs + m.durationMs));
+    return [{
+      ...g,
+      updatedAt,
+      sharedMs: Math.max(0, sharedEnd - sharedStart),
+      confirmed: others.every((m) => m.syncConfirmed),
+      method: methods.size === 1 ? [...methods][0] : "mixed",
+    }];
+  });
 }
 
 export function povView(db: Db, recordingId: string, urls: MediaUrls): PovView | null {
