@@ -4,6 +4,7 @@ import { CircleAlert, Clapperboard, ExternalLink, LoaderCircle, Mic, Play, Searc
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { buttonClass } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 import { formatDate, timecode } from "@/lib/format";
 import { recallFetch } from "@/lib/recall/fetch";
@@ -98,6 +99,8 @@ export function LibraryRecall() {
   const results = q.trim() && data ? data.results : [];
   const current = results.find((h) => keyOf(h) === selected) ?? results[0] ?? null;
   const hasFilters = FILTERS.some((f) => params.get(f));
+  // Nothing transcribed yet: filters have nothing to narrow, and "try other words" would mislead.
+  const emptyIndex = known !== null && known.index.segments === 0;
 
   /** Loads a hit into the player at its exact second; plays it when asked. */
   const cue = useCallback((h: Hit, autoplay: boolean) => {
@@ -166,7 +169,7 @@ export function LibraryRecall() {
           </Link>
         </p>
       )}
-      <div className={cn("mt-4 flex flex-wrap items-end gap-3 text-[12.5px]", judge && "hidden")} aria-label="Filters">
+      <div className={cn("mt-4 flex flex-wrap items-end gap-3 text-[12.5px]", (judge || (emptyIndex && !hasFilters)) && "hidden")} aria-label="Filters">
         <label className="flex min-w-0 flex-col gap-1 text-ink-faint">
           Recording
           <select value={params.get("recording") ?? ""} onChange={(e) => nav({ recording: e.target.value || null })} className="h-9 max-w-[16rem] rounded-lg border border-line bg-surface-2 px-2 text-ink">
@@ -225,17 +228,38 @@ export function LibraryRecall() {
         </div>
       )}
 
-      {!q.trim() && known && known.index.segments === 0 && (
-        <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center">
-          <p className="text-[15px] font-medium text-ink">Nothing to search yet</p>
-          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
-            Recall searches what was said in your recordings. Open a recording and choose <span className="text-ink">Transcribe speech</span> first.
-          </p>
-          <Link href="/library" className="mt-4 inline-block text-[13px] font-medium text-accent-ink hover:text-white">Go to Library →</Link>
+      {!q.trim() && known && known.index.segments > 0 && !judge && (
+        <ul aria-label="Search tips" className="mt-6 grid gap-2 text-[12.5px] leading-relaxed text-ink-muted sm:grid-cols-3">
+          {[
+            ["Exact words", "Type a phrase someone said, like “behind you”."],
+            known.semantic.available
+              ? ["Or the gist", "Approximate wording works too — describe what was said in your own words."]
+              : ["Use their words", "Matching by meaning isn’t set up, so search for words that were actually said."],
+            ["Opens at the second", "Each result plays from the real timestamp in the recording."],
+          ].map(([title, body]) => (
+            <li key={title} className="rounded-xl border border-line bg-surface-2/50 px-3.5 py-2.5">
+              <span className="block font-medium text-ink">{title}</span>
+              {body}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {emptyIndex && (!q.trim() || (data && results.length === 0)) && (
+        <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center" role={q.trim() ? "status" : undefined}>
+          <Mic className="mx-auto size-6 text-accent-ink" strokeWidth={1.5} aria-hidden />
+          <p className="mt-3 text-[15px] font-medium text-ink">{q.trim() ? "There’s no transcribed speech to search yet" : "Nothing to search yet"}</p>
+          <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">Recall searches what was said in your recordings, so a recording needs a transcript first.</p>
+          <ol className="mx-auto mt-4 max-w-sm space-y-1 text-left text-[13px] text-ink-muted">
+            <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">1</span>Open a recording in your Library.</li>
+            <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">2</span>Choose <span className="text-ink">Transcribe speech</span> under the player.</li>
+            <li><span className="mr-2 font-mono text-[11.5px] text-accent-ink">3</span>Come back here and search — results open at the exact second.</li>
+          </ol>
+          <Link href="/library" className={buttonClass("secondary", "sm", "mt-5")}>Go to Library</Link>
         </div>
       )}
 
-      {q.trim() && data && results.length === 0 && (
+      {q.trim() && data && results.length === 0 && !emptyIndex && (
         <div className="mt-10 rounded-2xl border border-dashed border-line-strong px-6 py-10 text-center" role="status">
           <p className="text-[15px] font-medium text-ink">No moments match “{data.query}”</p>
           <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">

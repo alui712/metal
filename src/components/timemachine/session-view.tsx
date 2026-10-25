@@ -155,16 +155,23 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
                 <Play className="size-4 fill-current" aria-hidden /> Relive {selected.size ? `${selected.size} selected` : "this night"}
               </Link>
             ) : (
-              <span className={buttonClass("primary", "md", "pointer-events-none opacity-45")} aria-disabled="true">
+              <span className={buttonClass("primary", "md", "pointer-events-none opacity-45")} aria-disabled="true" aria-describedby="relive-hint">
                 <Play className="size-4" aria-hidden /> Relive this night
               </span>
             )}
             {!judge && (
-              <button type="button" disabled={busy || selected.size === 0} onClick={toStudio} className={buttonClass("secondary", "md", "bg-black/40 backdrop-blur")}>
+              <button type="button" disabled={busy || selected.size === 0} onClick={toStudio} aria-describedby="relive-hint" className={buttonClass("secondary", "md", "bg-black/40 backdrop-blur")}>
                 <Scissors className="size-4" aria-hidden /> Send {selected.size || ""} to Story Studio
               </button>
             )}
           </div>
+          <p id="relive-hint" className="mt-3 max-w-2xl text-[12.5px] leading-relaxed text-ink-muted">
+            {moments.length === 0
+              ? "Relive needs moments. Open a recording below and choose Find moments — then you can play the night back here."
+              : selected.size === 0
+                ? `Relive plays every moment in order, crossfading between recordings. Select moments below to relive${judge ? "" : " or send"} only those.`
+                : `${selected.size} moment${selected.size === 1 ? "" : "s"} selected.${judge ? "" : " Relive them, or send them to Story Studio to make a montage."}`}
+          </p>
           {error && (
             <p role="alert" className="mt-3 text-[13px] text-danger">
               {error}
@@ -257,7 +264,7 @@ export function SessionView({ data, judge = false }: { data: SessionDetail; judg
             ))}
           </ul>
           <div className="mt-5 flex flex-wrap items-center gap-3 border-t border-line pt-5 text-[13px]">
-            {data.others.length > 0 && (
+            {data.others.length > 0 && !judge && (
               <label className="flex items-center gap-2 text-ink-muted">
                 Merge into
                 <select

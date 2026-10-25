@@ -99,7 +99,7 @@ export function StoriesHome() {
           <h1 className="text-[clamp(1.9rem,4vw,3rem)] font-semibold leading-tight tracking-[-0.03em] text-ink">
             Your stories, <span className="font-display font-normal italic text-accent-ink">cut together.</span>
           </h1>
-          <p className="mt-2 max-w-xl text-[14.5px] text-ink-muted">Pick moments in Time Machine or Recall, arrange them here, and render a real MP4 from your recordings.</p>
+          <p className="mt-2 max-w-xl text-[14.5px] text-ink-muted">Start a story from a Time Machine session, a Recall result, or a Smart Clip suggestion — then arrange, trim, preview and export a real MP4 from your recordings.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/sessions" className={buttonClass("primary", "md")}>
@@ -132,7 +132,7 @@ export function StoriesHome() {
           <Film className="mx-auto size-7 text-accent-ink" strokeWidth={1.5} aria-hidden />
           <p className="mt-4 text-[16px] font-medium text-ink">No stories yet</p>
           <p className="mx-auto mt-1.5 max-w-md text-[13.5px] text-ink-muted">
-            Turn your best moments into a story. Select moments from a session, or begin with a line you found in Recall.
+            Turn your best moments into a story. Select moments from a session, begin with a line you found in Recall, or choose Send to Story Studio on a Smart Clip suggestion.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Link href="/sessions" className={buttonClass("primary", "md")}><Clapperboard className="size-4" aria-hidden /> Browse sessions</Link>

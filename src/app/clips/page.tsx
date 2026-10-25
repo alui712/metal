@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { RecordingTile } from "@/components/recordings/recording-tile";
 import { AutoRefresh } from "@/components/recordings/auto-refresh";
 import { AnalyzeButton } from "@/components/smartclip/analyze-button";
+import { StepStrip } from "@/components/ui/how-it-works";
 import { EmptyState, PageContainer, PageHeader, SectionHeading } from "@/components/ui/page";
 import { PageTransition } from "@/components/ui/page-transition";
 import { cn } from "@/lib/cn";
@@ -23,8 +24,9 @@ export default function ClipsPage() {
         <PageHeader
           eyebrow="Smart Clip"
           title="Moments worth keeping"
-          description="METAL measures each recording — sudden loudness, sharp picture changes — and suggests clips around what it finds, with the evidence. You decide what to keep."
+          description="METAL measures each recording — sudden loudness, sharp picture changes — and suggests clips around what it finds, with the evidence. It doesn’t recognize kills or game events; you decide what to keep."
         />
+        <StepStrip label="Smart Clip steps" steps={["Import", "Find moments", "Preview", "Adjust", "Save clip"]} className="-mt-6 mb-10" />
         <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-surface-2" />}>
           <Overview />
         </Suspense>
@@ -85,7 +87,7 @@ async function Overview() {
           </ul>
         ) : (
           <p className="rounded-2xl border border-dashed border-line-strong px-5 py-8 text-center text-[13.5px] text-ink-muted">
-            {overview.length ? "No open suggestions. Everything has been saved or dismissed — or nothing stood out." : "Nothing analyzed yet. Pick a recording below to find its moments."}
+            {overview.length ? "No open suggestions. Everything has been saved or dismissed — or nothing stood out." : "Nothing analyzed yet. Choose Find moments on a recording below — suggestions appear here when it’s done."}
           </p>
         )}
         {running.length > 0 && (

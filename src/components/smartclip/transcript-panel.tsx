@@ -1,6 +1,7 @@
 "use client";
 
-import { Flag, Lock, LoaderCircle, Mic, RotateCcw, TriangleAlert, Undo2 } from "lucide-react";
+import { Flag, Lock, LoaderCircle, Mic, RotateCcw, Search, TriangleAlert, Undo2 } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
@@ -11,6 +12,7 @@ const STAGE: Record<string, string> = { audio: "Preparing audio", voice: "Findin
 
 /** Timestamped transcript from local whisper.cpp; click a line to play from there. */
 export function TranscriptPanel({
+  recordingId,
   t,
   workerOnline,
   nowMs,
@@ -19,6 +21,7 @@ export function TranscriptPanel({
   onSeek,
   onFlag,
 }: {
+  recordingId: string;
   t: Transcript | undefined;
   workerOnline: boolean;
   nowMs: number;
@@ -47,7 +50,7 @@ export function TranscriptPanel({
             <Mic className="size-4 text-accent-ink" aria-hidden /> Transcript
           </h2>
           <p className="mt-1 text-[13px] leading-relaxed text-ink-muted" aria-live="polite">
-            {t.status === "none" && (t.setup.available ? "Turn speech in this recording into timestamped text." : t.setup.reason)}
+            {t.status === "none" && (t.setup.available ? "Turn speech in this recording into timestamped text — that’s what Recall searches." : t.setup.reason)}
             {running && (
               <span className="inline-flex items-center gap-2 text-accent-ink">
                 <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
@@ -117,7 +120,12 @@ export function TranscriptPanel({
               </li>
             ))}
           </ol>
-          <p className="border-t border-line px-5 py-2.5 text-[11.5px] text-ink-faint">Machine transcription — words may be wrong, and it doesn’t identify who is speaking. Use the flag to mark a wrong line.</p>
+          <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t border-line px-5 py-2.5 text-[11.5px] text-ink-faint">
+            <p>Machine transcription — words may be wrong, and it doesn’t identify who is speaking. Use the flag to mark a wrong line.</p>
+            <Link href={`/recall?recording=${recordingId}`} className="inline-flex shrink-0 items-center gap-1 font-medium text-accent-ink hover:text-white">
+              <Search className="size-3.5" aria-hidden /> Search it in Recall
+            </Link>
+          </div>
         </>
       )}
     </section>

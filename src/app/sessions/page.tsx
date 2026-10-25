@@ -25,7 +25,8 @@ export default function SessionsPage() {
           }
           description={
             <>
-              Your recordings, grouped by when they were actually recorded. Open a night to walk through its moments or relive them.{" "}
+              A session is a run of recordings made close together — a new one starts after the break you choose below. Moments found by Smart Clip
+              appear on each session’s timeline; open a night to relive them in order.{" "}
               <Link href="/sessions/demo" className="font-medium text-accent-ink hover:text-white">
                 See the demo sessions →
               </Link>

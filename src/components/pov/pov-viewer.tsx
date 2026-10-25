@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Scrubber } from "@/components/media/scrubber";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/controls";
+import { HowItWorks } from "@/components/ui/how-it-works";
 import { cn } from "@/lib/cn";
 import { timecode } from "@/lib/format";
 import { coverage, frameMs, nearestCovered, signedSeconds, toOwnTime } from "@/lib/pov/sync";
@@ -493,6 +494,18 @@ export function PovViewer({ initial, focusId, startOwnMs, backHref, judge = fals
             </p>
           )}
           <p className="text-[11.5px] leading-relaxed text-ink-faint">Space play/pause · ←/→ 5 s · 1–{members.length} switch POV · M mute · V view. Only the selected POV plays sound.</p>
+          <HowItWorks
+            summary="How synced POVs work"
+            steps={[
+              <>All POVs share one timeline. Press <span className="text-ink">play</span> or drag the scrubber and every recording follows.</>,
+              <>Pick a POV in the list, its lane, or press 1–{members.length} to switch. Only the selected POV plays sound.</>,
+              <><span className="text-ink">Side by side</span> shows every POV at once; click one to listen to it.</>,
+              <>
+                <span className="text-ink">Suggested sync</span> came from shared audio or recording clocks; <span className="text-ink">Sync confirmed</span> means someone checked it.
+                {judge ? " Sync editing is off in the prepared demo." : " Use the nudge buttons under This POV to line it up, then choose Sync looks right."}
+              </>,
+            ]}
+          />
         </aside>
       </div>
     </div>

@@ -169,6 +169,15 @@ export function CaptureConsole() {
           </p>
         )}
         {connected && <ReplayHint s={s} wanted={settings.replaySeconds} />}
+        {connected && !s?.lastClip && (
+          <p className="text-ink-faint">
+            Stopped recordings and saved replays are imported into your{" "}
+            <Link href="/library" className="font-medium text-ink-muted hover:text-ink">
+              Library
+            </Link>{" "}
+            automatically.
+          </p>
+        )}
         {error && (
           <p role="alert" className="flex items-start gap-2 text-danger">
             <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden /> {error}
