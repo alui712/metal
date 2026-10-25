@@ -173,6 +173,49 @@ body:has([data-immersive]:not([style*="display: none"])) .tour-dock {
 .intro-film[data-paused] .intro-drift {
   animation-play-state: paused;
 }
+/* Petals: transform/opacity only, so they stay on the compositor. */
+.intro-petals {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .intro-petals {
+    display: block;
+  }
+}
+.intro-petals span {
+  position: absolute;
+  top: -4%;
+  border-radius: 100% 0 100% 0;
+  background: linear-gradient(135deg, rgb(255 222 240), rgb(232 170 214) 55%, rgb(190 150 255));
+  box-shadow: 0 0 14px rgb(255 190 225 / 0.45);
+  opacity: 0;
+  will-change: transform, opacity;
+  animation-name: petal-fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+.intro-film[data-paused] .intro-petals span {
+  animation-play-state: paused;
+}
+@keyframes petal-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  10% {
+    opacity: 0.8;
+  }
+  50% {
+    transform: translate3d(var(--sway), 55vh, 0) rotate(160deg);
+  }
+  88% {
+    opacity: 0.65;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--sway) * -0.4), 108vh, 0) rotate(320deg);
+  }
+}
 @keyframes intro-drift {
   from {
     scale: 1;

@@ -23,6 +23,16 @@ const SHOT_MS = 1850;
 const AMBIENT_MS = 3500;
 const MAX_VIDEO_MS = 7000;
 const SEEN_KEY = "metal.showcase.intro";
+// Fixed so server and client render the same petals: position (%), size (px), fall time and offset (s), sideways drift (px).
+const PETALS = [
+  { x: 8, size: 16, dur: 19, delay: 2, sway: 40 },
+  { x: 21, size: 13, dur: 24, delay: 11, sway: -30 },
+  { x: 37, size: 17, dur: 21, delay: 6, sway: 50 },
+  { x: 52, size: 14, dur: 26, delay: 17, sway: -45 },
+  { x: 66, size: 18, dur: 22, delay: 3, sway: 35 },
+  { x: 79, size: 13, dur: 25, delay: 14, sway: -38 },
+  { x: 91, size: 15, dur: 20, delay: 9, sway: 42 },
+];
 
 // One tiny store so the film, the header controls and the card gate agree.
 let phase: Phase = "playing";
@@ -215,6 +225,12 @@ export function IntroFilm({ shots, video, introCount }: { shots: IntroShot[]; vi
       <div className="absolute inset-0 z-[4] bg-[linear-gradient(to_top,var(--graphite-950)_0%,rgb(7_7_9/0.2)_38%,transparent_55%,rgb(7_7_9/0.75)_86%,var(--graphite-950)_100%)]" />
       <div className="absolute inset-0 z-[4] bg-[radial-gradient(ellipse_at_60%_45%,transparent_45%,rgb(7_7_9/0.55)_100%)]" />
       <div className="absolute inset-0 z-[4] bg-[radial-gradient(60rem_34rem_at_80%_40%,rgb(139_92_255/0.16),transparent_70%)] mix-blend-screen" />
+      {/* A few petals drifting down behind the headline (CSS only; none with reduced motion). */}
+      <div className="intro-petals absolute inset-0 z-[5]">
+        {PETALS.map((p, i) => (
+          <span key={i} style={{ left: `${p.x}%`, width: p.size, height: p.size * 0.72, animationDuration: `${p.dur}s`, animationDelay: `${-p.delay}s`, ["--sway" as string]: `${p.sway}px` }} />
+        ))}
+      </div>
       {playing && caption && !(video && useVideo) && (
         // Keyed per shot: a new chip replaces the old one rather than reflowing it.
         <p key={seq} className="absolute bottom-[14%] right-5 z-[5] flex items-center gap-2 rounded-full border border-white/10 bg-black/45 px-3 py-1.5 font-mono text-[11px] tracking-[0.14em] text-white/75 uppercase backdrop-blur sm:right-10 xl:right-16">
