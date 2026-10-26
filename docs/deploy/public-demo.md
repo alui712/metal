@@ -1,5 +1,7 @@
 # Public online demo
 
+> **Status: prepared, not deployed.** No sample footage is cleared for public distribution yet. The data builder refuses to run until a clearance list names every recording it would publish.
+
 A separate, read-only copy of METAL for people who can't run it locally. It's built from a few approved sample recordings that are already indexed. It never connects to the computer METAL normally runs on.
 
 ## What runs online
@@ -24,6 +26,7 @@ Read-only mode is on only when `METAL_PUBLIC_DEMO=1`. The guard is pure and test
 `scripts/public-demo/build-data.mjs` copies the database with SQLite's backup API (it only reads the source), then:
 
 - keeps only the recordings listed in `judge-demo.json`, their story, POV group and export;
+- refuses unless each of those recordings is on the clearance list (`cleared.json`: `{"recordings": ["rec_…"], "clearedBy": "…", "date": "…"}`) — footage, voices and on-screen player names must be cleared for public use;
 - deletes jobs, worker heartbeats, OBS state, watched folders and settings;
 - clears every `source_path`;
 - runs `VACUUM`, so deleted rows don't linger in free pages.
@@ -36,7 +39,7 @@ The image holds the code, about 140 MB of demo data and about 170 MB of models. 
 
 ```bash
 # 1. Stage: committed code + demo data (outside the repo)
-scripts/public-demo/stage.sh ~/Projects/metal/data ../metal-demo-deploy
+scripts/public-demo/stage.sh ~/Projects/metal/data ../metal-demo-deploy path/to/cleared.json
 
 # 2. Deploy from the staged folder (Railway CLI: npm i -g @railway/cli)
 cd ../metal-demo-deploy

@@ -6,10 +6,7 @@
 <p align="center"><strong>Every moment has a story.</strong><br/>A local-first gaming memory platform that turns raw gameplay recordings into moments you can search, relive and recut.</p>
 
 <p align="center">
-  🥈 <strong>2nd place, HACKATHON_NAME</strong> ·
-  <a href="DEMO_VIDEO_URL">Demo video</a> ·
-  <a href="LIVE_DEMO_URL">Live demo (read-only)</a> ·
-  Status: <strong>Experimental</strong>
+  🥈 <strong>2nd Place Hackathon Winner</strong> · Status: <strong>Experimental</strong>
 </p>
 
 > [!NOTE]
@@ -32,30 +29,22 @@ Every gamer has a folder of recordings they never open again. METAL runs on your
 | **Multi-POV** | Pairs your recording with a teammate's view of the same match. Sync is suggested from recording clocks and shared audio (spectral flux + FFT cross-correlation); you confirm it or nudge by frames. |
 | **Story Studio** | Arrange, trim and caption clips, then export a real MP4 rendered locally with FFmpeg, including side-by-side POV clips and burned-in captions. |
 
+<sub>Screenshots use METAL's built-in demo fixtures (illustrated scenes, fictional players, labelled "Demo data" in the app), not real gameplay.</sub>
+
 <table>
   <tr>
-    <td><img src="docs/screenshots/recall-speech.jpg" alt="Recall finding a spoken line by exact words and meaning" /></td>
-    <td><img src="docs/screenshots/recall-scenes.jpg" alt="Experimental scene search with an approximate match" /></td>
+    <td><img src="docs/screenshots/recall-demo.jpg" alt="Recall finding moments from a description, with the reasons each one matched" /></td>
+    <td><img src="docs/screenshots/time-machine-demo.jpg" alt="Time Machine: gaming nights on a timeline" /></td>
   </tr>
   <tr>
-    <td align="center"><sub>Recall: a spoken line, found by words and meaning</sub></td>
-    <td align="center"><sub>Visual Recall (experimental): approximate scene match</sub></td>
+    <td align="center"><sub>Recall: describe a moment, jump to the exact second</sub></td>
+    <td align="center"><sub>Time Machine: your nights, in the order they happened</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshots/time-machine.jpg" alt="Time Machine: a gaming night on a timeline" /></td>
-    <td><img src="docs/screenshots/multi-pov.jpg" alt="Multi-POV viewer with confirmed sync" /></td>
+    <td colspan="2"><img src="docs/screenshots/story-studio-demo.jpg" alt="Story Studio: arrange, trim and caption clips, then export an MP4" /></td>
   </tr>
   <tr>
-    <td align="center"><sub>Time Machine: one night, in the order it happened</sub></td>
-    <td align="center"><sub>Multi-POV: two players' views on one timeline</sub></td>
-  </tr>
-  <tr>
-    <td><img src="docs/screenshots/story-studio.jpg" alt="Story Studio with a side-by-side clip and caption" /></td>
-    <td><img src="docs/screenshots/recall-tag.jpg" alt="A hand-tagged Recall result, labelled as checked by hand" /></td>
-  </tr>
-  <tr>
-    <td align="center"><sub>Story Studio: side-by-side POVs, captioned, exported to MP4</sub></td>
-    <td align="center"><sub>A hand-checked tag, labelled as tagged by a person</sub></td>
+    <td colspan="2" align="center"><sub>Story Studio: arrange, trim and caption, then export a real MP4</sub></td>
   </tr>
 </table>
 
@@ -131,9 +120,9 @@ The worker must be running for imports, analysis and exports to finish. All data
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-## Online demo
+## Online demo (prepared, not yet published)
 
-The [live demo](LIVE_DEMO_URL) is a separate, read-only copy of METAL built from a handful of approved sample recordings that were already indexed. It is not connected to anyone's computer.
+A read-only online version is prepared but not yet public. It will be a separate copy of METAL that uses only sample recordings cleared for public use, and it is never connected to anyone's computer.
 
 - Search (speech, meaning, game, tags and experimental scenes), video playback, Time Machine, Multi-POV and the guided tour all work.
 - Recording, importing, editing and exports are refused on the server and shown as "runs on your own computer". No processing jobs run, and there is no worker.
@@ -141,7 +130,7 @@ The [live demo](LIVE_DEMO_URL) is a separate, read-only copy of METAL built from
 
 ## Project status
 
-**Experimental.** METAL was built during a hackathon and placed 2nd. It is a working prototype, not a supported product. A desktop app, speaker labels and natural-language editing are future work.
+**Experimental.** METAL was built during a hackathon, where it won 2nd place. It is a working prototype, not a supported product. A desktop app, speaker labels and natural-language editing are future work.
 
 METAL is an original project. It is not affiliated with or endorsed by Medal, OBS, Riot Games or any game publisher. Game names and footage belong to their respective owners.
 

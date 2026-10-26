@@ -2,7 +2,11 @@
 // Builds the data directory for METAL's public online demo from a local
 // METAL data directory, keeping only the approved sample recordings.
 //
-//   node scripts/public-demo/build-data.mjs <source data dir> <output dir>
+//   node scripts/public-demo/build-data.mjs <source data dir> <output dir> <cleared.json>
+//
+// cleared.json lists the recordings whose footage, voices and on-screen names
+// are cleared for public distribution: { "recordings": ["rec_…"], "clearedBy": "…", "date": "…" }.
+// Every recording the demo would publish must be on it, or nothing is written.
 //
 // The source is only read (SQLite online backup of a read-only handle). The
 // output holds: a scrubbed copy of the database, those recordings' media and
@@ -14,9 +18,9 @@ import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
 
-const [srcDir, outDir] = process.argv.slice(2);
-if (!srcDir || !outDir) {
-  console.error("usage: build-data.mjs <source data dir> <output dir>");
+const [srcDir, outDir, clearedFile] = process.argv.slice(2);
+if (!srcDir || !outDir || !clearedFile) {
+  console.error("usage: build-data.mjs <source data dir> <output dir> <cleared.json>");
   process.exit(2);
 }
 
@@ -26,6 +30,9 @@ const KEEP = config.recordings.map((r) => (typeof r === "string" ? r : r.id));
 const STORIES = [config.story];
 const EXPORTS = config.exports ?? [];
 const POVS = [config.pov];
+const cleared = new Set(JSON.parse(fs.readFileSync(clearedFile, "utf8")).recordings ?? []);
+const uncleared = KEEP.filter((id) => !cleared.has(id));
+if (uncleared.length) throw new Error(`refusing to publish: not cleared for public distribution: ${uncleared.join(", ")}`);
 if (fs.existsSync(outDir) && fs.readdirSync(outDir).length) throw new Error(`${outDir} is not empty`);
 fs.mkdirSync(outDir, { recursive: true });
 
