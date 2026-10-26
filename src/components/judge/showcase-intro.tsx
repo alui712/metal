@@ -89,7 +89,8 @@ export function IntroFilm({ shots, video, introCount }: { shots: IntroShot[]; vi
     try {
       seen = sessionStorage.getItem(SEEN_KEY) === "1";
     } catch {}
-    if (seen || reduce || matchMedia("(prefers-reduced-motion: reduce)").matches) set("done");
+    // No shots (an empty library, or the online fixture demo): nothing to play, so don't hold the cards back.
+    if (seen || reduce || n === 0 || matchMedia("(prefers-reduced-motion: reduce)").matches) set("done");
     else phase = "playing";
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && finishIntro();
     window.addEventListener("keydown", onKey);
@@ -97,7 +98,7 @@ export function IntroFilm({ shots, video, introCount }: { shots: IntroShot[]; vi
       window.removeEventListener("keydown", onKey);
       set("playing"); // the next visit decides again
     };
-  }, [reduce]);
+  }, [reduce, n]);
 
   // One 16:9 presentation: fill the stage when it's close to 16:9, otherwise show the whole
   // frame over a soft fill of itself instead of cropping hard (phones, ultrawide).
