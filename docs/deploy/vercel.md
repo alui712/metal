@@ -27,13 +27,15 @@ Fixture mode is on whenever `VERCEL=1`, which Vercel sets for every build and fu
 
 ## Set up automatic deployments (GitHub integration)
 
-1. Sign in at vercel.com → **Add New… → Project → Import Git Repository** → pick `alui712/metal`. Grant the Vercel GitHub app access to that one repository; Hobby supports private repos.
-2. Framework preset: **Next.js**. Leave the build command and output directory at their defaults, and add **no** environment variables.
-3. **Settings → Git → Production Branch:** `release/public-clean`, or `main` once it's merged with your approval.
-4. Keep **Deployment Protection** (Vercel Authentication) on for preview deployments. Every other branch push then gets a private preview, and only the production branch is public.
-5. Optionally add a custom domain under **Settings → Domains**.
+Connect the existing `metal-demo` project; don't import the repo as a new project, which would create a duplicate.
 
-CLI alternative (already logged in): from a clean export of the branch, run `npx vercel@65 deploy` for a protected preview, or `npx vercel@65 deploy --prod` to publish.
+1. Vercel → project **metal-demo** → **Settings → Git → Connect Git Repository** → GitHub → `alui712/metal`. When the Vercel GitHub app asks, grant it access to **only** that repository. Hobby supports private repos.
+2. **Production Branch:** `main`. Add **no** environment variables; the build switches to fixtures by itself.
+3. Keep **Deployment Protection → Vercel Authentication** on (the default). Pushes then build protected previews only you can open.
+4. Nothing goes public on its own: `vercel.json` sets `github.autoAlias: false`, so even a push to `main` builds a protected deployment and leaves https://metal-demo-xi.vercel.app on the version you last approved.
+5. To publish a reviewed build, open it in **Deployments → ⋯ → Promote**, or run `npx vercel@65 promote <deployment-url> --scope alex-luis-projects`. To roll back, promote the previous deployment again.
+
+CLI alternative (already logged in): from a clean `git archive` export, never a working copy, run `npx vercel@65 deploy` for a protected preview, then promote it.
 
 ## Free-plan fit
 
