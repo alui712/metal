@@ -2,15 +2,22 @@
   <img src="public/metal-mark.svg" width="72" alt="METAL logo" />
 </p>
 
-<h1 align="center">METAL</h1>
+<h1 align="center">METAL — 2nd Place at SBUHacks</h1>
 <p align="center"><strong>Every moment has a story.</strong><br/>A local-first gaming memory platform that turns raw gameplay recordings into moments you can search, relive and recut.</p>
 
 <p align="center">
-  🥈 <strong>2nd Place Hackathon Winner</strong> · Status: <strong>Experimental</strong>
+  🥈 <strong>2nd Place, SBUHacks</strong> ·
+  <a href="https://youtu.be/3pGovSJX-GQ">▶ Demo video</a> ·
+  Status: <strong>Experimental</strong>
 </p>
 
 > [!NOTE]
 > METAL is an experimental, local-first gaming memory platform. AI-powered scene search is based on approximate visual similarity and may not identify every object, action, or event accurately.
+
+<p align="center">
+  <a href="https://youtu.be/3pGovSJX-GQ"><img src="https://img.youtube.com/vi/3pGovSJX-GQ/maxresdefault.jpg" width="720" alt="Watch the METAL demo video on YouTube" /></a><br/>
+  <sub>▶ <a href="https://youtu.be/3pGovSJX-GQ">Watch the demo on YouTube</a></sub>
+</p>
 
 ![METAL showcase](docs/screenshots/showcase.jpg)
 
@@ -130,7 +137,7 @@ A read-only online version is prepared but not yet public. It will be a separate
 
 ## Project status
 
-**Experimental.** METAL was built during a hackathon, where it won 2nd place. It is a working prototype, not a supported product. A desktop app, speaker labels and natural-language editing are future work.
+**Experimental.** METAL was built at SBUHacks, where it won 2nd place. It is a working prototype, not a supported product. A desktop app, speaker labels and natural-language editing are future work.
 
 METAL is an original project. It is not affiliated with or endorsed by Medal, OBS, Riot Games or any game publisher. Game names and footage belong to their respective owners.
 
