@@ -10,7 +10,7 @@ Fixture mode is on whenever `VERCEL=1`, which Vercel sets for every build and fu
 |---|---|
 | Database | An empty in-memory SQLite per function instance. Nothing is read from or written to disk. |
 | Writes | Every `POST`/`PUT`/`PATCH`/`DELETE` is refused with 403 in `src/proxy.ts` |
-| API | Only `GET /api/capture` (the shell's status widget) and `GET /api/health` answer; everything else returns 403 |
+| API | Only `GET /api/capture` (the shell's status widget) answers; everything else returns 403 |
 | Real-library pages | `/recall` → `/recall/demo`, `/sessions` → `/sessions/demo`, `/povs` → `/povs/demo`, `/studio` → `/studio?demo=1`; `/import`, `/sources`, `/settings`, `/clips`, `/status`, `/recordings/*` → `/local-only` |
 | Models | None shipped. `next.config.ts` keeps onnxruntime, transformers.js and sharp out of the functions on Vercel |
 

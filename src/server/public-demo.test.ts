@@ -17,9 +17,9 @@ describe("public demo guard", () => {
 
 describe("fixture demo (Vercel)", () => {
   const sp = (s = "") => new URLSearchParams(s);
-  it("refuses every API except the shell's capture status and health", () => {
-    for (const p of ["/api/recall", "/api/media/rec_x/video", "/api/exports/exp_x", "/api/stories", "/api/visual-frames/x", "/api/recordings"]) expect(demoRefusal("GET", p, true)).not.toBeNull();
-    for (const p of ["/api/capture", "/api/health"]) expect(demoRefusal("GET", p, true)).toBeNull();
+  it("refuses every API except the shell's capture status", () => {
+    for (const p of ["/api/recall", "/api/media/rec_x/video", "/api/exports/exp_x", "/api/stories", "/api/visual-frames/x", "/api/recordings", "/api/health"]) expect(demoRefusal("GET", p, true)).not.toBeNull();
+    expect(demoRefusal("GET", "/api/capture", true)).toBeNull();
     expect(demoRefusal("POST", "/api/capture", true)).toMatch(/read-only/);
   });
   it("sends real-library pages to their fixture versions", () => {

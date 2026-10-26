@@ -20,8 +20,8 @@ const WRITE = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 /** GET routes that describe this computer (OBS connection settings, watched folders): not part of the demo. */
 const LOCAL_ONLY = [/^\/api\/capture\/config(\/|$)/, /^\/api\/sources(\/|$)/];
 
-/** Fixture demo: the only API reads the pages make (the shell's capture status, health). */
-const FIXTURE_API = [/^\/api\/capture$/, /^\/api\/health$/];
+/** Fixture demo: the only API read the pages make (the shell's capture status, from the empty in-memory database). */
+const FIXTURE_API = [/^\/api\/capture$/];
 
 /** Pure: why the demo refuses a request, or null to let it through. */
 export function demoRefusal(method: string, pathname: string, fixtures = false): string | null {
