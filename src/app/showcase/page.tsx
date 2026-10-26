@@ -14,6 +14,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Reveal } from "@/components/ui/motion";
 import { duration, plural } from "@/lib/format";
 import { spotlight, tourTargets } from "@/server/judge/spotlight";
+import { isFixtureDemo } from "@/server/public-demo";
 
 export const metadata: Metadata = {
   title: "Showcase",
@@ -37,7 +38,7 @@ export default function ShowcasePage() {
           </Suspense>
           <p className="ml-auto hidden items-center gap-2 text-[13px] text-ink-muted sm:flex">
             <ShieldCheck className="size-4 text-accent-ink" aria-hidden />
-            Runs on this computer. Nothing is uploaded.
+            {isFixtureDemo() ? "Online demo with fictional data. METAL itself runs on your computer." : "Runs on this computer. Nothing is uploaded."}
           </p>
           <Link
             href="/"
@@ -132,6 +133,7 @@ async function StartTour() {
 
 async function Featured() {
   await connection();
+  if (isFixtureDemo()) return <SyntheticFan />;
   const { night, reels } = spotlight();
   if (!night || !reels.length) {
     return (
@@ -162,6 +164,30 @@ async function Featured() {
         <p className="mt-6 text-[13px] text-ink-faint lg:mt-2 lg:text-right">
           Real footage from <span className="font-medium text-ink-muted">{night.title}</span>: {plural(night.recordingCount, "recording")},{" "}
           {duration(night.footageMs)} of footage. <PlayHint />
+        </p>
+      </Reveal>
+    </div>
+  );
+}
+
+/** Fixture demo: the two synthetic Multi-POV clips (scripts/public-demo/make-pov-demo.mts), never real footage. */
+function SyntheticFan() {
+  const clip = (name: "you" | "kai", title: string) => ({
+    id: `demo-${name}`,
+    href: "/povs/demo",
+    imageUrl: `/demo/pov/${name}.jpg`,
+    videoUrl: `/demo/pov/${name}.mp4`,
+    startMs: 0,
+    title,
+    detail: "synthetic clip",
+    label: `Play the synthetic ${title} clip`,
+  });
+  return (
+    <div>
+      <MomentFan cards={[clip("you", "Sector 7 · your POV"), clip("kai", "Sector 7 · Kai’s POV")]} />
+      <Reveal delay={1.2}>
+        <p className="mt-6 text-[13px] text-ink-faint lg:mt-2 lg:text-right">
+          Synthetic clips generated for this online demo, not real gameplay. <PlayHint />
         </p>
       </Reveal>
     </div>

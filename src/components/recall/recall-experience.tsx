@@ -125,7 +125,7 @@ export function RecallExperience() {
 
       <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12.5px] text-ink-faint">
         <DemoBadge />
-        <span>Keyword matching over demo fixtures — semantic search over your own recordings comes later.</span>
+        <span>Live keyword matching over fictional demo memories. Searching your own recordings by what was said, by meaning, and by what was on screen (experimental) runs in Recall.</span>
       </div>
 
       {!q.trim() ? (

@@ -1,4 +1,6 @@
-# Public online demo
+# Public online demo with real sample recordings (not used)
+
+> The hosted demo is the free, fixtures-only Vercel build ([vercel.md](vercel.md)). This Railway option is kept for later, if real footage is ever cleared; it is not deployed.
 
 > **Status: prepared, not deployed.** No sample footage is cleared for public distribution yet. The data builder refuses to run until a clearance list names every recording it would publish.
 

@@ -14,7 +14,7 @@ export default function LocalOnlyPage() {
       <PageHeader
         eyebrow="Online demo"
         title="This part runs on your own computer"
-        description="Recording through OBS, importing videos and watching folders all work on the computer METAL is installed on, and nothing is uploaded. This online demo is read-only, with approved sample recordings that are already indexed."
+        description="Recording through OBS, importing videos, watching folders and analysing your own recordings all happen on the computer METAL is installed on, and nothing is uploaded. This online demo is read-only and has no real recordings."
       />
       <div className="flex max-w-2xl items-start gap-3 rounded-2xl border border-line bg-surface-2/60 p-5 text-[14px] leading-relaxed text-ink-muted">
         <Laptop className="mt-0.5 size-5 shrink-0 text-accent-ink" aria-hidden />

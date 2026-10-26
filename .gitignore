@@ -66,3 +66,5 @@ next-env.d.ts
 *.bak
 /.claude/
 /skills-lock.json
+# synthetic, generated demo clips (scripts/public-demo/make-pov-demo.mts) are the only committed video
+!/public/demo/pov/*.mp4

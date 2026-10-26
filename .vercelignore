@@ -1,0 +1,15 @@
+# The Vercel demo builds only from committed code and fixtures; never upload local data.
+/data
+/models
+/demo-data
+/backups
+/.next
+/node_modules
+*.db
+*.db-*
+*.sqlite*
+*.log
+.env*
+!.env.example
+/.claude
+/skills-lock.json

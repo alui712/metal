@@ -127,13 +127,15 @@ The worker must be running for imports, analysis and exports to finish. All data
 npm run typecheck && npm run lint && npm test && npm run build
 ```
 
-## Online demo (prepared, not yet published)
+## Online demo
 
-A read-only online version is prepared but not yet public. It will be a separate copy of METAL that uses only sample recordings cleared for public use, and it is never connected to anyone's computer.
+A free, read-only demo runs on Vercel *(link added once published)*. It uses **only fictional fixtures and two synthetic clips**: no real recordings, voices, usernames or model weights.
 
-- Search (speech, meaning, game, tags and experimental scenes), video playback, Time Machine, Multi-POV and the guided tour all work.
-- Recording, importing, editing and exports are refused on the server and shown as "runs on your own computer". No processing jobs run, and there is no worker.
-- Set up with `METAL_PUBLIC_DEMO=1`. See [docs/deploy/public-demo.md](docs/deploy/public-demo.md).
+- **Works live:** the showcase and guided tour, keyword search over fictional demo memories, Time Machine and Relive with illustrated stills, Multi-POV playback and switching on the synthetic pair, and Story Studio arranging (nothing is saved).
+- **Local-only:** capture, import, transcription, meaning search, Visual Recall *(experimental)* and MP4 export. They need real recordings and on-device models, and the demo says so instead of faking them.
+- The Multi-POV offset shown is what METAL's audio sync measured on the synthetic clips when the demo was built. It's labelled as such, not presented as live inference.
+
+Details: [docs/deploy/vercel.md](docs/deploy/vercel.md).
 
 ## Project status
 

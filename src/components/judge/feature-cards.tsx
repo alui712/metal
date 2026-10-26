@@ -6,6 +6,7 @@ import { duration, plural } from "@/lib/format";
 import { tourSteps, type TourStepId } from "@/lib/judge/tour";
 import type { Spotlight } from "@/server/judge/spotlight";
 import { tourTargets } from "@/server/judge/spotlight";
+import { isFixtureDemo } from "@/server/public-demo";
 import { FEATURE_ICON } from "./feature-icons";
 
 const PITCH: Record<TourStepId, string> = {
@@ -57,8 +58,25 @@ export function FeatureCards({ spotlight, className }: { spotlight: Spotlight; c
   );
 }
 
+/** Online fixture demo: what each stop shows, and that it's fictional or synthetic. */
+const FIXTURE_EVIDENCE: Record<TourStepId, [string, string]> = {
+  recall: ["“that clutch on B site”", "Live keyword search over fictional memories"],
+  timemachine: ["The Comeback at Sector 7", "A fictional night, illustrated"],
+  pov: ["You + Kai", "Synthetic clips · sync measured when the demo was built"],
+  studio: ["Best of the season", "A fictional story · preview only"],
+};
+
 function Evidence({ id, spotlight: s }: { id: TourStepId; spotlight: Spotlight }) {
   const box = "block rounded-2xl border border-line bg-surface/70 px-3.5 py-3 text-[12.5px] leading-relaxed";
+  if (isFixtureDemo()) {
+    const [title, note] = FIXTURE_EVIDENCE[id];
+    return (
+      <span className={box}>
+        <span className="block truncate font-medium text-ink">{title}</span>
+        <span className="mt-1 block text-ink-faint">{note}</span>
+      </span>
+    );
+  }
   if (id === "recall") {
     return s.recall ? (
       <span className={box}>

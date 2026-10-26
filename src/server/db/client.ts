@@ -4,6 +4,7 @@ import Database from "better-sqlite3";
 import { drizzle, type BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { paths } from "../config";
+import { isFixtureDemo } from "../public-demo";
 import * as schema from "./schema";
 
 export type Db = BetterSQLite3Database<typeof schema> & {
@@ -34,7 +35,8 @@ const globalForDb = globalThis as unknown as { __metalDb?: Db };
 let migratedThisModule = false;
 
 export function getDb(): Db {
-  if (!globalForDb.__metalDb) globalForDb.__metalDb = openDb(paths.db);
+  // The fixture demo (e.g. on Vercel) has no library and no writable disk: an empty in-memory database.
+  if (!globalForDb.__metalDb) globalForDb.__metalDb = openDb(isFixtureDemo() ? ":memory:" : paths.db);
   else if (!migratedThisModule) migrate(globalForDb.__metalDb, { migrationsFolder: MIGRATIONS_DIR });
   migratedThisModule = true;
   return globalForDb.__metalDb;

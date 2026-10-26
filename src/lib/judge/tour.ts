@@ -9,6 +9,8 @@ export type TourTargets = {
   night: { id: string; title: string } | null;
   pov: { groupId: string; recordingId: string; members: number; status: "confirmed" | "suggested"; method: "audio" | "clock" | "manual" | "mixed" } | null;
   story: { id: string; clipCount: number; exported: boolean } | null;
+  /** Online fixture demo: the stops are the fictional demo pages (`night` is a fixture session). */
+  fixtures?: boolean;
 };
 
 export type TourStepId = "recall" | "timemachine" | "pov" | "studio";
@@ -34,6 +36,7 @@ const METHOD: Record<NonNullable<TourTargets["pov"]>["method"], string> = {
 const J = "judge=1";
 
 export function tourSteps(t: TourTargets): TourStep[] {
+  if (t.fixtures) return fixtureSteps(t);
   const pov = t.pov;
   const r = t.recall;
   const keys = pov ? (pov.members === 2 ? "1 or 2" : `1–${Math.min(pov.members, 6)}`) : "";
@@ -78,6 +81,46 @@ export function tourSteps(t: TourTargets): TourStep[] {
         : "No demo story is prepared. Start one from a night or a moment; Export renders an MP4 on this computer.",
       href: t.story ? `/studio?story=${t.story.id}&${J}` : "/studio",
       match: t.story ? { path: "/studio", params: { story: t.story.id, judge: "1" } } : { path: "/studio" },
+    },
+  ];
+}
+
+/** The online demo's stops: fictional fixtures, and tips that say what is simulated. */
+function fixtureSteps(t: TourTargets): TourStep[] {
+  const q = "that clutch on B site";
+  const night = t.night;
+  return [
+    {
+      id: "recall",
+      label: "Recall",
+      title: "Find a moment by describing it",
+      tip: `Fictional demo memories. The keyword search runs live on them; click a result to jump to its second. Searching real speech by meaning, and experimental scene search, run in the local app.`,
+      href: `/recall/demo?q=${encodeURIComponent(q)}`,
+      match: { path: "/recall/demo" },
+    },
+    {
+      id: "timemachine",
+      label: "Time Machine",
+      title: "Relive the whole night",
+      tip: night ? `${night.title}: a fictional night, in the order it happened. Press “Relive this night” to play its moments back to back (illustrated stills).` : "Fictional nights, grouped the way you played them.",
+      href: night ? `/sessions/${night.id}` : "/sessions/demo",
+      match: night ? { path: `/sessions/${night.id}`, also: new RegExp(`^/sessions/${night.id}/relive$`) } : { path: "/sessions/demo" },
+    },
+    {
+      id: "pov",
+      label: "Multi-POV",
+      title: "Every angle, one moment",
+      tip: "Two synthetic clips generated for this demo, on one timeline. Press 1 or 2 to switch POV, V for side by side.",
+      href: "/povs/demo",
+      match: { path: "/povs/demo" },
+    },
+    {
+      id: "studio",
+      label: "Story Studio",
+      title: "Cut it into a story",
+      tip: "A fictional story. Reorder, trim and caption it; edits aren’t saved, and MP4 export runs in the local app.",
+      href: "/studio?demo=1",
+      match: { path: "/studio", params: { demo: "1" } },
     },
   ];
 }

@@ -4,6 +4,8 @@ import { getDb } from "../db/client";
 import { mediaUrls } from "../timemachine/media-urls";
 import { sessionDetail } from "../timemachine/sessions";
 import { judgeScope } from "./demo";
+import { isFixtureDemo } from "../public-demo";
+import { getMemoryRepository } from "@/lib/memory/repository";
 import { scopeSession } from "@/lib/judge/scope";
 import type { Curated, CuratedPov } from "@/lib/judge/curate";
 import type { SessionSummary, TimelineMoment } from "@/lib/timemachine/types";
@@ -84,6 +86,10 @@ export const spotlight = cache((): Spotlight => {
 
 /** What the guided tour needs from the spotlight (plain data for the client). */
 export function tourTargets(s: Spotlight): TourTargets {
+  if (isFixtureDemo()) {
+    const night = getMemoryRepository().sessions()[0];
+    return { recall: null, night: night ? { id: night.id, title: night.title } : null, pov: null, story: null, fixtures: true };
+  }
   return {
     recall: s.recall ? { line: s.recall.line, recordingId: s.recall.recordingId } : null,
     night: s.night ? { id: s.night.id, title: s.night.title } : null,
