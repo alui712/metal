@@ -52,3 +52,17 @@ next-env.d.ts
 
 # showcase intro montage (approved local media; supplied separately, never committed)
 /public/showcase/intro.*
+
+# never commit: recordings, renders, logs, backups, demo deploy data, local tool state
+*.mp4
+*.mkv
+*.mov
+*.webm
+*.wav
+*.log
+/demo-data/
+/backups/
+*.backup
+*.bak
+/.claude/
+/skills-lock.json

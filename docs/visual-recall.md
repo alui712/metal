@@ -1,6 +1,6 @@
 # Visual Recall — setup and accuracy findings
 
-Visual Recall lets Recall find moments by what was **on screen**, including in silent recordings. It is opt-in twice: per recording (**Index visuals**) and per search (the Recall **Scenes · experimental** toggle, `?visual=1`; off by default, and CLIP doesn't run when it's off). It runs entirely on this computer and labels every visual match as **approximate**. Design: [ADR 0022](decisions/0022-visual-recall.md).
+Visual Recall lets Recall find moments by what was **on screen**, including in silent recordings. It is opt-in twice: per recording (**Index visuals**) and per search (the Recall **Scenes** toggle, badged **Experimental**, `?visual=1`; off by default, and CLIP doesn't run when it's off). It runs entirely on this computer and labels every visual match as **approximate**. Design: [ADR 0022](decisions/0022-visual-recall.md).
 
 ## Model setup
 
@@ -13,7 +13,6 @@ Visual Recall lets Recall find moments by what was **on screen**, including in s
 | Size on disk | ~312 MB including the unused fp16 vision file. The two quantized files alone are ~150 MB. |
 
 **Getting the files.** Download the repository `Xenova/clip-vit-base-patch16` from Hugging Face yourself, with your own approval, into `models/Xenova/clip-vit-base-patch16/`.
-- In this worktree they were copied from `~/Projects/metal/models/`. Those were downloaded with approval during the earlier feasibility study, so no new download happened.
 - If the files are missing, the recording page and Recall say *"Visual search model not found"*, and indexing refuses to start.
 
 **Why CLIP and not SigLIP.**

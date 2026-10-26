@@ -202,7 +202,8 @@ export function LibraryRecall() {
             visual ? "border-accent/50 bg-accent/15 text-accent-ink" : "border-line-strong text-ink-muted hover:text-ink",
           )}
         >
-          <Eye className="size-3.5" aria-hidden /> Scenes · experimental {visual ? "on" : "off"}
+          <Eye className="size-3.5" aria-hidden /> Scenes {visual ? "on" : "off"}
+          <span className="rounded-full border border-warn/40 bg-warn/10 px-1.5 py-px text-[10.5px] font-semibold uppercase tracking-wide text-warn">Experimental</span>
         </button>
         <span className="text-ink-faint">
           {visual

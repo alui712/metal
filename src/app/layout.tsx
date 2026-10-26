@@ -11,6 +11,7 @@ import {
 import { TourDock } from "@/components/judge/tour-dock";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { MotionProvider } from "@/components/shell/motion-provider";
+import { DemoBanner } from "@/components/shell/demo-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -67,6 +68,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </Suspense>
             </aside>
             <main id="main" className="min-w-0 flex-1 pb-28 md:pb-0">
+              <DemoBanner />
               <MobileHeader />
               {children}
             </main>
